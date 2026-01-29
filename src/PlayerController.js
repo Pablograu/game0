@@ -9,6 +9,7 @@ import {
   StandardMaterial,
   Color3
 } from '@babylonjs/core'
+import { WeaponSystem } from './WeaponSystem'
 
 export class PlayerController {
   constructor(mesh, camera, scene) {
@@ -69,10 +70,26 @@ export class PlayerController {
     // ===== RAYCAST =====
     this.raycastResult = new PhysicsRaycastResult()
     
+    // ===== WEAPON SYSTEM =====
+    this.weaponSystem = null
+    
     this.setupInput()
     this.setupPhysics()
     this.setupParticles()
+    this.setupWeaponSystem()
     this.setupUpdate()
+  }
+  
+  setupWeaponSystem() {
+    // Crear sistema de armas
+    this.weaponSystem = new WeaponSystem(this, this.scene, {
+      damage: 1,
+      attackDuration: 0.15,
+      attackCooldown: 0.35,
+      debug: true // Cambiar a false para ocultar la hitbox
+    })
+    
+    console.log('WeaponSystem inicializado')
   }
   
   setupInput() {
@@ -214,7 +231,6 @@ export class PlayerController {
   
   update() {
     if (!this.body) return
-    
     const deltaTime = this.scene.getEngine().getDeltaTime() / 1000
     
     // Guardar estado anterior de grounded
@@ -558,5 +574,29 @@ export class PlayerController {
   
   setJumpBufferTime(time) {
     this.jumpBufferTime = time
+  }
+  
+  // ===== COMBAT SYSTEM =====
+  
+  /**
+   * Registra un enemigo para que el WeaponSystem lo detecte
+   * @param {EnemyDummy} enemy 
+   */
+  registerEnemy(enemy) {
+    if (this.weaponSystem) {
+      this.weaponSystem.registerEnemy(enemy)
+    }
+  }
+  
+  /**
+   * Registra múltiples enemigos
+   * @param {EnemyDummy[]} enemies 
+   */
+  registerEnemies(enemies) {
+    enemies.forEach(e => this.registerEnemy(e))
+  }
+  
+  getWeaponSystem() {
+    return this.weaponSystem
   }
 }

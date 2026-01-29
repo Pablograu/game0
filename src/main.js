@@ -15,6 +15,7 @@ import {
 import '@babylonjs/core/Cameras/Inputs'
 import HavokPhysics from '@babylonjs/havok'
 import { PlayerController } from './PlayerController'
+import { EnemyDummy } from './EnemyDummy'
 
 class Game {
   constructor() {
@@ -34,6 +35,7 @@ class Game {
     this.setupPlayerController()
     this.createDynamicObstacles()
     this.createStaticObstacles()
+    this.createEnemies()
     this.startRenderLoop()
     this.setupResize()
   }
@@ -219,6 +221,50 @@ class Game {
     })
     
     console.log('Obstáculos estáticos creados')
+  }
+
+  createEnemies() {
+    // Crear enemigos de prueba (sacos de boxeo)
+    this.enemies = []
+    
+    const enemyPositions = [
+      new Vector3(3, 1.5, 3),
+      new Vector3(-3, 1.5, 5),
+      new Vector3(0, 1.5, -5)
+    ]
+    
+    enemyPositions.forEach((pos, index) => {
+      // Crear mesh del enemigo (cubo)
+      const enemyMesh = MeshBuilder.CreateBox(`enemy${index}`, {
+        width: 1.2,
+        height: 2,
+        depth: 1.2
+      }, this.scene)
+      
+      enemyMesh.position = pos
+      
+      // Material púrpura
+      const material = new StandardMaterial(`enemyMat${index}`, this.scene)
+      material.diffuseColor = new Color3(0.6, 0.1, 0.6)
+      enemyMesh.material = material
+      
+      // Habilitar colisiones para la cámara
+      enemyMesh.checkCollisions = true
+      
+      // Crear instancia de EnemyDummy (configura física internamente)
+      const enemy = new EnemyDummy(enemyMesh, this.scene, {
+        hp: 3,
+        mass: 3,
+        knockbackForce: 12
+      })
+      
+      this.enemies.push(enemy)
+    })
+    
+    // Registrar enemigos en el PlayerController para que el WeaponSystem los detecte
+    this.playerController.registerEnemies(this.enemies)
+    
+    console.log(`${this.enemies.length} enemigos creados`)
   }
 
   startRenderLoop() {
