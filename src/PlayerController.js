@@ -70,6 +70,13 @@ export class PlayerController {
     // ===== RAYCAST =====
     this.raycastResult = new PhysicsRaycastResult()
     
+    // ===== RECOIL (RETROCESO) =====
+    this.recoilForce = 8      // Fuerza de retroceso horizontal al golpear
+    this.pogoForce = 14       // Fuerza del rebote hacia arriba (pogo)
+    this.isAttackingDown = false // Flag para detectar ataque hacia abajo
+    this.recoilVelocity = Vector3.Zero() // Velocidad de recoil actual
+    this.recoilDecay = 10     // Qué tan rápido decae el recoil
+    
     // ===== WEAPON SYSTEM =====
     this.weaponSystem = null
     
@@ -269,11 +276,18 @@ export class PlayerController {
       this.lastFacingDirection = moveDirection.clone()
     }
     
-    // Crear nueva velocidad (mantener Y para respetar gravedad)
+    // Decaer el recoil con el tiempo
+    if (this.recoilVelocity.length() > 0.1) {
+      this.recoilVelocity = this.recoilVelocity.scale(1 - this.recoilDecay * deltaTime)
+    } else {
+      this.recoilVelocity = Vector3.Zero()
+    }
+    
+    // Crear nueva velocidad (mantener Y para respetar gravedad) + RECOIL
     const newVelocity = new Vector3(
-      moveDirection.x * this.moveSpeed,
+      moveDirection.x * this.moveSpeed + this.recoilVelocity.x,
       currentVelocity.y, // Mantener velocidad vertical (gravedad)
-      moveDirection.z * this.moveSpeed
+      moveDirection.z * this.moveSpeed + this.recoilVelocity.z
     )
     
     // Aplicar velocidad directamente (movimiento snappy)
@@ -576,7 +590,70 @@ export class PlayerController {
     this.jumpBufferTime = time
   }
   
+  setRecoilForce(force) {
+    console.log('Recoil force set to:', force)
+    this.recoilForce = force
+  }
+  
+  setPogoForce(force) {
+    this.pogoForce = force
+  }
+  
   // ===== COMBAT SYSTEM =====
+  
+  /**
+   * Aplica recoil (retroceso) al jugador cuando golpea a un enemigo
+   * @param {Vector3} hitDirection - Dirección hacia el enemigo
+   * @param {Vector3} enemyPosition - Posición del enemigo golpeado
+   */
+  applyRecoil(hitDirection, enemyPosition) {
+    if (!this.body) return
+
+    const currentVelocity = this.body.getLinearVelocity()
+    const playerPos = this.mesh.getAbsolutePosition()
+    
+    // Detectar si es un ataque hacia abajo (pogo)
+    // El enemigo está debajo del jugador Y el jugador está en el aire
+    const isPogoHit = !this.isGrounded && enemyPosition.y < playerPos.y - 0.5
+    
+    if (isPogoHit) {
+      // ===== POGO: Rebote hacia arriba =====
+      console.log('¡POGO!')
+      
+      // Aplicar fuerza hacia arriba, cancelando velocidad negativa
+      const pogoVelocity = new Vector3(
+        currentVelocity.x * 0.5, // Reducir velocidad horizontal ligeramente
+        this.pogoForce,          // Fuerza de pogo hacia arriba
+        currentVelocity.z * 0.5
+      )
+      
+      this.body.setLinearVelocity(pogoVelocity)
+      
+      // Feedback visual: pequeño squash
+      this.targetScale = new Vector3(0.9, 1.15, 0.9)
+      setTimeout(() => {
+        this.targetScale = this.originalScale.clone()
+      }, 80)
+      
+    } else {
+      // ===== RECOIL HORIZONTAL: Retroceso normal =====
+      console.log('Applying horizontal recoil, force:', this.recoilForce)
+      
+      // Dirección opuesta al golpe (alejarse del enemigo)
+      const recoilDirection = hitDirection.scale(-1)
+      recoilDirection.y = 0 // Mantener horizontal
+      recoilDirection.normalize()
+      
+      // Aplicar recoil como velocidad adicional que decae
+      this.recoilVelocity = new Vector3(
+        recoilDirection.x * this.recoilForce,
+        0,
+        recoilDirection.z * this.recoilForce
+      )
+      
+      console.log('recoilVelocity set to:', this.recoilVelocity)
+    }
+  }
   
   /**
    * Registra un enemigo para que el WeaponSystem lo detecte

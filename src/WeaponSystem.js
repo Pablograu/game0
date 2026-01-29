@@ -193,29 +193,26 @@ export class WeaponSystem {
     const enemyPos = enemy.mesh.getAbsolutePosition()
     const knockbackDir = enemyPos.subtract(playerPos).normalize()
     
+    console.log('onHitEnemy called!')
+    console.log('knockbackDir:', knockbackDir)
+    console.log('this.player:', this.player)
+    console.log('applyRecoil exists:', typeof this.player?.applyRecoil)
+    
     // Aplicar daño al enemigo
     enemy.takeDamage(this.damage, knockbackDir)
     
-    // Retroceso del jugador (sensación de impacto)
-    this.applyPlayerKnockback(knockbackDir)
+    // Aplicar recoil al jugador (usa el método del PlayerController)
+    if (this.player && this.player.applyRecoil) {
+      console.log('Calling applyRecoil...')
+      this.player.applyRecoil(knockbackDir, enemyPos)
+    } else {
+      console.error('applyRecoil not found on player!')
+    }
     
     // Feedback: pequeño "hitstop" (congelar brevemente)
     this.hitstop()
     
     console.log('Hit enemy!')
-  }
-  
-  applyPlayerKnockback(hitDirection) {
-    if (!this.playerBody) return
-    
-    // Impulso en dirección opuesta al golpe
-    const knockback = hitDirection.scale(-this.playerKnockback)
-    knockback.y = 0 // Mantener en el suelo
-    
-    this.playerBody.applyImpulse(
-      knockback,
-      this.playerMesh.getAbsolutePosition()
-    )
   }
   
   hitstop() {
