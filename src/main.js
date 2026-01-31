@@ -255,8 +255,14 @@ class Game {
       const enemy = new EnemyDummy(enemyMesh, this.scene, {
         hp: 3,
         mass: 3,
-        knockbackForce: 12
+        knockbackForce: 12,
+        contactDamage: 1,
+        patrolSpeed: 2,
+        debug: false
       })
+      
+      // Asignar referencia al player para que pueda dañarlo
+      enemy.setPlayerRef(this.playerController)
       
       this.enemies.push(enemy)
     })

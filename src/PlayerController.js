@@ -9,6 +9,7 @@ import {
   StandardMaterial,
   Color3
 } from '@babylonjs/core'
+import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui'
 import { WeaponSystem } from './WeaponSystem'
 
 export class PlayerController {
@@ -77,6 +78,22 @@ export class PlayerController {
     this.recoilVelocity = Vector3.Zero() // Velocidad de recoil actual
     this.recoilDecay = 10     // Qué tan rápido decae el recoil
     
+    // ===== SISTEMA DE SALUD =====
+    this.maxHealth = 3
+    this.currentHealth = this.maxHealth
+    this.isInvulnerable = false
+    this.invulnerabilityDuration = 1.5 // Segundos de invulnerabilidad tras daño
+    this.invulnerabilityTimer = 0
+    this.blinkInterval = null
+    this.damageKnockbackForce = 6 // Fuerza de knockback al recibir daño
+    
+    // ===== SPAWN POINT =====
+    this.spawnPoint = mesh.position.clone() // Guardar posición inicial
+    
+    // ===== UI =====
+    this.healthUI = null
+    this.healthText = null
+    
     // ===== WEAPON SYSTEM =====
     this.weaponSystem = null
     
@@ -84,7 +101,45 @@ export class PlayerController {
     this.setupPhysics()
     this.setupParticles()
     this.setupWeaponSystem()
+    this.setupHealthUI()
     this.setupUpdate()
+  }
+  
+  setupHealthUI() {
+    // Crear textura de UI en pantalla completa
+    this.healthUI = AdvancedDynamicTexture.CreateFullscreenUI('healthUI', true, this.scene)
+    
+    // Crear texto de vidas
+    this.healthText = new TextBlock('healthText')
+    this.healthText.text = `Vidas: ${this.currentHealth}`
+    this.healthText.color = 'white'
+    this.healthText.fontSize = 32
+    this.healthText.fontFamily = 'Arial'
+    this.healthText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT
+    this.healthText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP
+    this.healthText.left = '20px'
+    this.healthText.top = '20px'
+    this.healthText.outlineWidth = 2
+    this.healthText.outlineColor = 'black'
+    
+    this.healthUI.addControl(this.healthText)
+    
+    console.log('Health UI inicializada')
+  }
+  
+  updateHealthUI() {
+    if (this.healthText) {
+      this.healthText.text = `Vidas: ${this.currentHealth}`
+      
+      // Cambiar color según salud
+      if (this.currentHealth <= 1) {
+        this.healthText.color = 'red'
+      } else if (this.currentHealth <= 2) {
+        this.healthText.color = 'orange'
+      } else {
+        this.healthText.color = 'white'
+      }
+    }
   }
   
   setupWeaponSystem() {
@@ -239,6 +294,9 @@ export class PlayerController {
   update() {
     if (!this.body) return
     const deltaTime = this.scene.getEngine().getDeltaTime() / 1000
+    
+    // ===== INVULNERABILIDAD UPDATE =====
+    this.updateInvulnerability(deltaTime)
     
     // Guardar estado anterior de grounded
     this.wasGrounded = this.isGrounded
@@ -637,7 +695,7 @@ export class PlayerController {
       
     } else {
       // ===== RECOIL HORIZONTAL: Retroceso normal =====
-      console.log('Applying horizontal recoil, force:', this.recoilForce)
+      console.log('Recoil! force:', this.recoilForce)
       
       // Dirección opuesta al golpe (alejarse del enemigo)
       const recoilDirection = hitDirection.scale(-1)
@@ -651,7 +709,6 @@ export class PlayerController {
         recoilDirection.z * this.recoilForce
       )
       
-      console.log('recoilVelocity set to:', this.recoilVelocity)
     }
   }
   
@@ -675,5 +732,149 @@ export class PlayerController {
   
   getWeaponSystem() {
     return this.weaponSystem
+  }
+  
+  // ===== SISTEMA DE DAÑO =====
+  
+  /**
+   * El jugador recibe daño
+   * @param {number} amount - Cantidad de daño
+   * @param {Vector3} damageSourcePosition - Posición de la fuente de daño (para knockback)
+   */
+  takeDamage(amount, damageSourcePosition = null) {
+    // Ignorar si es invulnerable o está muerto
+    if (this.isInvulnerable || this.currentHealth <= 0) {
+      console.log('Damage ignored (invulnerable or dead)')
+      return
+    }
+    
+    // Restar salud
+    this.currentHealth -= amount
+    console.log(`Player hit! Health: ${this.currentHealth}/${this.maxHealth}`)
+    
+    // Actualizar UI
+    this.updateHealthUI()
+    
+    // Verificar muerte
+    if (this.currentHealth <= 0) {
+      this.die()
+      return
+    }
+    
+    // ===== KNOCKBACK =====
+    if (damageSourcePosition && this.body) {
+      const playerPos = this.mesh.getAbsolutePosition()
+      const knockbackDir = playerPos.subtract(damageSourcePosition).normalize()
+      knockbackDir.y = 0.3 // Pequeño impulso hacia arriba
+      
+      this.recoilVelocity = new Vector3(
+        knockbackDir.x * this.damageKnockbackForce,
+        0,
+        knockbackDir.z * this.damageKnockbackForce
+      )
+      
+      // También aplicar impulso vertical
+      const currentVel = this.body.getLinearVelocity()
+      this.body.setLinearVelocity(new Vector3(
+        currentVel.x,
+        this.damageKnockbackForce * 0.5,
+        currentVel.z
+      ))
+    }
+    
+    // ===== INVULNERABILIDAD TEMPORAL =====
+    this.startInvulnerability()
+  }
+  
+  startInvulnerability() {
+    this.isInvulnerable = true
+    this.invulnerabilityTimer = this.invulnerabilityDuration
+    
+    // Iniciar parpadeo visual
+    this.startBlinking()
+    
+    console.log('Invulnerability started!')
+  }
+  
+  startBlinking() {
+    // Parpadear rápidamente (cada 100ms)
+    let visible = true
+    this.blinkInterval = setInterval(() => {
+      visible = !visible
+      this.mesh.visibility = visible ? 1 : 0.3
+    }, 100)
+  }
+  
+  stopBlinking() {
+    if (this.blinkInterval) {
+      clearInterval(this.blinkInterval)
+      this.blinkInterval = null
+    }
+    // Restaurar visibilidad completa
+    this.mesh.visibility = 1
+  }
+  
+  updateInvulnerability(deltaTime) {
+    if (!this.isInvulnerable) return
+    
+    this.invulnerabilityTimer -= deltaTime
+    
+    if (this.invulnerabilityTimer <= 0) {
+      this.isInvulnerable = false
+      this.stopBlinking()
+      console.log('Invulnerability ended!')
+    }
+  }
+  
+  die() {
+    console.log('Player died!')
+    
+    // Detener cualquier estado activo
+    this.stopBlinking()
+    this.isDashing = false
+    this.recoilVelocity = Vector3.Zero()
+    
+    // Pequeña pausa dramática
+    setTimeout(() => {
+      this.respawn()
+    }, 500)
+  }
+  
+  respawn() {
+    console.log('Respawning...')
+    
+    // Restaurar salud
+    this.currentHealth = this.maxHealth
+    this.updateHealthUI()
+    
+    // Teletransportar al spawn point
+    this.mesh.position = this.spawnPoint.clone()
+    
+    // Resetear velocidad
+    if (this.body) {
+      this.body.setLinearVelocity(Vector3.Zero())
+      this.body.setAngularVelocity(Vector3.Zero())
+    }
+    
+    // Pequeña invulnerabilidad post-respawn
+    this.startInvulnerability()
+    
+    console.log('Player respawned!')
+  }
+  
+  setSpawnPoint(position) {
+    this.spawnPoint = position.clone()
+  }
+  
+  getHealth() {
+    return this.currentHealth
+  }
+  
+  getMaxHealth() {
+    return this.maxHealth
+  }
+  
+  isAlive() {
+    return this.currentHealth > 0
   }
 }
