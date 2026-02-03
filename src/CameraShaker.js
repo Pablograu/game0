@@ -19,6 +19,11 @@ export class CameraShaker {
     // Offset aplicado a la cámara
     this.offset = Vector3.Zero()
     
+    // Posición original de la cámara para restaurar
+    this.originalAlpha = 0
+    this.originalBeta = 0
+    this.originalRadius = 0
+    
     // Frecuencia de la vibración (Hz)
     this.frequency = 30 // Vibraciones por segundo
     
@@ -58,8 +63,12 @@ export class CameraShaker {
       this.duration = duration
       this.elapsed = 0
       
-      // NO tocar lockedTarget - dejarlo activo para que siga al jugador
-      // Solo vamos a añadir offsets aleatorios cada frame
+      // Guardar posición original de la cámara
+      this.originalAlpha = this.camera.alpha
+      this.originalBeta = this.camera.beta
+      this.originalRadius = this.camera.radius
+      
+      console.log(`Saved original camera position - alpha: ${this.originalAlpha.toFixed(3)}, beta: ${this.originalBeta.toFixed(3)}, radius: ${this.originalRadius.toFixed(2)}`)
     }
   }
   
@@ -88,10 +97,10 @@ export class CameraShaker {
       const randomRadius = (Math.random() - 0.5) * 2 * this.intensity * 2
       
       // ===== APLICAR OFFSET A LA CÁMARA =====
-      // Añadir el offset directamente (lockedTarget sigue funcionando)
-      this.camera.alpha += randomAlpha
-      this.camera.beta += randomBeta
-      this.camera.radius += randomRadius
+      // Usar = en lugar de += para no acumular offsets
+      this.camera.alpha = this.originalAlpha + randomAlpha
+      this.camera.beta = this.originalBeta + randomBeta
+      this.camera.radius = this.originalRadius + randomRadius
       
       console.log(`Shake offset - alpha: ${randomAlpha.toFixed(3)}, beta: ${randomBeta.toFixed(3)}, intensity: ${this.intensity.toFixed(3)}`)
     }
@@ -110,8 +119,12 @@ export class CameraShaker {
     this.elapsed = 0
     this.offset = Vector3.Zero()
     
-    // No necesitamos restaurar nada - lockedTarget nunca se desactivó
-    // La cámara volverá automáticamente a su comportamiento normal
+    // Restaurar posición original de la cámara
+    this.camera.alpha = this.originalAlpha
+    this.camera.beta = this.originalBeta
+    this.camera.radius = this.originalRadius
+    
+    console.log(`Restored camera position - alpha: ${this.originalAlpha.toFixed(3)}, beta: ${this.originalBeta.toFixed(3)}, radius: ${this.originalRadius.toFixed(2)}`)
   }
   
   // ===== MÉTODOS DE CONVENIENCIA =====
