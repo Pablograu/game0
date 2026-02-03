@@ -6,8 +6,15 @@ import {
   PhysicsShapeType,
   PhysicsRaycastResult,
   RayHelper,
-  Ray
+  Ray,
+  MeshBuilder
 } from '@babylonjs/core'
+
+// ===== ESTADOS DE IA =====
+const EnemyState = {
+  PATROL: 'PATROL',
+  CHASE: 'CHASE'
+}
 
 export class EnemyDummy {
   constructor(mesh, scene, options = {}) {
@@ -32,6 +39,19 @@ export class EnemyDummy {
     this.isStunned = false
     this.stunTimer = 0
     this.stunDuration = options.stunDuration || 0.5 // Segundos de stun tras recibir daño
+    
+    // ===== SISTEMA DE ESTADOS IA =====
+    this.currentState = EnemyState.PATROL
+    
+    // ===== VISIÓN Y PERSECUCIÓN =====
+    this.visionRange = options.visionRange || 8       // Distancia para detectar al jugador
+    this.chaseGiveUpRange = options.chaseGiveUpRange || 12  // Distancia para rendirse
+    this.chaseSpeed = options.chaseSpeed || 5         // Velocidad de persecución
+    this.minChaseDistance = options.minChaseDistance || 1.5  // Distancia mínima (no meterse dentro del jugador)
+    this.distanceToPlayer = Infinity
+    
+    // ===== DEBUG VISUAL =====
+    this.visionCircle = null  // Mesh de debug para el rango de visión
     
     // ===== DAÑO AL JUGADOR =====
     this.contactDamage = options.contactDamage || 1 // Daño al tocar al jugador
@@ -60,12 +80,13 @@ export class EnemyDummy {
     // Configurar física y material
     this.setupPhysics(options)
     this.setupMaterial()
+    this.setupDebugVisuals()
     this.setupUpdate()
     
     // Tag para identificar enemigos
     this.mesh.metadata = { type: 'enemy', instance: this }
     
-    console.log('EnemyDummy creado con patrulla')
+    console.log('EnemyDummy creado con IA de patrulla y persecución')
   }
   
   setupPhysics(options) {
@@ -103,6 +124,38 @@ export class EnemyDummy {
     this.mesh.material.emissiveColor = new Color3(0, 0, 0)
   }
   
+  setupDebugVisuals() {
+    if (!this.debugMode) return
+    
+    // Crear círculo de visión (disco plano)
+    this.visionCircle = MeshBuilder.CreateDisc('visionRange', {
+      radius: this.visionRange,
+      tessellation: 32
+    }, this.scene)
+    
+    // Material semi-transparente
+    const visionMat = new StandardMaterial('visionMat', this.scene)
+    visionMat.diffuseColor = new Color3(1, 1, 0) // Amarillo
+    visionMat.alpha = 0.15
+    visionMat.backFaceCulling = false
+    this.visionCircle.material = visionMat
+    
+    // Rotar para que esté horizontal
+    this.visionCircle.rotation.x = Math.PI / 2
+    
+    // Posicionar en el suelo debajo del enemigo
+    this.visionCircle.position.y = 0.05
+    
+    // Hacer hijo del enemigo
+    this.visionCircle.parent = this.mesh
+    
+    // No debe afectar la física ni ser pickeable
+    this.visionCircle.isPickable = false
+    this.visionCircle.checkCollisions = false
+    
+    console.log('Vision debug circle created')
+  }
+  
   setupUpdate() {
     // Update loop
     this.scene.onBeforeRenderObservable.add(() => {
@@ -133,16 +186,172 @@ export class EnemyDummy {
         this.isStunned = false
         console.log('Enemy recovered from stun')
       }
-      // Durante el stun, mantener rotación bloqueada pero no patrullar
+      // Durante el stun, mantener rotación bloqueada pero no moverse
       this.body.setAngularVelocity(Vector3.Zero())
       return
     }
     
-    // ===== PATRULLA =====
-    this.patrol()
+    // ===== CALCULAR DISTANCIA AL JUGADOR =====
+    this.updateDistanceToPlayer()
+    
+    // ===== SISTEMA DE ESTADOS =====
+    this.updateState()
+    
+    // ===== EJECUTAR COMPORTAMIENTO SEGÚN ESTADO =====
+    switch (this.currentState) {
+      case EnemyState.PATROL:
+        this.patrol()
+        break
+      case EnemyState.CHASE:
+        this.chase()
+        break
+    }
+    
+    // ===== ACTUALIZAR DEBUG VISUAL =====
+    this.updateDebugVisuals()
     
     // Bloquear rotación angular siempre
     this.body.setAngularVelocity(Vector3.Zero())
+  }
+  
+  updateDistanceToPlayer() {
+    if (!this.playerRef || !this.playerRef.mesh) {
+      this.distanceToPlayer = Infinity
+      return
+    }
+    
+    const enemyPos = this.mesh.getAbsolutePosition()
+    const playerPos = this.playerRef.mesh.getAbsolutePosition()
+    
+    // Distancia en el plano XZ (ignorar altura)
+    const dx = playerPos.x - enemyPos.x
+    const dz = playerPos.z - enemyPos.z
+    this.distanceToPlayer = Math.sqrt(dx * dx + dz * dz)
+  }
+  
+  updateState() {
+    const previousState = this.currentState
+    
+    switch (this.currentState) {
+      case EnemyState.PATROL:
+        // Detectar jugador dentro del rango de visión
+        if (this.distanceToPlayer < this.visionRange) {
+          this.currentState = EnemyState.CHASE
+        }
+        break
+        
+      case EnemyState.CHASE:
+        // Rendirse si el jugador está muy lejos
+        if (this.distanceToPlayer > this.chaseGiveUpRange) {
+          this.currentState = EnemyState.PATROL
+        }
+        break
+    }
+    
+    // Log cambio de estado
+    if (previousState !== this.currentState) {
+      console.log(`Enemy state: ${previousState} -> ${this.currentState}`)
+      this.onStateChange(previousState, this.currentState)
+    }
+  }
+  
+  onStateChange(oldState, newState) {
+    // Cambiar color según estado para feedback visual
+    if (this.mesh.material) {
+      if (newState === EnemyState.CHASE) {
+        // Rojo cuando persigue
+        this.mesh.material.diffuseColor = new Color3(1, 0.2, 0.2)
+      } else {
+        // Volver al color original
+        this.mesh.material.diffuseColor = this.originalColor.clone()
+      }
+    }
+  }
+  
+  chase() {
+    if (!this.playerRef || !this.playerRef.mesh) return
+    
+    const enemyPos = this.mesh.getAbsolutePosition()
+    const playerPos = this.playerRef.mesh.getAbsolutePosition()
+    
+    // Dirección hacia el jugador (solo XZ)
+    const directionToPlayer = new Vector3(
+      playerPos.x - enemyPos.x,
+      0,
+      playerPos.z - enemyPos.z
+    )
+    
+    // Normalizar
+    if (directionToPlayer.length() > 0.01) {
+      directionToPlayer.normalize()
+    }
+    
+    // No acercarse demasiado (evitar meterse dentro del jugador)
+    let speed = this.chaseSpeed
+    if (this.distanceToPlayer < this.minChaseDistance) {
+      speed = 0 // Detenerse
+    }
+    
+    // Detectar paredes mientras persigue
+    const pos = this.mesh.position.clone()
+    const wallDetected = this.checkWallInDirection(pos, directionToPlayer)
+    
+    // Si hay pared, reducir velocidad o detenerse
+    if (wallDetected) {
+      speed = 0
+    }
+    
+    // Aplicar movimiento
+    const currentVelocity = this.body.getLinearVelocity()
+    const chaseVelocity = new Vector3(
+      directionToPlayer.x * speed,
+      currentVelocity.y, // Mantener gravedad
+      directionToPlayer.z * speed
+    )
+    
+    this.body.setLinearVelocity(chaseVelocity)
+    
+    // Actualizar dirección visual (voltear sprite)
+    if (directionToPlayer.x !== 0) {
+      this.mesh.scaling.x = Math.sign(directionToPlayer.x) * Math.abs(this.mesh.scaling.x)
+    }
+  }
+  
+  checkWallInDirection(pos, direction) {
+    // Raycast en la dirección de movimiento
+    const rayStart = new Vector3(pos.x, pos.y, pos.z)
+    const rayEnd = new Vector3(
+      pos.x + direction.x * this.detectionDistance,
+      pos.y,
+      pos.z + direction.z * this.detectionDistance
+    )
+    
+    this.physicsEngine.raycastToRef(rayStart, rayEnd, this.wallRayResult)
+    
+    if (this.wallRayResult.hasHit && this.wallRayResult.body !== this.body) {
+      // Verificar que no sea el jugador
+      if (this.playerRef && this.playerRef.body === this.wallRayResult.body) {
+        return false // No es pared, es el jugador
+      }
+      return true // Pared detectada
+    }
+    
+    return false
+  }
+  
+  updateDebugVisuals() {
+    if (!this.debugMode || !this.visionCircle) return
+    
+    // Cambiar color del círculo según estado
+    if (this.visionCircle.material) {
+      if (this.currentState === EnemyState.CHASE) {
+        this.visionCircle.material.diffuseColor = new Color3(1, 0, 0) // Rojo
+        this.visionCircle.material.alpha = 0.25
+      } else {
+        this.visionCircle.material.diffuseColor = new Color3(1, 1, 0) // Amarillo
+        this.visionCircle.material.alpha = 0.15
+      }
+    }
   }
   
   checkPlayerCollision() {
@@ -269,7 +478,7 @@ export class EnemyDummy {
     console.log('Enemy turned around, new direction:', this.patrolDirection)
   }
   
-  sdebugDrawRay(start, end, isAlert) {
+  debugDrawRay(start, end, isAlert) {
     // Crear un rayo visual temporal para debug
     const ray = new Ray(start, end.subtract(start).normalize(), Vector3.Distance(start, end))
     const rayHelper = RayHelper.CreateAndShow(ray, this.scene, isAlert ? new Color3(1, 0, 0) : new Color3(0, 1, 0))
@@ -381,6 +590,11 @@ export class EnemyDummy {
   }
   
   dispose() {
+    // Eliminar debug visual
+    if (this.visionCircle) {
+      this.visionCircle.dispose()
+    }
+    
     // Eliminar física
     if (this.physicsAggregate) {
       this.physicsAggregate.dispose()
@@ -408,12 +622,39 @@ export class EnemyDummy {
     return this.maxHP
   }
   
+  getState() {
+    return this.currentState
+  }
+  
+  isChasing() {
+    return this.currentState === EnemyState.CHASE
+  }
+  
   setPatrolSpeed(speed) {
     this.patrolSpeed = speed
   }
   
+  setChaseSpeed(speed) {
+    this.chaseSpeed = speed
+  }
+  
+  setVisionRange(range) {
+    this.visionRange = range
+    // Actualizar círculo de debug si existe
+    if (this.visionCircle) {
+      this.visionCircle.dispose()
+      this.setupDebugVisuals()
+    }
+  }
+  
   setDebugMode(enabled) {
     this.debugMode = enabled
+    if (enabled && !this.visionCircle) {
+      this.setupDebugVisuals()
+    } else if (!enabled && this.visionCircle) {
+      this.visionCircle.dispose()
+      this.visionCircle = null
+    }
   }
   
   /**
@@ -431,6 +672,7 @@ export class EnemyDummy {
     this.stunTimer = 0
     this.canDamagePlayer = true
     this.damageCooldownTimer = 0
+    this.currentState = EnemyState.PATROL
     if (this.mesh.material) {
       this.mesh.material.diffuseColor = this.originalColor.clone()
       this.mesh.material.emissiveColor = new Color3(0, 0, 0)

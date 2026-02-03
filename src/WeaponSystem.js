@@ -4,6 +4,7 @@ import {
   StandardMaterial,
   Color3
 } from '@babylonjs/core'
+import { EffectManager } from './EffectManager'
 
 export class WeaponSystem {
   constructor(playerController, scene, options = {}) {
@@ -26,9 +27,16 @@ export class WeaponSystem {
     this.cooldownTimer = 0
     this.hitbox = null
     this.hitEnemiesThisSwing = new Set() // Para evitar golpear al mismo enemigo múltiples veces
+    this.hitObjectsThisSwing = new Set() // Para objetos inanimados
     
     // Lista de enemigos en la escena (se debe poblar externamente)
     this.enemies = []
+    
+    // Referencia al motor de física para raycast
+    this.physicsEngine = scene.getPhysicsEngine()
+    
+    // CameraShaker (opcional)
+    this.cameraShaker = options.cameraShaker || null
     
     // Debug: mostrar hitbox
     this.debugMode = options.debug || false
@@ -130,6 +138,7 @@ export class WeaponSystem {
     this.attackTimer = this.attackDuration
     this.cooldownTimer = this.attackCooldown
     this.hitEnemiesThisSwing.clear()
+    this.hitObjectsThisSwing.clear()
     
     // Activar hitbox
     this.hitbox.setEnabled(true)
@@ -182,6 +191,66 @@ export class WeaponSystem {
         this.onHitEnemy(enemy)
       }
     }
+    
+    // También verificar colisión con objetos estáticos/inanimados
+    this.checkObjectHits()
+  }
+  
+  checkObjectHits() {
+    // Obtener todos los meshes de la escena
+    const meshes = this.scene.meshes
+    
+    for (const mesh of meshes) {
+      // Saltar meshes que no deben ser golpeados
+      if (!mesh.isEnabled()) continue
+      if (mesh === this.hitbox) continue
+      if (mesh === this.playerMesh) continue
+      if (mesh.name === 'ground') continue // Ignorar el suelo
+      if (mesh.name.includes('visionRange')) continue // Ignorar debug circles
+      if (mesh.name.includes('Particle')) continue
+      if (this.hitObjectsThisSwing.has(mesh)) continue
+      
+      // Verificar si es un enemigo (ya manejado arriba)
+      if (mesh.metadata?.type === 'enemy') continue
+      
+      // Verificar si tiene física (es un objeto sólido)
+      if (!mesh.physicsBody) continue
+      
+      // Verificar intersección
+      if (this.hitbox.intersectsMesh(mesh, false)) {
+        this.onHitObject(mesh)
+      }
+    }
+  }
+  
+  onHitObject(mesh) {
+    // Marcar como golpeado
+    this.hitObjectsThisSwing.add(mesh)
+    
+    // Calcular posición del impacto
+    const playerPos = this.playerMesh.getAbsolutePosition()
+    const objectPos = mesh.getAbsolutePosition()
+    
+    // Punto de impacto (más cerca del objeto)
+    const hitPosition = Vector3.Lerp(playerPos, objectPos, 0.7)
+    
+    // ===== EFECTO VISUAL: HitSpark (más pequeño para objetos) =====
+    EffectManager.showHitSpark(hitPosition, {
+      count: 15,
+      duration: 0.2,
+      speed: { min: 5, max: 10 },
+      size: { min: 0.03, max: 0.12 }
+    })
+    
+    // Pequeño hitstop (menos que con enemigos)
+    this.hitstop(25)
+    
+    // ===== CAMERA SHAKE SUAVE =====
+    if (this.cameraShaker) {
+      this.cameraShaker.shake(0.08, 0.12) // Muy suave para objetos
+    }
+    
+    console.log('Hit object:', mesh.name)
   }
   
   onHitEnemy(enemy) {
@@ -192,6 +261,12 @@ export class WeaponSystem {
     const playerPos = this.playerMesh.getAbsolutePosition()
     const enemyPos = enemy.mesh.getAbsolutePosition()
     const knockbackDir = enemyPos.subtract(playerPos).normalize()
+    
+    // ===== EFECTO VISUAL: HitSpark =====
+    // Posición del impacto (punto medio entre jugador y enemigo)
+    const hitPosition = Vector3.Lerp(playerPos, enemyPos, 0.6)
+    hitPosition.y = enemyPos.y // Ajustar a la altura del enemigo
+    EffectManager.showHitSpark(hitPosition)
     
     console.log('onHitEnemy called!')
     console.log('knockbackDir:', knockbackDir)
@@ -212,10 +287,15 @@ export class WeaponSystem {
     // Feedback: pequeño "hitstop" (congelar brevemente)
     this.hitstop()
     
+    // ===== CAMERA SHAKE MEDIO =====
+    if (this.cameraShaker) {
+      this.cameraShaker.shakeMedium()
+    }
+    
     console.log('Hit enemy!')
   }
   
-  hitstop() {
+  hitstop(durationMs = 50) {
     // Efecto de "hitstop": pausar brevemente la física
     // Esto da sensación de impacto pesado
     const physicsEngine = this.scene.getPhysicsEngine()
@@ -230,7 +310,7 @@ export class WeaponSystem {
       setTimeout(() => {
         // Volver a velocidad normal
         physicsEngine.setTimeStep(originalTimeStep)
-      }, 50) // 50ms de hitstop
+      }, durationMs)
     }
   }
   

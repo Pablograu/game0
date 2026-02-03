@@ -11,14 +11,16 @@ import {
 } from '@babylonjs/core'
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui'
 import { WeaponSystem } from './WeaponSystem'
+import { EffectManager } from './EffectManager'
 
 export class PlayerController {
-  constructor(mesh, camera, scene) {
+  constructor(mesh, camera, scene, cameraShaker = null) {
     this.mesh = mesh
     this.camera = camera
     this.scene = scene
     this.body = mesh.physicsBody
     this.physicsEngine = scene.getPhysicsEngine()
+    this.cameraShaker = cameraShaker
     
     // Variables públicas para tunear
     this.moveSpeed = 8
@@ -148,7 +150,8 @@ export class PlayerController {
       damage: 1,
       attackDuration: 0.15,
       attackCooldown: 0.35,
-      debug: true // Cambiar a false para ocultar la hitbox
+      debug: true, // Cambiar a false para ocultar la hitbox
+      cameraShaker: this.cameraShaker // Pasar referencia al shake
     })
     
     console.log('WeaponSystem inicializado')
@@ -475,7 +478,16 @@ export class PlayerController {
       // Feedback visual: estirar al saltar
       this.applyJumpStretch()
       
-      // Partículas de polvo al saltar
+      // Partículas de polvo al saltar con EffectManager
+      const dustPos = this.mesh.getAbsolutePosition().clone()
+      dustPos.y -= this.playerHeight / 2
+      EffectManager.showDust(dustPos, {
+        count: 12,
+        duration: 0.35,
+        direction: 'up'
+      })
+      
+      // Partículas locales también
       this.emitDust(15)
     }
   }
@@ -616,8 +628,22 @@ export class PlayerController {
     // Feedback visual al aterrizar
     this.applyLandSquash()
     
-    // Partículas de polvo
+    // Partículas de polvo con EffectManager
+    const dustPos = this.mesh.getAbsolutePosition().clone()
+    dustPos.y -= this.playerHeight / 2 // A los pies
+    EffectManager.showDust(dustPos, {
+      count: 20,
+      duration: 0.5,
+      direction: 'radial'
+    })
+    
+    // También emitir las partículas locales
     this.emitDust(20)
+    
+    // Camera shake suave
+    if (this.cameraShaker) {
+      this.cameraShaker.shakeSoft()
+    }
     
     console.log('Aterrizaje!')
   }
@@ -784,6 +810,11 @@ export class PlayerController {
     
     // ===== INVULNERABILIDAD TEMPORAL =====
     this.startInvulnerability()
+    
+    // ===== CAMERA SHAKE FUERTE =====
+    if (this.cameraShaker) {
+      this.cameraShaker.shakeHard()
+    }
   }
   
   startInvulnerability() {

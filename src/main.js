@@ -16,6 +16,8 @@ import '@babylonjs/core/Cameras/Inputs'
 import HavokPhysics from '@babylonjs/havok'
 import { PlayerController } from './PlayerController'
 import { EnemyDummy } from './EnemyDummy'
+import { EffectManager } from './EffectManager'
+import { CameraShaker } from './CameraShaker'
 
 class Game {
   constructor() {
@@ -50,6 +52,9 @@ class Game {
     // Habilitar colisiones en la escena
     this.scene.collisionsEnabled = true
     
+    // Inicializar EffectManager
+    EffectManager.init(this.scene)
+    
     console.log('Física Havok inicializada')
   }
 
@@ -83,8 +88,11 @@ class Game {
   }
 
   setupPlayerController() {
+    // Inicializar CameraShaker
+    this.cameraShaker = new CameraShaker(this.camera, this.scene)
+    
     // Instanciar el controlador con la cámara ya creada
-    this.playerController = new PlayerController(this.player, this.camera, this.scene)
+    this.playerController = new PlayerController(this.player, this.camera, this.scene, this.cameraShaker)
     
     // Tunear valores
     this.playerController.setMoveSpeed(8)
@@ -258,7 +266,10 @@ class Game {
         knockbackForce: 12,
         contactDamage: 1,
         patrolSpeed: 2,
-        debug: false
+        chaseSpeed: 4,
+        visionRange: 2,
+        chaseGiveUpRange: 12,
+        debug: true  // Mostrar círculo de visión
       })
       
       // Asignar referencia al player para que pueda dañarlo
