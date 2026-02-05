@@ -4,10 +4,31 @@ import {
   StandardMaterial,
   Color3
 } from '@babylonjs/core'
-import { EffectManager } from './EffectManager'
+import { EffectManager } from './EffectManager.ts'
 
 export class WeaponSystem {
-  constructor(playerController, scene, options = {}) {
+  player: any
+  playerMesh: any
+  playerBody: any
+  scene: any
+  damage: number
+  attackDuration: number
+  attackCooldown: number
+  hitboxSize: Vector3
+  hitboxOffset: number
+  playerKnockback: number
+  isAttacking: boolean
+  attackTimer: number
+  cooldownTimer: number
+  hitbox: any
+  hitEnemiesThisSwing: Set<any>
+  hitObjectsThisSwing: Set<any>
+  enemies: any[]
+  physicsEngine: any
+  cameraShaker: any
+  debugMode: boolean
+
+  constructor(playerController: any, scene: any, options: any = {}) {
     this.player = playerController
     this.playerMesh = playerController.mesh
     this.playerBody = playerController.body

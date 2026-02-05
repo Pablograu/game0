@@ -4,17 +4,73 @@ import {
   PhysicsRaycastResult,
   ParticleSystem,
   Texture,
-  Color4,
-  MeshBuilder,
-  StandardMaterial,
-  Color3
+  Color4
 } from '@babylonjs/core'
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui'
-import { WeaponSystem } from './WeaponSystem'
-import { EffectManager } from './EffectManager'
+import { WeaponSystem } from './WeaponSystem.ts'
+import { EffectManager } from './EffectManager.ts'
+import { AnimationHandler } from './AnimationHandler.ts'
 
 export class PlayerController {
-  constructor(mesh, camera, scene, cameraShaker = null) {
+  blinkInterval: any
+  body: any
+  camera: any
+  cameraShaker: any
+  coyoteTime: number
+  coyoteTimer: number
+  currentHealth: number
+  damageKnockbackForce: number
+  dashCooldown: number
+  dashCooldownTimer: number
+  dashDirection: Vector3
+  dashDuration: number
+  dashParticles: ParticleSystem | null
+  dashSpeed: number
+  dashTimer: number
+  dustParticles: ParticleSystem | null
+  healthText: TextBlock | null
+  healthUI: AdvancedDynamicTexture | null
+  inputMap: Record<string, boolean>
+  invulnerabilityDuration: number
+  invulnerabilityTimer: number
+  isAttacking: boolean = false
+  isAttackingDown: boolean
+  isDashing: boolean
+  isGrounded: boolean
+  isInvulnerable: boolean
+  isMoving: boolean = false
+  jumpBufferTime: number
+  jumpBufferTimer: number
+  jumpCutMultiplier: number
+  jumpForce: number
+  jumpKeyReleased: boolean
+  lastFacingDirection: Vector3
+  maxHealth: number
+  mesh: any
+  moveSpeed: number
+  originalScale: Vector3
+  physicsEngine: any
+  playerHeight: number
+  playerRadius: number
+  pogoForce: number
+  raycastResult: PhysicsRaycastResult
+  recoilDecay: number
+  recoilForce: number
+  recoilVelocity: Vector3
+  rotationSpeed: number
+  scaleSpeed: number
+  scene: any
+  spawnPoint: Vector3
+  targetAngle: number = 0
+  targetRotation: Quaternion
+  targetScale: Vector3
+  wasGrounded: boolean
+  weaponSystem: WeaponSystem | null
+  animationHandler: AnimationHandler | null
+  comboCounter: number = 0
+  isBreakdancing: boolean = false
+
+  constructor(mesh: any, camera: any, scene: any, cameraShaker: any = null) {
     this.mesh = mesh
     this.camera = camera
     this.scene = scene
@@ -99,11 +155,15 @@ export class PlayerController {
     // ===== WEAPON SYSTEM =====
     this.weaponSystem = null
     
+    // ===== ANIMATION HANDLER =====
+    this.animationHandler = null
+    
     this.setupInput()
     this.setupPhysics()
     this.setupParticles()
     this.setupWeaponSystem()
     this.setupHealthUI()
+    this.setupAnimationHandler() // Intentar inicializar (funcionará si los modelos ya están)
     this.setupUpdate()
   }
   
@@ -157,9 +217,23 @@ export class PlayerController {
     console.log('WeaponSystem inicializado')
   }
   
+  setupAnimationHandler() {
+    // Solo inicializar si los modelos ya están cargados
+    if (this.mesh.animationModels) {
+      this.animationHandler = new AnimationHandler(
+        this.mesh.animationModels,
+        this.mesh,
+        'idle'
+      )
+      console.log('AnimationHandler inicializado con éxito')
+    } else {
+      console.warn('setupAnimationHandler: No hay animationModels disponibles aún')
+    }
+  }
+  
   setupInput() {
     // Capturar input del teclado
-    this.scene.onKeyboardObservable.add((kbInfo) => {
+    this.scene.onKeyboardObservable.add((kbInfo: any) => {
       const key = kbInfo.event.key.toLowerCase()
       
       if (kbInfo.type === 1) { // KEYDOWN
@@ -175,6 +249,11 @@ export class PlayerController {
         if (key === 'shift' && this.dashCooldownTimer <= 0 && !this.isDashing) {
           this.startDash()
         }
+        
+        // Breakdance input (tecla 1)
+        if (key === '1') {
+          this.tryBreakdance()
+        }
       } else if (kbInfo.type === 2) { // KEYUP
         this.inputMap[key] = false
         
@@ -184,6 +263,76 @@ export class PlayerController {
         }
       }
     })
+    
+    // Capturar click izquierdo para combo de ataque
+    this.scene.onPointerObservable.add((pointerInfo: any) => {
+      if (pointerInfo.type === 1) { // POINTERDOWN
+        if (pointerInfo.event.button === 0) { // Click izquierdo
+          this.performComboAttack()
+        }
+      }
+    })
+  }
+  
+  // ===== SISTEMA DE COMBOS =====
+  performComboAttack() {
+    if (!this.animationHandler) return
+    
+    // No atacar si está en una animación especial
+    if (this.isBreakdancing || this.animationHandler.isPlayingOneShotAnimation()) {
+      return
+    }
+    
+    // Alternar entre punch_r (primer golpe) y punch_l (segundo golpe)
+    const punchAnim = this.comboCounter === 0 ? 'punch_r' : 'punch_l'
+    
+    console.log(`Combo attack ${this.comboCounter + 1}: ${punchAnim}`)
+    
+    // Determinar a qué animación volver
+    const returnAnim = this.isGrounded ? 'idle' : 'jump'
+    
+    // Reproducir animación de ataque
+    this.animationHandler.playOneShot(punchAnim, returnAnim, 1.5)
+    
+    // Avanzar contador de combo
+    this.comboCounter = (this.comboCounter + 1) % 2
+    
+    // Resetear combo después de 1 segundo si no ataca de nuevo
+    setTimeout(() => {
+      this.comboCounter = 0
+    }, 1000)
+  }
+  
+  // ===== BREAKDANCE =====
+  tryBreakdance() {
+    if (!this.animationHandler) return
+    
+    // Checks de seguridad
+    if (!this.isGrounded) {
+      console.log('No puedes hacer breakdance en el aire!')
+      return
+    }
+    
+    if (this.isDashing) {
+      console.log('No puedes hacer breakdance mientras dasheas!')
+      return
+    }
+    
+    if (this.isBreakdancing || this.animationHandler.isPlayingOneShotAnimation()) {
+      console.log('Ya estás en una animación especial!')
+      return
+    }
+    
+    console.log('¡Breakdance!')
+    this.isBreakdancing = true
+    
+    // Reproducir animación de breakdance
+    this.animationHandler.playOneShot('breakdance', 'idle', 1.0)
+    
+    // Marcar como terminado cuando acabe
+    setTimeout(() => {
+      this.isBreakdancing = false
+    }, 2000) // Ajustar según duración de la animación
   }
   
   setupPhysics() {
@@ -276,6 +425,7 @@ export class PlayerController {
     canvas.width = size
     canvas.height = size
     const ctx = canvas.getContext('2d')
+    if (!ctx) return new Texture('', this.scene)
     
     // Dibujar un cuadrado con bordes suaves
     ctx.fillStyle = 'white'
@@ -373,6 +523,68 @@ export class PlayerController {
     if (this.isGrounded && !this.wasGrounded) {
       this.onLand()
     }
+    
+    // ===== ACTUALIZAR ANIMACIONES =====
+    this.updateAnimation(moveDirection, currentVelocity)
+  }
+  
+  // ===== SISTEMA DE ANIMACIONES =====
+  updateAnimation(moveDirection: any, velocity: any) {
+    // Inicializar AnimationHandler si aún no existe y hay modelos
+    if (!this.animationHandler && this.mesh.animationModels) {
+      this.setupAnimationHandler()
+    }
+    
+    if (!this.animationHandler) return // No hay handler aún
+    
+    let targetAnimation = 'idle'
+    let animSpeed = 1.0
+    
+    // Determinar animación según estado
+    if (!this.isGrounded && velocity.y > 0.5) {
+      // Saltando (subiendo)
+      targetAnimation = 'jump'
+      // Velocidad proporcional a velocidad vertical (más rápido al inicio)
+      animSpeed = Math.max(0.3, velocity.y / this.jumpForce * 0.8)
+    } else if (!this.isGrounded && velocity.y < -0.5) {
+      // Cayendo - animar más lento
+      targetAnimation = 'jump'
+      // Velocidad muy lenta mientras cae
+      animSpeed = 0.2
+    } else if (!this.isGrounded) {
+      // En el aire cerca del pico del salto (velocity.y cercano a 0)
+      targetAnimation = 'jump'
+      animSpeed = 0.15 // Muy lento en el pico
+    } else if (this.isGrounded && moveDirection.length() > 0.1) {
+      // Corriendo
+      targetAnimation = 'run'
+      animSpeed = 1.0
+    } else {
+      // Idle
+      targetAnimation = 'idle'
+      animSpeed = 1.0
+    }
+    
+    // Cambiar animación con blending suave
+    if (this.animationHandler.getCurrentAnimation() !== targetAnimation) {
+      this.animationHandler.play(targetAnimation, { loop: true, speed: animSpeed })
+    } else if (targetAnimation === 'jump' && this.animationHandler.getCurrentAnimation() === 'jump') {
+      // Si ya está en jump, actualizar la velocidad continuamente
+      const currentModel = this.mesh.animationModels?.['jump']
+      if (currentModel?.animations[0]) {
+        currentModel.animations[0].speedRatio = animSpeed
+      }
+    }
+    
+    // Update del handler (fix root motion cada frame)
+    this.animationHandler.update()
+  }
+  
+  // Método legacy para compatibilidad - ahora usa AnimationHandler
+  switchAnimation(newAnimation: string) {
+    if (this.animationHandler) {
+      this.animationHandler.play(newAnimation, { loop: true })
+    }
   }
   
   // ===== GROUND CHECK CON RAYCAST =====
@@ -405,7 +617,7 @@ export class PlayerController {
   }
   
   // ===== COYOTE TIME =====
-  updateCoyoteTime(deltaTime) {
+  updateCoyoteTime(deltaTime: number) {
     if (this.isGrounded) {
       // Resetear el timer cuando está en el suelo
       this.coyoteTimer = this.coyoteTime
@@ -458,7 +670,7 @@ export class PlayerController {
     return direction
   }
   
-  handleJump(currentVelocity) {
+  handleJump(currentVelocity: any) {
     // Usar Jump Buffer: saltar si hay buffer Y puede saltar
     const shouldJump = this.jumpBufferTimer > 0 && this.canJump()
     
@@ -512,28 +724,53 @@ export class PlayerController {
   }
   
   // ===== ROTACIÓN VISUAL SUAVE =====
-  updateRotation(moveDirection, deltaTime) {
-    if (moveDirection.length() > 0.1) {
-      // Calcular el ángulo hacia la dirección de movimiento
-      const targetAngle = Math.atan2(moveDirection.x, moveDirection.z)
-      this.targetRotation = Quaternion.FromEulerAngles(0, targetAngle, 0)
+  updateRotation(moveDirection: any, deltaTime: number) {
+    // Solo rotar cuando hay movimiento activo
+    if (moveDirection.length() <= 0.1) return
+    
+    // Calcular el ángulo hacia la dirección de movimiento
+    const targetAngle = Math.atan2(moveDirection.x, moveDirection.z)
+    this.targetRotation = Quaternion.FromEulerAngles(0, targetAngle, 0)
+    
+    // Obtener el modelo actual desde AnimationHandler
+    let currentModel = null
+    if (this.animationHandler) {
+      const currentAnimName = this.animationHandler.getCurrentAnimation()
+      currentModel = this.mesh.animationModels?.[currentAnimName]
+    } else if (this.mesh.animationModels && this.mesh.currentAnimation) {
+      // Fallback legacy
+      currentModel = this.mesh.animationModels[this.mesh.currentAnimation]
     }
     
-    // Interpolar suavemente hacia la rotación objetivo (Slerp)
-    const currentRotation = this.mesh.rotationQuaternion || Quaternion.Identity()
-    
-    // Asegurarse de que el mesh usa quaternion
-    if (!this.mesh.rotationQuaternion) {
-      this.mesh.rotationQuaternion = Quaternion.Identity()
+    if (currentModel?.root) {
+      // Asegurarse de que el modelo usa quaternion
+      if (!currentModel.root.rotationQuaternion) {
+        currentModel.root.rotationQuaternion = Quaternion.FromEulerAngles(0, 0, 0)
+      }
+      
+      // Slerp hacia la rotación objetivo (sin offset)
+      const currentRotation = currentModel.root.rotationQuaternion
+      const slerpFactor = Math.min(1, this.rotationSpeed * deltaTime)
+      
+      currentModel.root.rotationQuaternion = Quaternion.Slerp(
+        currentRotation,
+        this.targetRotation,
+        slerpFactor
+      )
+    } else {
+      // Fallback: rotar la cápsula si no hay modelos cargados
+      if (!this.mesh.rotationQuaternion) {
+        this.mesh.rotationQuaternion = Quaternion.Identity()
+      }
+      
+      const currentRotation = this.mesh.rotationQuaternion
+      const slerpFactor = Math.min(1, this.rotationSpeed * deltaTime)
+      this.mesh.rotationQuaternion = Quaternion.Slerp(
+        currentRotation,
+        this.targetRotation,
+        slerpFactor
+      )
     }
-    
-    // Slerp hacia la rotación objetivo
-    const slerpFactor = Math.min(1, this.rotationSpeed * deltaTime)
-    this.mesh.rotationQuaternion = Quaternion.Slerp(
-      currentRotation,
-      this.targetRotation,
-      slerpFactor
-    )
   }
   
   // ===== DASH =====
@@ -554,12 +791,12 @@ export class PlayerController {
     this.targetScale = new Vector3(0.7, 1.3, 0.7)
     
     // Activar partículas de dash
-    this.dashParticles.emitRate = 150
+    if (this.dashParticles) this.dashParticles.emitRate = 150
     
     console.log('Dash iniciado!')
   }
   
-  updateDash(deltaTime) {
+  updateDash(deltaTime: number) {
     // Aplicar velocidad de dash (sin gravedad)
     const dashVelocity = new Vector3(
       this.dashDirection.x * this.dashSpeed,
@@ -588,7 +825,7 @@ export class PlayerController {
     this.targetScale = this.originalScale.clone()
     
     // Desactivar partículas de dash
-    this.dashParticles.emitRate = 0
+    if (this.dashParticles) this.dashParticles.emitRate = 0
     
     console.log('Dash terminado!')
   }
@@ -614,7 +851,7 @@ export class PlayerController {
     }, 100)
   }
   
-  updateSquashStretch(deltaTime) {
+  updateSquashStretch(deltaTime: number) {
     // Interpolar suavemente hacia la escala objetivo
     const lerpFactor = Math.min(1, this.scaleSpeed * deltaTime)
     
@@ -648,38 +885,38 @@ export class PlayerController {
     console.log('Aterrizaje!')
   }
   
-  emitDust(amount) {
+  emitDust(amount: number) {
     // Emitir una ráfaga de partículas
-    this.dustParticles.manualEmitCount = amount
+    if (this.dustParticles) this.dustParticles.manualEmitCount = amount
   }
   
   // ===== MÉTODOS PÚBLICOS =====
-  setMoveSpeed(speed) {
+  setMoveSpeed(speed: number) {
     this.moveSpeed = speed
   }
   
-  setJumpForce(force) {
+  setJumpForce(force: number) {
     this.jumpForce = force
   }
   
-  setDashSpeed(speed) {
+  setDashSpeed(speed: number) {
     this.dashSpeed = speed
   }
   
-  setCoyoteTime(time) {
+  setCoyoteTime(time: number) {
     this.coyoteTime = time
   }
   
-  setJumpBufferTime(time) {
+  setJumpBufferTime(time: number) {
     this.jumpBufferTime = time
   }
   
-  setRecoilForce(force) {
+  setRecoilForce(force: number) {
     console.log('Recoil force set to:', force)
     this.recoilForce = force
   }
   
-  setPogoForce(force) {
+  setPogoForce(force: number) {
     this.pogoForce = force
   }
   
@@ -690,7 +927,7 @@ export class PlayerController {
    * @param {Vector3} hitDirection - Dirección hacia el enemigo
    * @param {Vector3} enemyPosition - Posición del enemigo golpeado
    */
-  applyRecoil(hitDirection, enemyPosition) {
+  applyRecoil(hitDirection: any, enemyPosition: any) {
     if (!this.body) return
 
     const currentVelocity = this.body.getLinearVelocity()
@@ -742,7 +979,7 @@ export class PlayerController {
    * Registra un enemigo para que el WeaponSystem lo detecte
    * @param {EnemyDummy} enemy 
    */
-  registerEnemy(enemy) {
+  registerEnemy(enemy: any) {
     if (this.weaponSystem) {
       this.weaponSystem.registerEnemy(enemy)
     }
@@ -752,8 +989,8 @@ export class PlayerController {
    * Registra múltiples enemigos
    * @param {EnemyDummy[]} enemies 
    */
-  registerEnemies(enemies) {
-    enemies.forEach(e => this.registerEnemy(e))
+  registerEnemies(enemies: any[]) {
+    enemies.forEach((e: any) => this.registerEnemy(e))
   }
   
   getWeaponSystem() {
@@ -767,7 +1004,7 @@ export class PlayerController {
    * @param {number} amount - Cantidad de daño
    * @param {Vector3} damageSourcePosition - Posición de la fuente de daño (para knockback)
    */
-  takeDamage(amount, damageSourcePosition = null) {
+  takeDamage(amount: number, damageSourcePosition: any = null) {
     // Ignorar si es invulnerable o está muerto
     if (this.isInvulnerable || this.currentHealth <= 0) {
       console.log('Damage ignored (invulnerable or dead)')
@@ -845,7 +1082,7 @@ export class PlayerController {
     this.mesh.visibility = 1
   }
   
-  updateInvulnerability(deltaTime) {
+  updateInvulnerability(deltaTime: number) {
     if (!this.isInvulnerable) return
     
     this.invulnerabilityTimer -= deltaTime
@@ -893,7 +1130,7 @@ export class PlayerController {
     console.log('Player respawned!')
   }
   
-  setSpawnPoint(position) {
+  setSpawnPoint(position: any) {
     this.spawnPoint = position.clone()
   }
   

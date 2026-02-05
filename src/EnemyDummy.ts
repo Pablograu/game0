@@ -17,7 +17,46 @@ const EnemyState = {
 }
 
 export class EnemyDummy {
-  constructor(mesh, scene, options = {}) {
+  mesh: any
+  scene: any
+  physicsEngine: any
+  maxHP: number
+  hp: number
+  knockbackForce: number
+  patrolSpeed: number
+  patrolDirection: number
+  detectionDistance: number
+  edgeDetectionOffset: number
+  isDead: boolean
+  isHitFlashing: boolean
+  isStunned: boolean
+  stunTimer: number
+  stunDuration: number
+  currentState: string
+  visionRange: number
+  chaseGiveUpRange: number
+  chaseSpeed: number
+  minChaseDistance: number
+  distanceToPlayer: number
+  visionCircle: any
+  contactDamage: number
+  playerRef: any
+  canDamagePlayer: boolean
+  damageCooldown: number
+  damageCooldownTimer: number
+  debugMode: boolean
+  rayHelperEdge: any
+  rayHelperWall: any
+  originalColor: any
+  hitColor: Color3
+  enemyHeight: number
+  enemyWidth: number
+  edgeRayResult: PhysicsRaycastResult
+  wallRayResult: PhysicsRaycastResult
+  physicsAggregate: any
+  body: any
+
+  constructor(mesh: any, scene: any, options: any = {}) {
     this.mesh = mesh
     this.scene = scene
     this.physicsEngine = scene.getPhysicsEngine()

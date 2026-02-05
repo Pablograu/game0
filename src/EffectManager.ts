@@ -2,7 +2,6 @@ import {
   Vector3, 
   ParticleSystem,
   Color4,
-  Texture,
   DynamicTexture
 } from '@babylonjs/core'
 
@@ -11,18 +10,18 @@ import {
  * Uso: EffectManager.init(scene) una vez, luego EffectManager.showHitSpark(position)
  */
 class EffectManagerClass {
-  constructor() {
-    this.scene = null
-    this.sparkTexture = null
-    this.dustTexture = null
-    this.isInitialized = false
-  }
+  scene: any = null
+  sparkTexture: any = null
+  dustTexture: any = null
+  isInitialized: boolean = false
+
+  constructor() {}
 
   /**
    * Inicializa el EffectManager con la escena
    * @param {Scene} scene - La escena de Babylon.js
    */
-  init(scene) {
+  init(scene: any) {
     if (this.isInitialized) return
     
     this.scene = scene
@@ -46,7 +45,7 @@ class EffectManagerClass {
   /**
    * Crea una textura circular con gradiente radial
    */
-  createCircleTexture(name, size, glow = false) {
+  createCircleTexture(name: string, size: number, glow: boolean = false) {
     const dynamicTexture = new DynamicTexture(name, size, this.scene, false)
     const ctx = dynamicTexture.getContext()
     
@@ -79,7 +78,7 @@ class EffectManagerClass {
   /**
    * Crea una textura cuadrada con bordes suaves
    */
-  createSquareTexture(name, size) {
+  createSquareTexture(name: string, size: number) {
     const dynamicTexture = new DynamicTexture(name, size, this.scene, false)
     const ctx = dynamicTexture.getContext()
     
@@ -106,7 +105,7 @@ class EffectManagerClass {
    * @param {Vector3} position - Posición donde aparecen las chispas
    * @param {Object} options - Opciones de personalización
    */
-  showHitSpark(position, options = {}) {
+  showHitSpark(position: any, options: any = {}) {
     if (!this.isInitialized) {
       console.warn('EffectManager not initialized! Call EffectManager.init(scene) first.')
       return
@@ -212,7 +211,7 @@ class EffectManagerClass {
    * @param {Vector3} position - Posición donde aparece el polvo
    * @param {Object} options - Opciones de personalización
    */
-  showDust(position, options = {}) {
+  showDust(position: any, options: any = {}) {
     if (!this.isInitialized) {
       console.warn('EffectManager not initialized!')
       return
@@ -315,7 +314,7 @@ class EffectManagerClass {
    * @param {Vector3} position - Posición inicial
    * @param {Vector3} direction - Dirección del dash
    */
-  showDashTrail(position, direction, options = {}) {
+  showDashTrail(position: any, direction: any, options: any = {}) {
     if (!this.isInitialized) return
 
     const {

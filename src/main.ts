@@ -10,20 +10,33 @@ import {
   Color3, 
   HavokPlugin, 
   PhysicsAggregate, 
-  PhysicsShapeType, 
+  PhysicsShapeType,
+  Quaternion
 } from '@babylonjs/core'
+import { ImportMeshAsync } from '@babylonjs/core/Loading'
 import '@babylonjs/core/Cameras/Inputs'
+import '@babylonjs/loaders/glTF'
 import HavokPhysics from '@babylonjs/havok'
-import { PlayerController } from './PlayerController'
-import { EnemyDummy } from './EnemyDummy'
-import { EffectManager } from './EffectManager'
-import { CameraShaker } from './CameraShaker'
+import { PlayerController } from './PlayerController.ts'
+import { EnemyDummy } from './EnemyDummy.ts'
+import { EffectManager } from './EffectManager.ts'
+import { CameraShaker } from './CameraShaker.ts'
+import { DebugGUI } from './DebugGUI.ts'
 
 class Game {
+  canvas: any
+  engine: Engine
+  scene!: Scene
+  player: any
+  camera: ArcRotateCamera | null = null
+  cameraShaker: any
+  playerController: any
+  enemies: any[] = []
+  debugGUI: DebugGUI | null = null
+
   constructor() {
     this.canvas = document.getElementById('renderCanvas')
     this.engine = new Engine(this.canvas, true)
-    this.scene = null
     
     this.init()
   }
@@ -32,12 +45,13 @@ class Game {
     await this.initHavok()
     this.createLighting()
     this.createGround()
-    this.player = this.createPlayer()
+    this.player = await this.createPlayer()
     this.camera = this.createCamera()
     this.setupPlayerController()
     this.createDynamicObstacles()
     this.createStaticObstacles()
     this.createEnemies()
+    this.setupDebugGUI()
     this.startRenderLoop()
     this.setupResize()
   }
@@ -98,6 +112,9 @@ class Game {
     this.playerController.setMoveSpeed(8)
     this.playerController.setJumpForce(12)
     
+    // Inicializar AnimationHandler ahora que los modelos están cargados
+    this.playerController.setupAnimationHandler()
+    
     console.log('PlayerController inicializado')
   }
 
@@ -132,33 +149,82 @@ class Game {
     console.log('Suelo creado con física')
   }
 
-  createPlayer() {
-    // Crear mesh del jugador (cápsula)
-    const player = MeshBuilder.CreateCapsule('player', {
+  async createPlayer() {
+    // Crear cápsula invisible para la física
+    const physicsBody = MeshBuilder.CreateCapsule('player', {
       height: 2,
       radius: 0.5
     }, this.scene)
     
     // Posición inicial
-    player.position = new Vector3(0, 3, 0)
+    physicsBody.position = new Vector3(0, 3, 0)
     
-    // Material del jugador
-    const playerMaterial = new StandardMaterial('playerMat', this.scene)
-    playerMaterial.diffuseColor = new Color3(0.8, 0.2, 0.2)
-    player.material = playerMaterial
+    // Hacer invisible (solo para física)
+    physicsBody.isVisible = false
     
     // Habilitar colisiones para la cámara
-    player.checkCollisions = true
+    physicsBody.checkCollisions = true
     
-    // Agregar física al jugador (dinámico)
-    new PhysicsAggregate(player, PhysicsShapeType.CAPSULE, {
+    // Agregar física a la cápsula
+    new PhysicsAggregate(physicsBody, PhysicsShapeType.CAPSULE, {
       mass: 1,
       restitution: 0,
       friction: 0.5
     }, this.scene)
     
-    console.log('Jugador creado')
-    return player
+    // ===== CARGAR MODELO CON TODAS LAS ANIMACIONES =====
+    console.log('Loading animated character...')
+    
+    const result = await ImportMeshAsync("/models/animations_test.glb", this.scene)
+    console.log('<<<char', result);
+    
+    const modelRoot = result.meshes[0]!
+    modelRoot.parent = physicsBody
+    modelRoot.position = new Vector3(0, -1, 0)
+    modelRoot.scaling = new Vector3(1.5, 1.5, 1.5)
+    modelRoot.rotationQuaternion = Quaternion.FromEulerAngles(0, 0, 0)
+    
+    // Encontrar animaciones por nombre
+    const animationGroups = result.animationGroups
+    console.log('Animation groups found:', animationGroups.map(ag => ag.name))
+    
+    const idleAnim = animationGroups.find(ag => ag.name.toLowerCase() === 'idle')
+    const runAnim = animationGroups.find(ag => ag.name.toLowerCase() === 'run')
+    const jumpAnim = animationGroups.find(ag => ag.name.toLowerCase() === 'jump')
+    const punchLAnim = animationGroups.find(ag => ag.name.toLowerCase() === 'punch_l')
+    const punchRAnim = animationGroups.find(ag => ag.name.toLowerCase() === 'punch_r')
+    const breakdanceAnim = animationGroups.find(ag => ag.name.toLowerCase() === 'breakdance')
+    
+    if (!idleAnim || !runAnim || !jumpAnim) {
+      console.error('No se encontraron todas las animaciones requeridas')
+      console.error('Idle:', idleAnim?.name)
+      console.error('Run:', runAnim?.name)
+      console.error('Jump:', jumpAnim?.name)
+    }
+    
+    // Detener todas las animaciones inicialmente
+    for (const ag of animationGroups) {
+      ag.stop()
+    }
+    
+    // Guardar referencias - ahora todas usan el mismo root
+    (physicsBody as any).animationModels = {
+      idle: { root: modelRoot, animations: idleAnim ? [idleAnim] : [] },
+      run: { root: modelRoot, animations: runAnim ? [runAnim] : [] },
+      jump: { root: modelRoot, animations: jumpAnim ? [jumpAnim] : [] },
+      punch_l: { root: modelRoot, animations: punchLAnim ? [punchLAnim] : [] },
+      punch_r: { root: modelRoot, animations: punchRAnim ? [punchRAnim] : [] },
+      breakdance: { root: modelRoot, animations: breakdanceAnim ? [breakdanceAnim] : [] }
+    };
+    
+    // El AnimationHandler se encargará de iniciar las animaciones
+    console.log('Animated character loaded with animations:', {
+      idle: idleAnim?.name,
+      run: runAnim?.name,
+      jump: jumpAnim?.name
+    })
+    
+    return physicsBody
   }
 
   createDynamicObstacles() {
@@ -282,6 +348,18 @@ class Game {
     this.playerController.registerEnemies(this.enemies)
     
     console.log(`${this.enemies.length} enemigos creados`)
+  }
+
+  setupDebugGUI() {
+    console.log('<<< player', this.player);
+    
+    this.debugGUI = new DebugGUI()
+    this.debugGUI.setupPlayerControls(this.playerController)
+    this.debugGUI.setupModelControls(this.player)
+    this.debugGUI.setupEnemyControls(this.enemies)
+    this.debugGUI.setupCameraControls(this.camera)
+    this.debugGUI.addLogButton(this.playerController)
+    console.log('Debug GUI initialized')
   }
 
   startRenderLoop() {
