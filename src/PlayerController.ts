@@ -67,8 +67,6 @@ export class PlayerController {
   wasGrounded: boolean
   weaponSystem: WeaponSystem | null
   animationHandler: AnimationHandler | null
-  comboCounter: number = 0
-  isBreakdancing: boolean = false
 
   constructor(mesh: any, camera: any, scene: any, cameraShaker: any = null) {
     this.mesh = mesh
@@ -249,11 +247,6 @@ export class PlayerController {
         if (key === 'shift' && this.dashCooldownTimer <= 0 && !this.isDashing) {
           this.startDash()
         }
-        
-        // Breakdance input (tecla 1)
-        if (key === '1') {
-          this.tryBreakdance()
-        }
       } else if (kbInfo.type === 2) { // KEYUP
         this.inputMap[key] = false
         
@@ -263,76 +256,6 @@ export class PlayerController {
         }
       }
     })
-    
-    // Capturar click izquierdo para combo de ataque
-    this.scene.onPointerObservable.add((pointerInfo: any) => {
-      if (pointerInfo.type === 1) { // POINTERDOWN
-        if (pointerInfo.event.button === 0) { // Click izquierdo
-          this.performComboAttack()
-        }
-      }
-    })
-  }
-  
-  // ===== SISTEMA DE COMBOS =====
-  performComboAttack() {
-    if (!this.animationHandler) return
-    
-    // No atacar si está en una animación especial
-    if (this.isBreakdancing || this.animationHandler.isPlayingOneShotAnimation()) {
-      return
-    }
-    
-    // Alternar entre punch_r (primer golpe) y punch_l (segundo golpe)
-    const punchAnim = this.comboCounter === 0 ? 'punch_r' : 'punch_l'
-    
-    console.log(`Combo attack ${this.comboCounter + 1}: ${punchAnim}`)
-    
-    // Determinar a qué animación volver
-    const returnAnim = this.isGrounded ? 'idle' : 'jump'
-    
-    // Reproducir animación de ataque
-    this.animationHandler.playOneShot(punchAnim, returnAnim, 1.5)
-    
-    // Avanzar contador de combo
-    this.comboCounter = (this.comboCounter + 1) % 2
-    
-    // Resetear combo después de 1 segundo si no ataca de nuevo
-    setTimeout(() => {
-      this.comboCounter = 0
-    }, 1000)
-  }
-  
-  // ===== BREAKDANCE =====
-  tryBreakdance() {
-    if (!this.animationHandler) return
-    
-    // Checks de seguridad
-    if (!this.isGrounded) {
-      console.log('No puedes hacer breakdance en el aire!')
-      return
-    }
-    
-    if (this.isDashing) {
-      console.log('No puedes hacer breakdance mientras dasheas!')
-      return
-    }
-    
-    if (this.isBreakdancing || this.animationHandler.isPlayingOneShotAnimation()) {
-      console.log('Ya estás en una animación especial!')
-      return
-    }
-    
-    console.log('¡Breakdance!')
-    this.isBreakdancing = true
-    
-    // Reproducir animación de breakdance
-    this.animationHandler.playOneShot('breakdance', 'idle', 1.0)
-    
-    // Marcar como terminado cuando acabe
-    setTimeout(() => {
-      this.isBreakdancing = false
-    }, 2000) // Ajustar según duración de la animación
   }
   
   setupPhysics() {

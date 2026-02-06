@@ -33,6 +33,8 @@ export class AnimationHandler {
   private defaultSpeed: number = 1.0
   private isPlayingOneShot: boolean = false
   private queuedAnimation: string | null = null
+  private rootMotionAnimations: Set<string> = new Set(['breakdance']) // Animaciones que usan root motion
+  private lastRootPosition: Vector3 = Vector3.Zero() // Para trackear delta de movimiento
 
   constructor(models: AnimationModels, physicsBody: Mesh, initialAnimation: string = 'idle') {
     this.models = models
@@ -97,8 +99,37 @@ export class AnimationHandler {
   /**
    * Fix root motion: Fuerza el root del modelo a permanecer en (0, -1, 0) relativo a la cápsula
    * Esto previene que animaciones de Mixamo muevan el personaje
+   * Para animaciones con root motion habilitado, aplica el delta a la cápsula física
    */
   private fixRootMotion(root: Mesh) {
+    // Si la animación actual usa root motion, aplicar el delta a la cápsula
+    if (this.rootMotionAnimations.has(this.currentAnimation)) {
+      const currentPos = root.position.clone()
+      const delta = currentPos.subtract(this.lastRootPosition)
+      
+      // Solo aplicar movimiento horizontal (X y Z)
+      if (delta.length() > 0.001) {
+        // Convertir delta local a global usando la rotación del mesh
+        const globalDelta = Vector3.TransformCoordinates(
+          new Vector3(delta.x, 0, delta.z),
+          this.physicsBody.getWorldMatrix()
+        )
+        const physicsPos = this.physicsBody.position
+        this.physicsBody.position = new Vector3(
+          globalDelta.x,
+          physicsPos.y,
+          globalDelta.z
+        )
+      }
+      
+      // Resetear el root para el siguiente frame
+      root.position.x = 0
+      root.position.z = 0
+      root.position.y = -1
+      this.lastRootPosition = Vector3.Zero()
+      return
+    }
+    
     // Resetear posición local del root (relativo al parent que es la cápsula)
     root.position.x = 0
     root.position.z = 0
