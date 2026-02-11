@@ -12,6 +12,7 @@ import { EffectManager } from './EffectManager.ts';
 import { AnimationHandler } from './AnimationHandler.ts';
 
 export class PlayerController {
+  animationHandler: AnimationHandler | null;
   blinkInterval: any;
   body: any;
   camera: any;
@@ -66,16 +67,13 @@ export class PlayerController {
   targetScale: Vector3;
   wasGrounded: boolean;
   weaponSystem: WeaponSystem | null;
-  animationHandler: AnimationHandler | null;
 
-  // ===== SISTEMA DE COMBO =====
-  comboStep: number = 0; // 0 = sin combo, 1 = después de punch_L, 2 reservado para expansión
-  comboResetTimer: number = 0;
-  comboWindowTime: number = 0.8; // Segundos permitidos para continuar el combo
-  isAttackAnimationPlaying: boolean = false;
+  // ===== SISTEMA DE PUÑOS RÁPIDOS =====
+  useLeftPunch: boolean = true; // Alternar entre puño izquierdo y derecho
+  punchSpeed: number = 2.5; // Velocidad de reproducción de las animaciones de puño (más alto = más rápido)
   normalMoveSpeed: number = 8; // Guardar velocidad normal
   attackMoveSpeedMultiplier: number = 0.1; // Reducción de velocidad durante ataque (10%)
-  punchHitboxDelay: number = 0.4; // Porcentaje de la animación para activar hitbox (40%)
+  punchHitboxDelay: number = 0.15; // Porcentaje de la animación para activar hitbox (15% para puños rápidos)
   animationGroups: Map<string, any> = new Map(); // Mapa de animation groups
   currentPlayingAnimation: string = 'idle'; // Animación actualmente en reproducción
   blendingSpeed: number = 0.1; // Velocidad de blending global (alta = rápida pero suave)
@@ -168,10 +166,8 @@ export class PlayerController {
     // ===== ANIMATION HANDLER =====
     this.animationHandler = null;
 
-    // ===== INICIALIZAR COMBO =====
-    this.comboStep = 0;
-    this.comboResetTimer = 0;
-    this.isAttackAnimationPlaying = false;
+    // ===== INICIALIZAR PUÑOS RÁPIDOS =====
+    this.useLeftPunch = true;
     this.normalMoveSpeed = this.moveSpeed;
 
     this.setupInput();
@@ -229,7 +225,7 @@ export class PlayerController {
     this.weaponSystem = new WeaponSystem(this, this.scene, {
       damage: 1,
       attackDuration: 0.15,
-      attackCooldown: 0.35,
+      attackCooldown: 0,
       debug: true, // Cambiar a false para ocultar la hitbox
       cameraShaker: this.cameraShaker, // Pasar referencia al shake
     });
@@ -237,7 +233,7 @@ export class PlayerController {
     console.log('WeaponSystem inicializado');
   }
 
-  // ===== SISTEMA DE COMBO DE 2 GOLPES =====
+  // ===== SISTEMA DE PUÑOS SPAM =====
 
   /**
    * ===== REPRODUCCIÓN SUAVE DE ANIMACIONES =====
@@ -245,11 +241,13 @@ export class PlayerController {
    * @param name - Nombre de la animación
    * @param loop - Si debe hacer loop
    * @param forceReset - Forzar reinicio desde frame 0
+   * @param speedRatio - Velocidad de reproducción (1.0 = normal, 2.0 = doble velocidad)
    */
   playSmoothAnimation(
     name: string,
     loop: boolean = true,
     forceReset: boolean = false,
+    speedRatio: number = 1.0,
   ) {
     const animGroup = this.animationGroups.get(name);
 
@@ -285,9 +283,9 @@ export class PlayerController {
     // Configurar loop
     animGroup.loopAnimation = loop;
 
-    // Iniciar la nueva animación con blending
+    // Iniciar la nueva animación con blending y velocidad customizada
     // El enableBlending = true hace que el fade-in sea suave
-    animGroup.start(loop, 1.0, animGroup.from, animGroup.to, true);
+    animGroup.start(loop, speedRatio, animGroup.from, animGroup.to, true);
 
     // Actualizar estado
     this.currentPlayingAnimation = name;
@@ -299,69 +297,36 @@ export class PlayerController {
   }
 
   /**
-   * Actualiza el timer del combo - resetea si pasa demasiado tiempo
+   * Ejecuta un puñetazo rápido alternando izquierda/derecha
+   * Sin cooldown, puro spam
    */
-  updateComboTimer(deltaTime: number) {
-    if (this.comboStep > 0 && !this.isAttackAnimationPlaying) {
-      this.comboResetTimer -= deltaTime;
-      if (this.comboResetTimer <= 0) {
-        this.resetCombo();
-      }
-    }
-  }
-
-  /**
-   * Resetea el combo a estado inicial
-   */
-  resetCombo() {
-    this.comboStep = 0;
-    this.comboResetTimer = 0;
-    console.log('Combo reseteado');
-  }
-
-  /**
-   * Intenta ejecutar un ataque del combo con blending suave
-   */
-  tryComboAttack() {
-    // No atacar si ya hay una animación de ataque en progreso
-    if (this.isAttackAnimationPlaying) {
-      console.log('⚔️ Ataque bloqueado - animación en progreso');
-      return;
-    }
-
+  tryFastPunch() {
     // Verificar que las animaciones estén configuradas
     if (this.animationGroups.size === 0) {
       console.warn('AnimationGroups no configurados');
       return;
     }
 
-    if (this.comboStep === 0) {
-      // ===== PRIMER GOLPE: punch_l =====
-      console.log('💥 Combo Step 0 -> Ejecutando punch_l');
-      this.executePunch('punch_l', 1);
-    } else if (this.comboStep === 1 && this.comboResetTimer > 0) {
-      // ===== SEGUNDO GOLPE: punch_r (dentro de la ventana de tiempo) =====
-      console.log('💥💥 Combo Step 1 -> Ejecutando punch_r (COMBO!)');
-      this.executePunch('punch_r', 0); // Resetea a 0 después del segundo golpe
-    } else {
-      // Ventana expirada, empezar nuevo combo
-      console.log('⏰ Ventana expirada, reiniciando combo');
-      this.resetCombo();
-      this.executePunch('punch_l', 1);
-    }
+    // Alternar entre puño izquierdo y derecho
+    // Usar la variable y actualizarla INMEDIATAMENTE para evitar race conditions con spam
+    const punchAnimation = this.useLeftPunch ? 'punch_l' : 'punch_r';
+    
+    // Alternar para el próximo golpe ANTES de ejecutar (crítico para spam)
+    this.useLeftPunch = !this.useLeftPunch;
+
+    console.log(`👊 Ejecutando: ${punchAnimation}`);
+
+    // Ejecutar el puñetazo
+    this.executeFastPunch(punchAnimation);
   }
 
   /**
-   * ===== EJECUTAR PUÑETAZO CON BLENDING =====
-   * Usa playSmoothAnimation para transición fluida
+   * ===== EJECUTAR PUÑETAZO RÁPIDO =====
+   * Puños rápidos sin bloqueo, puro spam
    * @param animationName - Nombre de la animación ('punch_l' o 'punch_r')
-   * @param nextComboStep - Siguiente paso del combo después de este golpe
    */
-  executePunch(animationName: string, nextComboStep: number) {
-    console.log(`👊 Ejecutando: ${animationName}`);
-
-    // Marcar que estamos atacando (reduce velocidad de movimiento)
-    this.isAttackAnimationPlaying = true;
+  executeFastPunch(animationName: string) {
+    // Marcar que estamos atacando
     this.isAttacking = true;
 
     // Obtener el animation group
@@ -369,26 +334,27 @@ export class PlayerController {
 
     if (!animGroup) {
       console.warn(`❌ Animación '${animationName}' no encontrada`);
-      this.isAttackAnimationPlaying = false;
       this.isAttacking = false;
       return;
     }
 
-    // ===== REPRODUCIR CON BLENDING SUAVE =====
+    // ===== REPRODUCIR CON VELOCIDAD RÁPIDA =====
     // forceReset = true para que el golpe empiece desde el frame 0
-    this.playSmoothAnimation(animationName, false, true);
+    // punchSpeed hace que la animación sea más rápida
+    this.playSmoothAnimation(animationName, false, true, this.punchSpeed);
 
     // Calcular duración de la animación para sincronizar el daño
     const frameRate =
       animGroup.targetedAnimations[0]?.animation.framePerSecond || 30;
-    const animationDuration = (animGroup.to - animGroup.from) / frameRate;
+    const baseDuration = (animGroup.to - animGroup.from) / frameRate;
+    const animationDuration = baseDuration / this.punchSpeed; // Ajustar por velocidad
 
-    // Programar activación de hitbox al 40% de la animación
+    // Programar activación de hitbox al inicio de la animación (más rápido)
     const hitboxActivationTime =
       animationDuration * this.punchHitboxDelay * 1000; // ms
 
     setTimeout(() => {
-      if (this.isAttackAnimationPlaying && this.weaponSystem) {
+      if (this.isAttacking && this.weaponSystem) {
         this.activateHitbox();
       }
     }, hitboxActivationTime);
@@ -399,17 +365,13 @@ export class PlayerController {
 
     // Configurar callback para cuando termine la animación
     animGroup.onAnimationGroupEndObservable.addOnce(() => {
-      this.onPunchAnimationEnd(nextComboStep);
+      this.onFastPunchEnd();
     });
 
     // Actualizar AnimationHandler state
     if (this.animationHandler) {
       (this.animationHandler as any).isPlayingOneShot = true;
     }
-
-    console.log(
-      `✓ ${animationName} iniciada - Duración: ${animationDuration.toFixed(2)}s, Hitbox: ${hitboxActivationTime.toFixed(0)}ms`,
-    );
   }
 
   /**
@@ -436,12 +398,9 @@ export class PlayerController {
   }
 
   /**
-   * Callback cuando termina la animación de puñetazo
-   * @param nextComboStep - El siguiente paso del combo
+   * Callback cuando termina la animación de puñetazo rápido
    */
-  onPunchAnimationEnd(nextComboStep: number) {
-    console.log('Animación de puñetazo terminada');
-
+  onFastPunchEnd() {
     // Desactivar hitbox
     if (this.weaponSystem) {
       this.weaponSystem.isAttacking = false;
@@ -451,21 +410,7 @@ export class PlayerController {
     }
 
     // Restaurar estado
-    this.isAttackAnimationPlaying = false;
     this.isAttacking = false;
-
-    // Actualizar combo step
-    this.comboStep = nextComboStep;
-
-    // Iniciar timer de ventana de combo (solo si hay siguiente paso)
-    if (nextComboStep > 0) {
-      this.comboResetTimer = this.comboWindowTime;
-      console.log(
-        `Combo step: ${this.comboStep} - Ventana de ${this.comboWindowTime}s`,
-      );
-    } else {
-      this.resetCombo();
-    }
 
     // Actualizar AnimationHandler
     if (this.animationHandler) {
@@ -574,7 +519,7 @@ export class PlayerController {
 
         // Ataque con tecla K
         if (key === 'k') {
-          this.tryComboAttack();
+          this.tryFastPunch();
         }
       } else if (kbInfo.type === 2) {
         // KEYUP
@@ -587,11 +532,11 @@ export class PlayerController {
       }
     });
 
-    // Click izquierdo para atacar
+    // Click izquierdo para atacar (spam permitido)
     this.scene.onPointerObservable.add((pointerInfo: any) => {
       // Tipo 1 = POINTERDOWN
       if (pointerInfo.type === 1 && pointerInfo.event.button === 0) {
-        this.tryComboAttack();
+        this.tryFastPunch();
       }
     });
   }
@@ -709,9 +654,6 @@ export class PlayerController {
     if (!this.body) return;
     const deltaTime = this.scene.getEngine().getDeltaTime() / 1000;
 
-    // ===== COMBO TIMER UPDATE =====
-    this.updateComboTimer(deltaTime);
-
     // ===== INVULNERABILIDAD UPDATE ====
     this.updateInvulnerability(deltaTime);
 
@@ -761,7 +703,7 @@ export class PlayerController {
     }
 
     // ===== REDUCIR VELOCIDAD DURANTE ATAQUE (ROOTING) =====
-    const effectiveMoveSpeed = this.isAttackAnimationPlaying
+    const effectiveMoveSpeed = this.isAttacking
       ? this.moveSpeed * this.attackMoveSpeedMultiplier
       : this.moveSpeed;
 
@@ -810,9 +752,9 @@ export class PlayerController {
     if (this.animationGroups.size === 0) return;
 
     // ===== NO INTERRUMPIR ANIMACIONES DE ATAQUE =====
-    if (this.isAttackAnimationPlaying) {
+    if (this.isAttacking) {
       // Durante el ataque, NO cambiar de animación
-      // El sistema de combo manejará la transición cuando termine
+      // El sistema manejará la transición cuando termine
       return;
     }
 

@@ -1,5 +1,6 @@
 import {
   Vector3,
+  Matrix,
   MeshBuilder,
   StandardMaterial,
   Color3,
@@ -79,11 +80,9 @@ export class WeaponSystem {
       this.scene,
     );
 
-    // Posicionar frente al jugador
-    this.hitbox.position = new Vector3(0, 0, this.hitboxOffset);
-
-    // Hacer hijo del jugador para que rote con él
-    this.hitbox.parent = this.playerMesh;
+    // NO hacer hijo del jugador - se actualizará manualmente cada frame
+    // para que siempre esté frente a la dirección de movimiento
+    this.hitbox.parent = null;
 
     // Material (semi-transparente para debug, invisible en producción)
     const hitboxMat = new StandardMaterial('hitboxMat', this.scene);
@@ -126,6 +125,12 @@ export class WeaponSystem {
       this.cooldownTimer -= deltaTime;
     }
 
+    // ===== ACTUALIZAR POSICIÓN DEL HITBOX =====
+    // Siempre mantener el hitbox frente al jugador
+    if (this.hitbox && this.hitbox.isEnabled()) {
+      this.updateHitboxPosition();
+    }
+
     // Actualizar ataque activo
     if (this.isAttacking) {
       this.attackTimer -= deltaTime;
@@ -136,6 +141,60 @@ export class WeaponSystem {
       // Terminar ataque
       if (this.attackTimer <= 0) {
         this.endAttack();
+      }
+    }
+  }
+
+  /**
+   * Actualiza la posición del hitbox para que esté frente al jugador
+   * basándose en la rotación del modelo de animación
+   */
+  updateHitboxPosition() {
+    // Obtener la posición del jugador
+    const playerPos = this.playerMesh.getAbsolutePosition();
+
+    // Obtener la rotación del modelo de animación actual
+    let forwardDirection = new Vector3(0, 0, 1); // Dirección por defecto
+
+    // Intentar obtener la rotación del modelo actual
+    if (this.player?.animationHandler) {
+      const currentAnimName =
+        this.player.animationHandler.getCurrentAnimation();
+      const currentModel = this.playerMesh.animationModels?.[currentAnimName];
+
+      if (currentModel?.root?.rotationQuaternion) {
+        // Transformar el vector forward por la rotación del modelo
+        const rotationMatrix = new Matrix();
+        currentModel.root.rotationQuaternion.toRotationMatrix(rotationMatrix);
+        const localForward = new Vector3(0, 0, 1);
+        forwardDirection = Vector3.TransformCoordinates(
+          localForward,
+          rotationMatrix,
+        );
+      }
+    }
+
+    // Normalizar la dirección
+    forwardDirection.normalize();
+
+    // Calcular posición del hitbox frente al jugador
+    const hitboxPos = playerPos.add(forwardDirection.scale(this.hitboxOffset));
+
+    // Ajustar altura (centrar verticalmente con el jugador)
+    hitboxPos.y = playerPos.y;
+
+    // Aplicar posición
+    this.hitbox.position = hitboxPos;
+
+    // Rotar el hitbox para que mire en la misma dirección
+    if (this.player?.animationHandler) {
+      const currentAnimName =
+        this.player.animationHandler.getCurrentAnimation();
+      const currentModel = this.playerMesh.animationModels?.[currentAnimName];
+
+      if (currentModel?.root?.rotationQuaternion) {
+        this.hitbox.rotationQuaternion =
+          currentModel.root.rotationQuaternion.clone();
       }
     }
   }

@@ -16,6 +16,7 @@
     "lil-gui": "^0.21.0"
   },
   "devDependencies": {
+    "@babylonjs/inspector": "^8.50.5",
     "typescript": "^5.9.3",
     "vite": "^7.2.4"
   }
