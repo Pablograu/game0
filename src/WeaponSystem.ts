@@ -146,112 +146,36 @@ export class WeaponSystem {
   }
 
   /**
-   * Actualiza la posición del hitbox para que esté frente al jugador
-   * basándose en la rotación del modelo de animación
+   * Actualiza la posición del hitbox frente al jugador
+   * basándose en la rotación del modelo root
    */
   updateHitboxPosition() {
-    // Obtener la posición del jugador
     const playerPos = this.playerMesh.getAbsolutePosition();
+    const currentAnim = this.player?.currentPlayingAnimation || 'idle';
+    const modelRoot = this.playerMesh.animationModels?.[currentAnim]?.root;
 
-    // Obtener la rotación del modelo de animación actual
-    let forwardDirection = new Vector3(0, 0, 1); // Dirección por defecto
-
-    // Intentar obtener la rotación del modelo actual
-    if (this.player?.animationHandler) {
-      const currentAnimName =
-        this.player.animationHandler.getCurrentAnimation();
-      const currentModel = this.playerMesh.animationModels?.[currentAnimName];
-
-      if (currentModel?.root?.rotationQuaternion) {
-        // Transformar el vector forward por la rotación del modelo
-        const rotationMatrix = new Matrix();
-        currentModel.root.rotationQuaternion.toRotationMatrix(rotationMatrix);
-        const localForward = new Vector3(0, 0, 1);
-        forwardDirection = Vector3.TransformCoordinates(
-          localForward,
-          rotationMatrix,
-        );
-      }
+    // Obtener dirección forward del modelo
+    let forwardDirection = new Vector3(0, 0, 1);
+    if (modelRoot?.rotationQuaternion) {
+      const rotMatrix = new Matrix();
+      modelRoot.rotationQuaternion.toRotationMatrix(rotMatrix);
+      forwardDirection = Vector3.TransformCoordinates(
+        new Vector3(0, 0, 1),
+        rotMatrix,
+      );
     }
 
-    // Normalizar la dirección
-    forwardDirection.normalize();
-
-    // Calcular posición del hitbox frente al jugador
-    const hitboxPos = playerPos.add(forwardDirection.scale(this.hitboxOffset));
-
-    // Ajustar altura (centrar verticalmente con el jugador)
+    // Posicionar hitbox frente al jugador
+    const hitboxPos = playerPos.add(
+      forwardDirection.normalize().scale(this.hitboxOffset),
+    );
     hitboxPos.y = playerPos.y;
-
-    // Aplicar posición
     this.hitbox.position = hitboxPos;
 
-    // Rotar el hitbox para que mire en la misma dirección
-    if (this.player?.animationHandler) {
-      const currentAnimName =
-        this.player.animationHandler.getCurrentAnimation();
-      const currentModel = this.playerMesh.animationModels?.[currentAnimName];
-
-      if (currentModel?.root?.rotationQuaternion) {
-        this.hitbox.rotationQuaternion =
-          currentModel.root.rotationQuaternion.clone();
-      }
+    // Rotar hitbox igual que el modelo
+    if (modelRoot?.rotationQuaternion) {
+      this.hitbox.rotationQuaternion = modelRoot.rotationQuaternion.clone();
     }
-  }
-
-  tryAttack() {
-    // No atacar si está en cooldown o ya atacando
-    if (this.cooldownTimer > 0 || this.isAttacking) {
-      return false;
-    }
-
-    this.startAttack();
-    return true;
-  }
-
-  startAttack() {
-    this.isAttacking = true;
-    this.attackTimer = this.attackDuration;
-    this.cooldownTimer = this.attackCooldown;
-    this.hitEnemiesThisSwing.clear();
-    this.hitObjectsThisSwing.clear();
-
-    // Activar hitbox
-    this.hitbox.setEnabled(true);
-    if (this.debugMode) {
-      this.hitbox.material.alpha = 0.5;
-    }
-
-    // Feedback visual: escalar hitbox rápidamente (efecto "slash")
-    this.animateHitbox();
-
-    console.log('Attack started!');
-  }
-
-  animateHitbox() {
-    // Animación simple de escala para el "swing"
-    const startScale = new Vector3(0.5, 0.5, 0.5);
-    const endScale = new Vector3(1, 1, 1);
-    const duration = this.attackDuration * 1000; // ms
-    const startTime = Date.now();
-
-    const animate = () => {
-      if (!this.isAttacking) return;
-
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-
-      // Ease out
-      const eased = 1 - Math.pow(1 - progress, 3);
-
-      this.hitbox.scaling = Vector3.Lerp(startScale, endScale, eased);
-
-      if (progress < 1 && this.isAttacking) {
-        requestAnimationFrame(animate);
-      }
-    };
-
-    animate();
   }
 
   checkHits() {

@@ -2,17 +2,12 @@ import {
   Vector3,
   Quaternion,
   PhysicsRaycastResult,
-  ParticleSystem,
-  Texture,
-  Color4,
 } from '@babylonjs/core';
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
 import { WeaponSystem } from './WeaponSystem.ts';
 import { EffectManager } from './EffectManager.ts';
-import { AnimationHandler } from './AnimationHandler.ts';
 
 export class PlayerController {
-  animationHandler: AnimationHandler | null;
   blinkInterval: any;
   body: any;
   camera: any;
@@ -25,17 +20,14 @@ export class PlayerController {
   dashCooldownTimer: number;
   dashDirection: Vector3;
   dashDuration: number;
-  dashParticles: ParticleSystem | null;
   dashSpeed: number;
   dashTimer: number;
-  dustParticles: ParticleSystem | null;
   healthText: TextBlock | null;
   healthUI: AdvancedDynamicTexture | null;
   inputMap: Record<string, boolean>;
   invulnerabilityDuration: number;
   invulnerabilityTimer: number;
   isAttacking: boolean = false;
-  isAttackingDown: boolean;
   isDashing: boolean;
   isGrounded: boolean;
   isInvulnerable: boolean;
@@ -130,19 +122,16 @@ export class PlayerController {
     this.targetScale = new Vector3(1, 1, 1);
     this.scaleSpeed = 10; // Velocidad de interpolación
 
-    // ===== PARTÍCULAS =====
-    this.dustParticles = null;
-    this.dashParticles = null;
+    // Partículas manejadas por EffectManager
 
     // ===== RAYCAST =====
     this.raycastResult = new PhysicsRaycastResult();
 
     // ===== RECOIL (RETROCESO) =====
-    this.recoilForce = 8; // Fuerza de retroceso horizontal al golpear
-    this.pogoForce = 14; // Fuerza del rebote hacia arriba (pogo)
-    this.isAttackingDown = false; // Flag para detectar ataque hacia abajo
-    this.recoilVelocity = Vector3.Zero(); // Velocidad de recoil actual
-    this.recoilDecay = 10; // Qué tan rápido decae el recoil
+    this.recoilForce = 8;
+    this.pogoForce = 14;
+    this.recoilVelocity = Vector3.Zero();
+    this.recoilDecay = 10;
 
     // ===== SISTEMA DE SALUD =====
     this.maxHealth = 3;
@@ -163,19 +152,15 @@ export class PlayerController {
     // ===== WEAPON SYSTEM =====
     this.weaponSystem = null;
 
-    // ===== ANIMATION HANDLER =====
-    this.animationHandler = null;
-
     // ===== INICIALIZAR PUÑOS RÁPIDOS =====
     this.useLeftPunch = true;
     this.normalMoveSpeed = this.moveSpeed;
 
     this.setupInput();
     this.setupPhysics();
-    this.setupParticles();
     this.setupWeaponSystem();
     this.setupHealthUI();
-    this.setupAnimationHandler(); // Intentar inicializar (funcionará si los modelos ya están)
+    this.setupAnimationHandler();
     this.setupUpdate();
   }
 
@@ -289,11 +274,6 @@ export class PlayerController {
 
     // Actualizar estado
     this.currentPlayingAnimation = name;
-
-    // Actualizar AnimationHandler también
-    if (this.animationHandler) {
-      (this.animationHandler as any).currentAnimation = name;
-    }
   }
 
   /**
@@ -310,7 +290,7 @@ export class PlayerController {
     // Alternar entre puño izquierdo y derecho
     // Usar la variable y actualizarla INMEDIATAMENTE para evitar race conditions con spam
     const punchAnimation = this.useLeftPunch ? 'punch_l' : 'punch_r';
-    
+
     // Alternar para el próximo golpe ANTES de ejecutar (crítico para spam)
     this.useLeftPunch = !this.useLeftPunch;
 
@@ -367,11 +347,6 @@ export class PlayerController {
     animGroup.onAnimationGroupEndObservable.addOnce(() => {
       this.onFastPunchEnd();
     });
-
-    // Actualizar AnimationHandler state
-    if (this.animationHandler) {
-      (this.animationHandler as any).isPlayingOneShot = true;
-    }
   }
 
   /**
@@ -412,11 +387,6 @@ export class PlayerController {
     // Restaurar estado
     this.isAttacking = false;
 
-    // Actualizar AnimationHandler
-    if (this.animationHandler) {
-      (this.animationHandler as any).isPlayingOneShot = false;
-    }
-
     // Volver a animación de idle/run basada en el estado actual
     this.returnToIdleOrRun();
   }
@@ -437,29 +407,21 @@ export class PlayerController {
     this.playSmoothAnimation(targetAnim, true, false);
   }
 
+  /**
+   * Inicializa el sistema de animaciones
+   * Configura blending en todos los AnimationGroups
+   */
   setupAnimationHandler() {
-    // Solo inicializar si los modelos ya están cargados
     if (this.mesh.animationModels) {
-      this.animationHandler = new AnimationHandler(
-        this.mesh.animationModels,
-        this.mesh,
-        'idle',
-      );
-
-      // Configurar blending en todos los animation groups
       this.setupAnimations();
-
-      console.log('AnimationHandler inicializado con éxito');
+      console.log('Sistema de animaciones inicializado');
     } else {
-      console.warn(
-        'setupAnimationHandler: No hay animationModels disponibles aún',
-      );
+      console.warn('AnimationModels no disponibles');
     }
   }
 
   /**
-   * ===== CONFIGURACIÓN GLOBAL DE BLENDING =====
-   * Configura todos los animation groups para transiciones suaves
+   * Configura blending en todos los AnimationGroups para transiciones suaves
    */
   setupAnimations() {
     if (!this.mesh.animationModels) {
@@ -558,90 +520,7 @@ export class PlayerController {
     });
   }
 
-  setupParticles() {
-    // ===== PARTÍCULAS DE POLVO (salto/aterrizaje) =====
-    this.dustParticles = new ParticleSystem('dustParticles', 50, this.scene);
-
-    // Crear textura procedural para las partículas (cuadradito)
-    const dustTexture = this.createParticleTexture();
-    this.dustParticles.particleTexture = dustTexture;
-
-    // Emisor en la posición del jugador
-    this.dustParticles.emitter = this.mesh;
-    this.dustParticles.minEmitBox = new Vector3(-0.3, -1, -0.3);
-    this.dustParticles.maxEmitBox = new Vector3(0.3, -0.9, 0.3);
-
-    // Colores (gris/marrón)
-    this.dustParticles.color1 = new Color4(0.6, 0.5, 0.4, 0.8);
-    this.dustParticles.color2 = new Color4(0.4, 0.35, 0.3, 0.6);
-    this.dustParticles.colorDead = new Color4(0.3, 0.25, 0.2, 0);
-
-    // Tamaño
-    this.dustParticles.minSize = 0.05;
-    this.dustParticles.maxSize = 0.15;
-
-    // Vida
-    this.dustParticles.minLifeTime = 0.2;
-    this.dustParticles.maxLifeTime = 0.4;
-
-    // Velocidad
-    this.dustParticles.direction1 = new Vector3(-1, 0.5, -1);
-    this.dustParticles.direction2 = new Vector3(1, 1, 1);
-    this.dustParticles.minEmitPower = 1;
-    this.dustParticles.maxEmitPower = 2;
-
-    // Gravedad de partículas
-    this.dustParticles.gravity = new Vector3(0, -5, 0);
-
-    // Rate
-    this.dustParticles.emitRate = 0; // Empezamos sin emitir
-    this.dustParticles.manualEmitCount = 0;
-    this.dustParticles.start();
-
-    // ===== PARTÍCULAS DE DASH =====
-    this.dashParticles = new ParticleSystem('dashParticles', 100, this.scene);
-    this.dashParticles.particleTexture = dustTexture;
-    this.dashParticles.emitter = this.mesh;
-    this.dashParticles.minEmitBox = new Vector3(-0.2, -0.5, -0.2);
-    this.dashParticles.maxEmitBox = new Vector3(0.2, 0.5, 0.2);
-
-    // Color cyan/azul para el dash
-    this.dashParticles.color1 = new Color4(0.3, 0.8, 1, 0.9);
-    this.dashParticles.color2 = new Color4(0.5, 0.9, 1, 0.7);
-    this.dashParticles.colorDead = new Color4(0.2, 0.5, 0.8, 0);
-
-    this.dashParticles.minSize = 0.08;
-    this.dashParticles.maxSize = 0.2;
-    this.dashParticles.minLifeTime = 0.15;
-    this.dashParticles.maxLifeTime = 0.3;
-
-    this.dashParticles.direction1 = new Vector3(-0.5, -0.5, -0.5);
-    this.dashParticles.direction2 = new Vector3(0.5, 0.5, 0.5);
-    this.dashParticles.minEmitPower = 0.5;
-    this.dashParticles.maxEmitPower = 1.5;
-
-    this.dashParticles.emitRate = 0;
-    this.dashParticles.start();
-  }
-
-  createParticleTexture() {
-    // Crear una textura procedural simple (cuadrado blanco)
-    const size = 32;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return new Texture('', this.scene);
-
-    // Dibujar un cuadrado con bordes suaves
-    ctx.fillStyle = 'white';
-    ctx.beginPath();
-    ctx.roundRect(4, 4, size - 8, size - 8, 4);
-    ctx.fill();
-
-    const texture = new Texture(canvas.toDataURL(), this.scene);
-    return texture;
-  }
+  // Partículas ahora manejadas completamente por EffectManager
 
   setupUpdate() {
     // Update loop - se ejecuta antes de cada frame
@@ -741,22 +620,15 @@ export class PlayerController {
     this.updateAnimation(moveDirection, currentVelocity);
   }
 
-  // ===== SISTEMA DE ANIMACIONES CON BLENDING =====
+  /**
+   * Sistema de animaciones con blending
+   * Actualiza la animación según el estado del jugador
+   */
   updateAnimation(moveDirection: any, velocity: any) {
-    // Inicializar AnimationHandler si aún no existe y hay modelos
-    if (!this.animationHandler && this.mesh.animationModels) {
-      this.setupAnimationHandler();
-    }
-
-    // Si no hay animation groups configurados, salir
     if (this.animationGroups.size === 0) return;
 
-    // ===== NO INTERRUMPIR ANIMACIONES DE ATAQUE =====
-    if (this.isAttacking) {
-      // Durante el ataque, NO cambiar de animación
-      // El sistema manejará la transición cuando termine
-      return;
-    }
+    // No interrumpir animaciones de ataque
+    if (this.isAttacking) return;
 
     let targetAnimation = 'idle';
     let animSpeed = 1.0;
@@ -794,16 +666,6 @@ export class PlayerController {
     if (currentAnimGroup && currentAnimGroup.isPlaying) {
       currentAnimGroup.speedRatio = animSpeed;
     }
-
-    // Update del handler (fix root motion cada frame)
-    if (this.animationHandler) {
-      this.animationHandler.update();
-    }
-  }
-
-  // Método legacy para compatibilidad
-  switchAnimation(newAnimation: string) {
-    this.playSmoothAnimation(newAnimation, true, false);
   }
 
   // ===== GROUND CHECK CON RAYCAST =====
@@ -913,7 +775,7 @@ export class PlayerController {
       // Feedback visual: estirar al saltar
       this.applyJumpStretch();
 
-      // Partículas de polvo al saltar con EffectManager
+      // Partículas de polvo al saltar
       const dustPos = this.mesh.getAbsolutePosition().clone();
       dustPos.y -= this.playerHeight / 2;
       EffectManager.showDust(dustPos, {
@@ -921,9 +783,6 @@ export class PlayerController {
         duration: 0.35,
         direction: 'up',
       });
-
-      // Partículas locales también
-      this.emitDust(15);
     }
   }
 
@@ -948,52 +807,32 @@ export class PlayerController {
 
   // ===== ROTACIÓN VISUAL SUAVE =====
   updateRotation(moveDirection: any, deltaTime: number) {
-    // Solo rotar cuando hay movimiento activo
     if (moveDirection.length() <= 0.1) return;
 
-    // Calcular el ángulo hacia la dirección de movimiento
     const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
     this.targetRotation = Quaternion.FromEulerAngles(0, targetAngle, 0);
 
-    // Obtener el modelo actual desde AnimationHandler
-    let currentModel = null;
-    if (this.animationHandler) {
-      const currentAnimName = this.animationHandler.getCurrentAnimation();
-      currentModel = this.mesh.animationModels?.[currentAnimName];
-    } else if (this.mesh.animationModels && this.mesh.currentAnimation) {
-      // Fallback legacy
-      currentModel = this.mesh.animationModels[this.mesh.currentAnimation];
-    }
+    // Obtener modelo actual directamente
+    const modelRoot = this.mesh.animationModels?.[this.currentPlayingAnimation]?.root;
 
-    if (currentModel?.root) {
-      // Asegurarse de que el modelo usa quaternion
-      if (!currentModel.root.rotationQuaternion) {
-        currentModel.root.rotationQuaternion = Quaternion.FromEulerAngles(
-          0,
-          0,
-          0,
-        );
+    if (modelRoot) {
+      if (!modelRoot.rotationQuaternion) {
+        modelRoot.rotationQuaternion = Quaternion.Identity();
       }
-
-      // Slerp hacia la rotación objetivo (sin offset)
-      const currentRotation = currentModel.root.rotationQuaternion;
       const slerpFactor = Math.min(1, this.rotationSpeed * deltaTime);
-
-      currentModel.root.rotationQuaternion = Quaternion.Slerp(
-        currentRotation,
+      modelRoot.rotationQuaternion = Quaternion.Slerp(
+        modelRoot.rotationQuaternion,
         this.targetRotation,
         slerpFactor,
       );
     } else {
-      // Fallback: rotar la cápsula si no hay modelos cargados
+      // Fallback: rotar cápsula si no hay modelo
       if (!this.mesh.rotationQuaternion) {
         this.mesh.rotationQuaternion = Quaternion.Identity();
       }
-
-      const currentRotation = this.mesh.rotationQuaternion;
       const slerpFactor = Math.min(1, this.rotationSpeed * deltaTime);
       this.mesh.rotationQuaternion = Quaternion.Slerp(
-        currentRotation,
+        this.mesh.rotationQuaternion,
         this.targetRotation,
         slerpFactor,
       );
@@ -1006,21 +845,20 @@ export class PlayerController {
     this.dashTimer = this.dashDuration;
     this.dashCooldownTimer = this.dashCooldown;
 
-    // Dirección del dash: hacia donde mira o la última dirección de movimiento
     const moveDir = this.getMoveDirection();
-    if (moveDir.length() > 0.1) {
-      this.dashDirection = moveDir.normalize();
-    } else {
-      this.dashDirection = this.lastFacingDirection.clone().normalize();
-    }
+    this.dashDirection = moveDir.length() > 0.1 
+      ? moveDir.normalize() 
+      : this.lastFacingDirection.clone().normalize();
 
-    // Feedback: estirar horizontalmente
     this.targetScale = new Vector3(0.7, 1.3, 0.7);
 
-    // Activar partículas de dash
-    if (this.dashParticles) this.dashParticles.emitRate = 150;
-
-    console.log('Dash iniciado!');
+    // Partículas de dash con EffectManager
+    const dashPos = this.mesh.getAbsolutePosition();
+    EffectManager.showDust(dashPos, {
+      count: 30,
+      duration: 0.3,
+      direction: 'radial',
+    });
   }
 
   updateDash(deltaTime: number) {
@@ -1043,18 +881,9 @@ export class PlayerController {
 
   endDash() {
     this.isDashing = false;
-
-    // Frenar en seco
     const currentVel = this.body.getLinearVelocity();
     this.body.setLinearVelocity(new Vector3(0, currentVel.y, 0));
-
-    // Feedback: volver a escala normal
     this.targetScale = this.originalScale.clone();
-
-    // Desactivar partículas de dash
-    if (this.dashParticles) this.dashParticles.emitRate = 0;
-
-    console.log('Dash terminado!');
   }
 
   // ===== SQUASH & STRETCH =====
@@ -1092,32 +921,20 @@ export class PlayerController {
 
   // ===== EVENTOS =====
   onLand() {
-    // Feedback visual al aterrizar
     this.applyLandSquash();
 
     // Partículas de polvo con EffectManager
     const dustPos = this.mesh.getAbsolutePosition().clone();
-    dustPos.y -= this.playerHeight / 2; // A los pies
+    dustPos.y -= this.playerHeight / 2;
     EffectManager.showDust(dustPos, {
       count: 20,
       duration: 0.5,
       direction: 'radial',
     });
 
-    // También emitir las partículas locales
-    this.emitDust(20);
-
-    // Camera shake suave
     if (this.cameraShaker) {
       this.cameraShaker.shakeSoft();
     }
-
-    console.log('Aterrizaje!');
-  }
-
-  emitDust(amount: number) {
-    // Emitir una ráfaga de partículas
-    if (this.dustParticles) this.dustParticles.manualEmitCount = amount;
   }
 
   // ===== MÉTODOS PÚBLICOS =====
