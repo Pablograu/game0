@@ -12,6 +12,8 @@ import {
   PhysicsAggregate,
   PhysicsShapeType,
   Quaternion,
+  CubeTexture,
+  HDRCubeTexture,
 } from '@babylonjs/core';
 import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import '@babylonjs/core/Cameras/Inputs';
@@ -44,12 +46,10 @@ class Game {
   async init() {
     await this.initHavok();
     this.createLighting();
-    this.createGround();
+    await this.loadEnvironment(); // Cargar oldtown.glb
     this.player = await this.createPlayer();
     this.camera = this.createCamera();
     this.setupPlayerController();
-    this.createDynamicObstacles();
-    this.createStaticObstacles();
     this.createEnemies();
     this.setupDebugGUI();
     this.startRenderLoop();
@@ -124,47 +124,73 @@ class Game {
   }
 
   createLighting() {
-    // Crear iluminación hemisférica
-    const light = new HemisphericLight(
-      'light',
-      new Vector3(0, 1, 0),
+    // ===== HDR ENVIRONMENT (iluminación + skybox) =====
+    const hdrTexture = new HDRCubeTexture(
+      '/hdr/skybox.hdr',
       this.scene,
+      512, // resolución (128, 256, 512, 1024)
     );
-    light.intensity = 0.7;
+
+    // Usar el HDR como iluminación ambiental de la escena
+    this.scene.environmentTexture = hdrTexture;
+    this.scene.environmentIntensity = 1.0; // Ajusta intensidad (0.0 - 2.0)
+
+    // Crear skybox visible a partir del mismo HDR
+    this.scene.createDefaultSkybox(
+      hdrTexture,
+      true,  // pbr = true para calidad alta
+      1000,  // tamaño del skybox
+      0.0,   // blur (0 = nítido, 1 = muy difuminado)
+    );
+
+    // Luz hemisférica de respaldo (por si el HDR es muy oscuro)
+    const light = new HemisphericLight('light', new Vector3(0, 1, 0), this.scene);
+    light.intensity = 0.3;
+
+    console.log('HDR skybox cargado: /hdr/skybox.hdr');
   }
 
-  createGround() {
-    // Crear suelo estático con física
-    const ground = MeshBuilder.CreateGround(
-      'ground',
-      {
-        width: 50,
-        height: 50,
-      },
+  async loadEnvironment() {
+    // Cargar el modelo oldtown.glb como entorno
+    console.log('Cargando entorno oldtown.glb...');
+    
+    const result = await ImportMeshAsync(
+      '/models/oldtown.glb',
       this.scene,
     );
 
-    // Material del suelo
-    const groundMaterial = new StandardMaterial('groundMat', this.scene);
-    groundMaterial.diffuseColor = new Color3(0.3, 0.6, 0.3);
-    ground.material = groundMaterial;
+    console.log('Entorno cargado:', result.meshes.length, 'meshes');
 
-    // Habilitar colisiones para la cámara
-    ground.checkCollisions = true;
+    // Obtener el root del modelo
+    const root = result.meshes[0];
+    
+    // ===== AJUSTAR TAMAÑO Y POSICIÓN AQUÍ =====
+    root.position = new Vector3(0, 0, 0); // Ajusta X, Y, Z
+    root.scaling = new Vector3(0.1, 0.1, 0.1);  // Ajusta escala (1 = tamaño original)
+    // ==========================================
 
-    // Agregar física al suelo usando PhysicsAggregate
-    new PhysicsAggregate(
-      ground,
-      PhysicsShapeType.BOX,
-      {
-        mass: 0, // masa 0 = estático
-        restitution: 0.3,
-        friction: 0.5,
-      },
-      this.scene,
-    );
+    // Configurar colisiones para todos los meshes del entorno
+    result.meshes.forEach((mesh) => {
+      if (mesh.name !== '__root__') {
+        mesh.checkCollisions = true;
+        
+        // Añadir física estática a los meshes sólidos
+        if (mesh.getTotalVertices() > 0) {
+          new PhysicsAggregate(
+            mesh,
+            PhysicsShapeType.MESH,
+            {
+              mass: 0, // Estático
+              restitution: 0.3,
+              friction: 0.5,
+            },
+            this.scene,
+          );
+        }
+      }
+    });
 
-    console.log('Suelo creado con física');
+    console.log('Entorno oldtown.glb configurado con física');
   }
 
   async createPlayer() {
@@ -268,90 +294,9 @@ class Game {
     return physicsBody;
   }
 
-  createDynamicObstacles() {
-    // Crear 2 cubos rojos empujables (dinámicos)
-    const positions = [new Vector3(5, 2, 5), new Vector3(-5, 2, -5)];
 
-    positions.forEach((pos, index) => {
-      const box = MeshBuilder.CreateBox(
-        `dynamicBox${index}`,
-        {
-          width: 2,
-          height: 2,
-          depth: 2,
-        },
-        this.scene,
-      );
 
-      box.position = pos;
 
-      // Material rojo
-      const material = new StandardMaterial(
-        `dynamicBoxMat${index}`,
-        this.scene,
-      );
-      material.diffuseColor = new Color3(0.9, 0.1, 0.1);
-      box.material = material;
-
-      // Habilitar colisiones para la cámara
-      box.checkCollisions = true;
-
-      // Física dinámica (empujable)
-      new PhysicsAggregate(
-        box,
-        PhysicsShapeType.BOX,
-        {
-          mass: 10,
-          restitution: 0.2,
-          friction: 0.8,
-        },
-        this.scene,
-      );
-    });
-
-    console.log('Obstáculos dinámicos creados');
-  }
-
-  createStaticObstacles() {
-    // Crear 2 cubos grandes estáticos (edificios/muros)
-    const positions = [new Vector3(10, 3, 0), new Vector3(-10, 3, 0)];
-
-    positions.forEach((pos, index) => {
-      const wall = MeshBuilder.CreateBox(
-        `staticWall${index}`,
-        {
-          width: 3,
-          height: 6,
-          depth: 3,
-        },
-        this.scene,
-      );
-
-      wall.position = pos;
-
-      // Material gris oscuro
-      const material = new StandardMaterial(`wallMat${index}`, this.scene);
-      material.diffuseColor = new Color3(0.3, 0.3, 0.3);
-      wall.material = material;
-
-      // Habilitar colisiones para la cámara
-      wall.checkCollisions = true;
-
-      // Física estática (no se mueve)
-      new PhysicsAggregate(
-        wall,
-        PhysicsShapeType.BOX,
-        {
-          mass: 0,
-          restitution: 0.3,
-          friction: 0.5,
-        },
-        this.scene,
-      );
-    });
-
-    console.log('Obstáculos estáticos creados');
-  }
 
   createEnemies() {
     // Crear enemigos de prueba (sacos de boxeo)
