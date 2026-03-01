@@ -61,7 +61,7 @@ class Game {
     const havokInstance = await HavokPhysics();
     const havokPlugin = new HavokPlugin(true, havokInstance);
     this.scene = new Scene(this.engine);
-    this.scene.enablePhysics(new Vector3(0, -9.81, 0), havokPlugin);
+    this.scene.enablePhysics(new Vector3(0, -15, 0), havokPlugin);
 
     // Habilitar colisiones en la escena
     this.scene.collisionsEnabled = true;

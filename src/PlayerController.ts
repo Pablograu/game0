@@ -80,7 +80,7 @@ export class PlayerController {
 
     // Variables públicas para tunear
     this.moveSpeed = 8;
-    this.jumpForce = 12;
+    this.jumpForce = 15;
 
     // Configuración del jugador
     this.playerHeight = 2; // Altura de la cápsula
@@ -100,7 +100,7 @@ export class PlayerController {
     this.jumpBufferTimer = 0;
 
     // ===== VARIABLE JUMP =====
-    this.jumpCutMultiplier = 0.5; // Cuánto reduce la velocidad al soltar
+    this.jumpCutMultiplier = 0.2; // Corte agresivo al soltar (30% de velocidad restante)
     this.jumpKeyReleased = true; // Para detectar cuando suelta la tecla
 
     // ===== DASH =====
@@ -108,7 +108,7 @@ export class PlayerController {
     this.dashDuration = 0.18; // Segundos que dura el dash
     this.dashCooldown = 0.6; // Cooldown entre dashes
     this.dashTimer = 0;
-    this.dashCooldownTimer = 0;
+    this.dashCooldownTimer = 0; 
     this.isDashing = false;
     this.dashDirection = Vector3.Zero();
     this.lastFacingDirection = new Vector3(0, 0, 1); // Dirección por defecto
@@ -637,15 +637,15 @@ export class PlayerController {
     if (!this.isGrounded && velocity.y > 0.5) {
       // Saltando (subiendo)
       targetAnimation = 'jump';
-      animSpeed = Math.max(0.3, (velocity.y / this.jumpForce) * 0.8);
+      animSpeed = Math.max(0.5, (velocity.y / this.jumpForce) * 1.2);
     } else if (!this.isGrounded && velocity.y < -0.5) {
-      // Cayendo
+      // Cayendo - velocidad proporcional a la caída
       targetAnimation = 'jump';
-      animSpeed = 0.2;
+      animSpeed = Math.min(1.0, Math.abs(velocity.y) / 10);
     } else if (!this.isGrounded) {
       // En el aire cerca del pico del salto
       targetAnimation = 'jump';
-      animSpeed = 0.15;
+      animSpeed = 0.3;
     } else if (this.isGrounded && moveDirection.length() > 0.1) {
       // Corriendo
       targetAnimation = 'run';
