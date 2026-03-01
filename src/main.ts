@@ -20,7 +20,7 @@ import '@babylonjs/core/Cameras/Inputs';
 import '@babylonjs/loaders/glTF';
 import HavokPhysics from '@babylonjs/havok';
 import { PlayerController } from './PlayerController.ts';
-import { EnemyDummy } from './EnemyDummy.ts';
+import { EnemyFactory } from './EnemyFactory.ts';
 import { EffectManager } from './EffectManager.ts';
 import { CameraShaker } from './CameraShaker.ts';
 import { DebugGUI } from './DebugGUI.ts';
@@ -47,10 +47,11 @@ class Game {
     await this.initHavok();
     this.createLighting();
     await this.loadEnvironment(); // Cargar oldtown.glb
+    await this.preloadEnemyAssets(); // Precargar modelo del ladrón
     this.player = await this.createPlayer();
     this.camera = this.createCamera();
     this.setupPlayerController();
-    this.createEnemies();
+    await this.createEnemies();
     this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
@@ -298,61 +299,49 @@ class Game {
 
 
 
-  createEnemies() {
-    // Crear enemigos de prueba (sacos de boxeo)
-    this.enemies = [];
+  async preloadEnemyAssets() {
+    await EnemyFactory.preload('/models/ladron.glb', this.scene);
+    console.log('Enemy assets precargados');
+  }
+
+  async createEnemies() {
+    const LADRON_PATH = '/models/ladron.glb';
 
     const enemyPositions = [
-      new Vector3(3, 1.5, 3),
-      new Vector3(-3, 1.5, 5),
-      new Vector3(0, 1.5, -5),
+      new Vector3(3, 3, 3),
+      new Vector3(-3, 3, 5),
+      new Vector3(0, 3, -5),
     ];
 
-    enemyPositions.forEach((pos, index) => {
-      // Crear mesh del enemigo (cubo)
-      const enemyMesh = MeshBuilder.CreateBox(
-        `enemy${index}`,
-        {
-          width: 1.2,
-          height: 2,
-          depth: 1.2,
-        },
-        this.scene,
-      );
+    const enemyConfig = {
+      hp: 3,
+      mass: 2,
+      knockbackForce: 12,
+      contactDamage: 1,
+      patrolSpeed: 2,
+      chaseSpeed: 4,
+      visionRange: 8,
+      chaseGiveUpRange: 14,
+      attackRange: 2,
+      attackCooldown: 1.5,
+      debug: true,
+    };
 
-      enemyMesh.position = pos;
+    this.enemies = EnemyFactory.spawnMultiple(
+      LADRON_PATH,
+      this.scene,
+      enemyPositions,
+      enemyConfig,
+    );
 
-      // Material púrpura
-      const material = new StandardMaterial(`enemyMat${index}`, this.scene);
-      material.diffuseColor = new Color3(0.6, 0.1, 0.6);
-      enemyMesh.material = material;
-
-      // Habilitar colisiones para la cámara
-      enemyMesh.checkCollisions = true;
-
-      // Crear instancia de EnemyDummy (configura física internamente)
-      const enemy = new EnemyDummy(enemyMesh, this.scene, {
-        hp: 3,
-        mass: 3,
-        knockbackForce: 12,
-        contactDamage: 1,
-        patrolSpeed: 2,
-        chaseSpeed: 4,
-        visionRange: 2,
-        chaseGiveUpRange: 12,
-        debug: true, // Mostrar círculo de visión
-      });
-
-      // Asignar referencia al player para que pueda dañarlo
+    // Asignar referencia al player y registrar en WeaponSystem
+    for (const enemy of this.enemies) {
       enemy.setPlayerRef(this.playerController);
-
-      this.enemies.push(enemy);
-    });
-
-    // Registrar enemigos en el PlayerController para que el WeaponSystem los detecte
+    }
     this.playerController.registerEnemies(this.enemies);
 
-    console.log(`${this.enemies.length} enemigos creados`);
+    console.log(`${this.enemies.length} enemigos creados con EnemyFactory`);
+    console.log('Enemigos:', this.enemies);
   }
 
   setupDebugGUI() {
