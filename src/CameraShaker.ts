@@ -1,11 +1,32 @@
-import { Vector3 } from '@babylonjs/core';
+import { Vector3, ArcRotateCamera, Scene } from '@babylonjs/core';
 
 /**
  * CameraShaker - Sistema de sacudida de cámara para feedback de impacto
  * Aplica vibración temporal a la cámara con decay gradual
  */
 export class CameraShaker {
-  constructor(camera, scene) {
+  camera: ArcRotateCamera;
+  scene: Scene;
+
+  // Estado de la vibración
+  isShaking: boolean;
+  intensity: number;
+  duration: number;
+  elapsed: number;
+  maxIntensity: number;
+
+  // Offset aplicado a la cámara
+  offset: Vector3;
+
+  // Posición original de la cámara para restaurar
+  originalAlpha: number;
+  originalBeta: number;
+  originalRadius: number;
+
+  // Frecuencia de la vibración (Hz)
+  frequency: number;
+
+  constructor(camera: ArcRotateCamera, scene: Scene) {
     this.camera = camera;
     this.scene = scene;
 
