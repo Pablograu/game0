@@ -45,13 +45,13 @@ class Game {
 
   async init() {
     await this.initHavok();
-    await this.loadEnvironment(); // Cargar oldtown.glb
-    this.camera = this.createCamera();
-    this.player = await this.createPlayer();
-    this.setupPlayerController();
     this.createLighting();
+    await this.loadEnvironment(); // Cargar oldtown.glb
     await this.preloadEnemyAssets(); // Precargar modelo del ladrón
-    // await this.createEnemies();
+    this.player = await this.createPlayer();
+    this.camera = this.createCamera();
+    this.setupPlayerController();
+    await this.createEnemies();
     this.setupGameManager();
     this.setupDebugGUI();
     this.startRenderLoop();
@@ -79,8 +79,8 @@ class Game {
     const camera = new ArcRotateCamera(
       'camera',
       -Math.PI / 2, // Alpha (rotación horizontal inicial)
-      Math.PI / 3.5, // Beta (ángulo vertical)
-      18, // Radio (distancia inicial)
+      Math.PI / 3, // Beta (ángulo vertical)
+      10, // Radio (distancia inicial)
       Vector3.Zero(),
       this.scene,
     );
@@ -104,6 +104,10 @@ class Game {
   }
 
   setupPlayerController() {
+        // Configurar la cámara para seguir al jugador
+    if (this.camera && this.player) {
+      this.camera.lockedTarget = this.player;
+    }
     // Inicializar CameraShaker
     this.cameraShaker = new CameraShaker(this.camera, this.scene);
 
@@ -155,17 +159,13 @@ class Game {
     // Crear skybox visible a partir del mismo HDR
     this.scene.createDefaultSkybox(
       hdrTexture,
-      true, // pbr = true para calidad alta
-      1000, // tamaño del skybox
-      0.0, // blur (0 = nítido, 1 = muy difuminado)
+      true,  // pbr = true para calidad alta
+      1000,  // tamaño del skybox
+      0.0,   // blur (0 = nítido, 1 = muy difuminado)
     );
 
     // Luz hemisférica de respaldo (por si el HDR es muy oscuro)
-    const light = new HemisphericLight(
-      'light',
-      new Vector3(0, 1, 0),
-      this.scene,
-    );
+    const light = new HemisphericLight('light', new Vector3(0, 1, 0), this.scene);
     light.intensity = 0.3;
 
     console.log('HDR skybox cargado: /hdr/skybox.hdr');
@@ -174,24 +174,27 @@ class Game {
   async loadEnvironment() {
     // Cargar el modelo oldtown.glb como entorno
     console.log('Cargando entorno oldtown.glb...');
-
-    const result = await ImportMeshAsync('/models/oldtown.glb', this.scene);
+    
+    const result = await ImportMeshAsync(
+      '/models/oldtown.glb',
+      this.scene,
+    );
 
     console.log('Entorno cargado:', result.meshes.length, 'meshes');
 
     // Obtener el root del modelo
     const root = result.meshes[0];
-
+    
     // ===== AJUSTAR TAMAÑO Y POSICIÓN AQUÍ =====
     root.position = new Vector3(0, 0, 0); // Ajusta X, Y, Z
-    root.scaling = new Vector3(0.1, 0.1, 0.1); // Ajusta escala (1 = tamaño original)
+    root.scaling = new Vector3(0.1, 0.1, 0.1);  // Ajusta escala (1 = tamaño original)
     // ==========================================
 
     // Configurar colisiones para todos los meshes del entorno
     result.meshes.forEach((mesh) => {
       if (mesh.name !== '__root__') {
         mesh.checkCollisions = true;
-
+        
         // Añadir física estática a los meshes sólidos
         if (mesh.getTotalVertices() > 0) {
           new PhysicsAggregate(
@@ -223,7 +226,7 @@ class Game {
     );
 
     // Posición inicial
-    physicsBody.position = new Vector3(0, 3, -5);
+    physicsBody.position = new Vector3(0, 3, 0);
 
     // Hacer invisible (solo para física)
     physicsBody.isVisible = false;
@@ -312,6 +315,10 @@ class Game {
     return physicsBody;
   }
 
+
+
+
+
   async preloadEnemyAssets() {
     await EnemyFactory.preload('/models/ladron.glb', this.scene);
     console.log('Enemy assets precargados');
@@ -321,23 +328,23 @@ class Game {
     const LADRON_PATH = '/models/ladron.glb';
 
     const enemyPositions = [
-      new Vector3(3, 3, 13),
-      new Vector3(-3, 3, 15),
-      new Vector3(0, 3, -15),
+      new Vector3(3, 2, 3),
+      new Vector3(-3, 2, 5),
+      new Vector3(0, 2, -5),
     ];
 
     const enemyConfig = {
-      attackCooldown: 1.5,
-      attackRange: 2,
-      chaseGiveUpRange: 14,
-      chaseSpeed: 4,
-      contactDamage: 1,
-      debug: true,
       hp: 3,
-      knockbackForce: 12,
       mass: 2,
+      knockbackForce: 12,
+      contactDamage: 1,
       patrolSpeed: 2,
+      chaseSpeed: 4,
       visionRange: 8,
+      chaseGiveUpRange: 14,
+      attackRange: 2,
+      attackCooldown: 1.5,
+      debug: true,
     };
 
     this.enemies = EnemyFactory.spawnMultiple(
@@ -354,16 +361,16 @@ class Game {
     this.playerController.registerEnemies(this.enemies);
 
     console.log(`${this.enemies.length} enemigos creados con EnemyFactory`);
-    console.log('Enemigos:', this.enemies);
   }
 
   setupDebugGUI() {
+    console.log('<<< player', this.player);
+
     this.debugGUI = new DebugGUI();
     this.debugGUI.setupPlayerControls(this.playerController);
     this.debugGUI.setupModelControls(this.player);
     this.debugGUI.setupEnemyControls(this.enemies);
     this.debugGUI.setupCameraControls(this.camera);
-    this.debugGUI.setupUIControls(this.gameManager);
     this.debugGUI.addLogButton(this.playerController);
     console.log('Debug GUI initialized');
   }
