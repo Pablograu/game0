@@ -1,0 +1,2 @@
+- close all debug gui folders
+- fix game manager overlapping states and center the buttons.

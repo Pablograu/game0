@@ -12,7 +12,9 @@ import {
   AbstractMesh,
   Scene,
   TransformNode,
+  Matrix,
 } from '@babylonjs/core';
+import { HitboxSystem } from './HitboxSystem';
 
 // ===== ESTADOS DE IA =====
 export enum EnemyState {
@@ -52,7 +54,7 @@ const DEFAULT_CONFIG: Required<EnemyConfig> = {
   knockbackForce: 15,
   mass: 2,
   modelOffsetY: -1,
-  modelScale: 2,
+  modelScale: 1.6,
   patrolSpeed: 2,
   stunDuration: 0.5,
   visionRange: 8,
@@ -60,14 +62,14 @@ const DEFAULT_CONFIG: Required<EnemyConfig> = {
 
 export class EnemyController {
   // ===== REFERENCES =====
-  scene: Scene;
-  physicsEngine: any;
-  root: TransformNode; // Root del modelo instanciado
-  meshes: AbstractMesh[]; // Todos los meshes del modelo
-  physicsCapsule: Mesh; // Cápsula invisible para física
   body: any; // PhysicsBody de la cápsula
+  meshes: AbstractMesh[]; // Todos los meshes del modelo
   physicsAggregate: PhysicsAggregate | null = null;
+  physicsCapsule: Mesh; // Cápsula invisible para física
+  physicsEngine: any;
   playerRef: any; // Referencia al PlayerController
+  root: TransformNode; // Root del modelo instanciado
+  scene: Scene;
 
   // ===== ANIMATION GROUPS =====
   animations: Map<string, AnimationGroup> = new Map();
@@ -116,24 +118,32 @@ export class EnemyController {
   private _targetYAngle: number = 0;
   private _rotationSpeed: number = 8; // velocidad de giro (rad/s factor)
 
-  // ===== DEBUG =====
-  visionCircle: Mesh | null = null;
-
   // ===== UPDATE OBSERVER =====
   private _updateObserver: any = null;
   private _alive: boolean = true;
+  private _updateEnabled: boolean = true; // Para pausar/reanudar actualizaciones
 
   // ===== COMPAT: WeaponSystem usa enemy.mesh =====
   get mesh(): Mesh {
     return this.physicsCapsule;
   }
 
+  // ===== ATTACK HITBOX =====
+  private _attackHitboxSystem: HitboxSystem | null = null;
+  private _hasHitPlayerThisAttack: boolean = false;
+  // ===== ATTACK TIMING =====
+  private _hitboxActivationTime: number = 1; // segundos desde inicio del ataque
+  private _attackStartTime: number = 0;
+
+  // ===== DEBUG =====
+  visionCircle: Mesh | null = null;
+
   constructor(
-    root: TransformNode,
-    meshes: AbstractMesh[],
     animationGroups: AnimationGroup[],
-    scene: Scene,
     config: EnemyConfig = {},
+    meshes: AbstractMesh[],
+    root: TransformNode,
+    scene: Scene,
   ) {
     this.scene = scene;
     this.physicsEngine = scene.getPhysicsEngine();
@@ -156,7 +166,7 @@ export class EnemyController {
     ]);
 
     // Crear cápsula de física
-    this.physicsCapsule = this.createPhysicsCapsule();
+    this.physicsCapsule = this._createPhysicsCapsule();
     this.body = this.physicsCapsule.physicsBody;
 
     // Parenting: modelo sigue a la cápsula
@@ -176,7 +186,7 @@ export class EnemyController {
 
     // Debug
     if (this.config.debug) {
-      this.setupDebugVisuals();
+      this._setupDebugVisuals();
     }
 
     // Empezar animación
@@ -184,7 +194,7 @@ export class EnemyController {
 
     // Update loop
     this._updateObserver = this.scene.onBeforeRenderObservable.add(() => {
-      this.update();
+      this._update();
     });
 
     // Metadata para detección de golpes
@@ -193,13 +203,16 @@ export class EnemyController {
       m.metadata = { type: 'enemy', instance: this };
     }
 
+    // Crear hitbox de ataque
+    this._createAttackHitbox();
+
     console.log('[EnemyController] Creado con estado PATROL');
   }
 
   // ==========================================================
   //  PHYSICS CAPSULE
   // ==========================================================
-  private createPhysicsCapsule(): Mesh {
+  private _createPhysicsCapsule(): Mesh {
     const capsule = MeshBuilder.CreateCapsule(
       'enemyCapsule',
       { height: 2, radius: 0.5 },
@@ -281,8 +294,10 @@ export class EnemyController {
   // ==========================================================
   //  MAIN UPDATE
   // ==========================================================
-  private update() {
-    if (!this._alive || !this.body) return;
+  private _update() {
+    if (!this._alive || !this.body || !this._updateEnabled) {
+      return;
+    }
     const dt = this.scene.getEngine().getDeltaTime() / 1000;
 
     // Cooldown de daño al jugador
@@ -297,38 +312,54 @@ export class EnemyController {
     }
 
     // Calcular distancia al jugador
-    this.updateDistanceToPlayer();
+    this._updateDistanceToPlayer();
 
     // Colisión por contacto
-    this.checkPlayerCollision();
+    this._checkPlayerCollision();
 
     // Bloquear rotación angular
     this.body.setAngularVelocity(Vector3.Zero());
 
     // Smooth rotation
-    this.updateSmoothRotation(dt);
+    this._updateSmoothRotation(dt);
+
+    // ===== SINCRONIZAR HITBOX CON ANIMACIÓN =====
+    if (this.isAttackAnimPlaying && !this._attackHitboxSystem?.isEnabled()) {
+      const elapsedTime = performance.now() / 1000 - this._attackStartTime;
+
+      // Activar hitbox cuando llega al tiempo configurado
+      if (elapsedTime >= this._hitboxActivationTime) {
+        this._attackHitboxSystem?.setEnabled(true);
+      }
+    }
+
+    // Actualizar posición del hitbox
+    if (this._attackHitboxSystem?.isEnabled()) {
+      this._updateAttackHitboxPosition();
+      this._checkAttackHit();
+    }
 
     // Stuck detection (solo en PATROL y CHASE)
     if (
       this.currentState === EnemyState.PATROL ||
       this.currentState === EnemyState.CHASE
     ) {
-      this.updateStuckDetection(dt);
+      this._updateStuckDetection(dt);
     }
 
     // ===== STATE MACHINE =====
     switch (this.currentState) {
       case EnemyState.PATROL:
-        this.statePatrol(dt);
+        this._statePatrol(dt);
         break;
       case EnemyState.CHASE:
-        this.stateChase(dt);
+        this._stateChase();
         break;
       case EnemyState.ATTACK:
-        this.stateAttack(dt);
+        this._stateAttack();
         break;
       case EnemyState.HIT:
-        this.stateHit(dt);
+        this._stateHit(dt);
         break;
       case EnemyState.DEAD:
         // No hacer nada, el update se limpiará
@@ -354,7 +385,6 @@ export class EnemyController {
   }
 
   private onEnterState(state: EnemyState) {
-    console.log('<<< state>>>', state);
     switch (state) {
       case EnemyState.PATROL:
         this.pickNewPatrolTarget();
@@ -366,24 +396,24 @@ export class EnemyController {
         break;
 
       case EnemyState.ATTACK:
+        this._hasHitPlayerThisAttack = false;
         this.isAttackAnimPlaying = true;
-        this.stop();
+        this._attackStartTime = performance.now() / 1000; // Guardar tiempo inicial
+        this._stop();
         this.playAnimation('attack', false, 1.2);
 
-        // Callback cuando termina la animación de ataque
         const attackAg = this.animations.get('attack');
         if (attackAg) {
           attackAg.onAnimationGroupEndObservable.clear();
           attackAg.onAnimationGroupEndObservable.addOnce(() => {
+            this._attackHitboxSystem?.setEnabled(false);
             this.isAttackAnimPlaying = false;
             this.attackCooldownTimer = this.config.attackCooldown;
 
-            // Decidir siguiente estado
             if (
               this.distanceToPlayer <= this.config.attackRange &&
               this.attackCooldownTimer <= 0
             ) {
-              // Atacar de nuevo inmediatamente (raro, por si el cooldown es 0)
               this.changeState(EnemyState.ATTACK);
             } else {
               this.changeState(EnemyState.CHASE);
@@ -394,12 +424,12 @@ export class EnemyController {
 
       case EnemyState.HIT:
         this.stunTimer = this.config.stunDuration;
-        this.stop();
+        this._stop();
         this.playAnimation('hit', false);
         break;
 
       case EnemyState.DEAD:
-        this.onDead();
+        this._onDead();
         break;
     }
   }
@@ -407,7 +437,7 @@ export class EnemyController {
   // ==========================================================
   //  STATE: PATROL
   // ==========================================================
-  private statePatrol(_dt: number) {
+  private _statePatrol(dt: number) {
     // Detectar jugador → CHASE
     if (this.distanceToPlayer < this.config.visionRange) {
       this.changeState(EnemyState.CHASE);
@@ -427,8 +457,8 @@ export class EnemyController {
     }
 
     dir.normalize();
-    this.moveInDirection(dir, this.config.patrolSpeed);
-    this.faceDirection(dir);
+    this._moveInDirection(dir, this.config.patrolSpeed);
+    this._faceDirection(dir);
   }
 
   private pickNewPatrolTarget() {
@@ -445,7 +475,7 @@ export class EnemyController {
   // ==========================================================
   //  STATE: CHASE
   // ==========================================================
-  private stateChase(_dt: number) {
+  private _stateChase() {
     // Jugador fuera de rango → PATROL
     if (this.distanceToPlayer > this.config.chaseGiveUpRange) {
       this.changeState(EnemyState.PATROL);
@@ -469,23 +499,88 @@ export class EnemyController {
 
     if (dir.length() > 0.1) {
       dir.normalize();
-      this.moveInDirection(dir, this.config.chaseSpeed);
-      this.faceDirection(dir);
+      this._moveInDirection(dir, this.config.chaseSpeed);
+      this._faceDirection(dir);
     }
   }
 
   // ==========================================================
   //  STATE: ATTACK
   // ==========================================================
-  private stateAttack(_dt: number) {
+  private _stateAttack() {
     // Mantenerse quieto mientras ataca, la animación callback resuelve
-    this.stop();
+    this._stop();
+  }
+
+  // ==========================================================
+  //  ATTACK HITBOX SYSTEM
+  // ==========================================================
+  private _createAttackHitbox() {
+    this._attackHitboxSystem = new HitboxSystem(
+      `enemyAttackHitbox_${Math.random().toString(36).substr(2, 9)}`,
+      new Vector3(1.5, 1.5, 1.5),
+      this.scene,
+      this.config.debug,
+    );
+  }
+
+  private _updateAttackHitboxPosition() {
+    if (!this._attackHitboxSystem || !this._attackHitboxSystem.isEnabled()) {
+      return;
+    }
+
+    const pos = this.physicsCapsule.position;
+
+    let forwardDir = new Vector3(0, 0, 1);
+    if (this.root.rotationQuaternion) {
+      const rotMatrix = new Matrix();
+      this.root.rotationQuaternion.toRotationMatrix(rotMatrix);
+      forwardDir = Vector3.TransformCoordinates(
+        new Vector3(0, 0, 1),
+        rotMatrix,
+      );
+    }
+
+    this._attackHitboxSystem.setPosition(pos, 1.2, forwardDir);
+    this._attackHitboxSystem.setRotation(this.root.rotationQuaternion);
+  }
+
+  private _checkAttackHit() {
+    if (
+      !this._attackHitboxSystem?.isEnabled() ||
+      !this.playerRef ||
+      this._hasHitPlayerThisAttack
+    ) {
+      return;
+    }
+
+    const playerMesh = this.playerRef.mesh;
+    if (!playerMesh) {
+      return;
+    }
+
+    // Detectar colisión hitbox ↔ jugador
+    if (this._attackHitboxSystem.intersectsMesh(playerMesh, false)) {
+      this._onHitPlayer();
+    }
+  }
+
+  private _onHitPlayer() {
+    if (!this.playerRef || this._hasHitPlayerThisAttack) return;
+
+    this._hasHitPlayerThisAttack = true;
+
+    console.log(`💥 [Enemy] Hit player! Damage: ${this.config.contactDamage}`);
+
+    // Aplicar daño al jugador
+    const enemyPos = this.physicsCapsule.position;
+    this.playerRef.takeDamage(this.config.contactDamage, enemyPos);
   }
 
   // ==========================================================
   //  STATE: HIT
   // ==========================================================
-  private stateHit(dt: number) {
+  private _stateHit(dt: number) {
     this.stunTimer -= dt;
     if (this.stunTimer <= 0) {
       // Salir de stun
@@ -500,7 +595,7 @@ export class EnemyController {
   // ==========================================================
   //  STATE: DEAD
   // ==========================================================
-  private onDead() {
+  private _onDead() {
     this._alive = false;
 
     // 1. Limpiar TODOS los observables de animación PRIMERO para evitar que
@@ -601,23 +696,23 @@ export class EnemyController {
   // ==========================================================
   //  MOVEMENT HELPERS
   // ==========================================================
-  private moveInDirection(dir: Vector3, speed: number) {
+  private _moveInDirection(dir: Vector3, speed: number) {
     const currentVel = this.body.getLinearVelocity();
     this.body.setLinearVelocity(
       new Vector3(dir.x * speed, currentVel.y, dir.z * speed),
     );
   }
 
-  private stop() {
+  private _stop() {
     const currentVel = this.body.getLinearVelocity();
     this.body.setLinearVelocity(new Vector3(0, currentVel.y, 0));
   }
 
-  private faceDirection(dir: Vector3) {
+  private _faceDirection(dir: Vector3) {
     this._targetYAngle = Math.atan2(dir.x, dir.z);
   }
 
-  private updateSmoothRotation(dt: number) {
+  private _updateSmoothRotation(dt: number) {
     if (!this.root.rotationQuaternion) return;
 
     // Interpolar suavemente hacia el ángulo objetivo
@@ -630,7 +725,7 @@ export class EnemyController {
     );
   }
 
-  private updateStuckDetection(dt: number) {
+  private _updateStuckDetection(dt: number) {
     const pos = this.physicsCapsule.position;
     const dx = pos.x - this._lastPosition.x;
     const dz = pos.z - this._lastPosition.z;
@@ -651,12 +746,12 @@ export class EnemyController {
         this.pickNewPatrolTarget();
       } else if (this.currentState === EnemyState.CHASE) {
         // Intentar rodear el obstáculo: moverse perpendicular al jugador
-        this.dodgeObstacle();
+        this._dodgeObstacle();
       }
     }
   }
 
-  private dodgeObstacle() {
+  private _dodgeObstacle() {
     if (!this.playerRef?.mesh) return;
     const playerPos = this.playerRef.mesh.getAbsolutePosition();
     const pos = this.physicsCapsule.position;
@@ -671,14 +766,14 @@ export class EnemyController {
     const dodge = new Vector3(-toPlayer.z * side, 0, toPlayer.x * side);
 
     // Moverse lateralmente brevemente
-    this.moveInDirection(dodge, this.config.chaseSpeed);
-    this.faceDirection(dodge);
+    this._moveInDirection(dodge, this.config.chaseSpeed);
+    this._faceDirection(dodge);
   }
 
   // ==========================================================
   //  DISTANCE & COLLISION
   // ==========================================================
-  private updateDistanceToPlayer() {
+  private _updateDistanceToPlayer() {
     if (!this.playerRef?.mesh) {
       this.distanceToPlayer = Infinity;
       return;
@@ -690,7 +785,7 @@ export class EnemyController {
     this.distanceToPlayer = Math.sqrt(dx * dx + dz * dz);
   }
 
-  private checkPlayerCollision() {
+  private _checkPlayerCollision() {
     if (!this.playerRef || !this.canDamagePlayer) return;
     if (
       this.currentState === EnemyState.DEAD ||
@@ -758,6 +853,50 @@ export class EnemyController {
     return this.physicsCapsule.position.clone();
   }
 
+  setVisionRange(range: number) {
+    this.config.visionRange = range;
+    if (this.visionCircle) {
+      this.visionCircle.dispose();
+      this.visionCircle = null;
+    }
+    if (this.config.debug) {
+      this._setupDebugVisuals();
+    }
+  }
+
+  setDebugMode(enabled: boolean) {
+    this.config.debug = enabled;
+    if (enabled && !this.visionCircle) {
+      this._setupDebugVisuals();
+    } else if (!enabled && this.visionCircle) {
+      this.visionCircle.dispose();
+      this.visionCircle = null;
+    }
+  }
+
+  // ==========================================================
+  //  DEBUG
+  // ==========================================================
+  private _setupDebugVisuals() {
+    this.visionCircle = MeshBuilder.CreateDisc(
+      'visionRange',
+      { radius: this.config.visionRange, tessellation: 32 },
+      this.scene,
+    );
+
+    const mat = new StandardMaterial('visionMat', this.scene);
+    mat.diffuseColor = new Color3(1, 1, 0);
+    mat.alpha = 0.15;
+    mat.backFaceCulling = false;
+    this.visionCircle.material = mat;
+
+    this.visionCircle.rotation.x = Math.PI / 2;
+    this.visionCircle.position.y = 0.05;
+    this.visionCircle.parent = this.physicsCapsule;
+    this.visionCircle.isPickable = false;
+    this.visionCircle.checkCollisions = false;
+  }
+
   // ===== COMPAT: DebugGUI uses these directly =====
   get patrolSpeed() {
     return this.config.patrolSpeed;
@@ -782,50 +921,6 @@ export class EnemyController {
   }
   set debugMode(v: boolean) {
     this.config.debug = v;
-  }
-
-  setVisionRange(range: number) {
-    this.config.visionRange = range;
-    if (this.visionCircle) {
-      this.visionCircle.dispose();
-      this.visionCircle = null;
-    }
-    if (this.config.debug) {
-      this.setupDebugVisuals();
-    }
-  }
-
-  setDebugMode(enabled: boolean) {
-    this.config.debug = enabled;
-    if (enabled && !this.visionCircle) {
-      this.setupDebugVisuals();
-    } else if (!enabled && this.visionCircle) {
-      this.visionCircle.dispose();
-      this.visionCircle = null;
-    }
-  }
-
-  // ==========================================================
-  //  DEBUG
-  // ==========================================================
-  private setupDebugVisuals() {
-    this.visionCircle = MeshBuilder.CreateDisc(
-      'visionRange',
-      { radius: this.config.visionRange, tessellation: 32 },
-      this.scene,
-    );
-
-    const mat = new StandardMaterial('visionMat', this.scene);
-    mat.diffuseColor = new Color3(1, 1, 0);
-    mat.alpha = 0.15;
-    mat.backFaceCulling = false;
-    this.visionCircle.material = mat;
-
-    this.visionCircle.rotation.x = Math.PI / 2;
-    this.visionCircle.position.y = 0.05;
-    this.visionCircle.parent = this.physicsCapsule;
-    this.visionCircle.isPickable = false;
-    this.visionCircle.checkCollisions = false;
   }
 
   // ==========================================================
@@ -856,5 +951,17 @@ export class EnemyController {
     this.root.dispose();
 
     console.log('[EnemyController] Disposed');
+  }
+
+  /**
+   * ===== GAME STATE CONTROL =====
+   * Pausar/reanudar actualizaciones de IA sin detener el enemigo completamente
+   */
+  public enableUpdate() {
+    this._updateEnabled = true;
+  }
+
+  public disableUpdate() {
+    this._updateEnabled = false;
   }
 }

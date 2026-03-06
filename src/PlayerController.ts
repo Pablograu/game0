@@ -2,6 +2,7 @@ import {
   Vector3,
   Quaternion,
   PhysicsRaycastResult,
+  Scene,
 } from '@babylonjs/core';
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
 import { WeaponSystem } from './WeaponSystem.ts';
@@ -22,8 +23,10 @@ export class PlayerController {
   dashDuration: number;
   dashSpeed: number;
   dashTimer: number;
+  gameManager: any = null; // Referencia al GameManager
   healthText: TextBlock | null;
   healthUI: AdvancedDynamicTexture | null;
+  inputEnabled: boolean = true; // Flag para pausar input
   inputMap: Record<string, boolean>;
   invulnerabilityDuration: number;
   invulnerabilityTimer: number;
@@ -52,7 +55,7 @@ export class PlayerController {
   recoilVelocity: Vector3;
   rotationSpeed: number;
   scaleSpeed: number;
-  scene: any;
+  scene: Scene;
   spawnPoint: Vector3;
   targetAngle: number = 0;
   targetRotation: Quaternion;
@@ -70,7 +73,7 @@ export class PlayerController {
   currentPlayingAnimation: string = 'idle'; // Animación actualmente en reproducción
   blendingSpeed: number = 0.1; // Velocidad de blending global (alta = rápida pero suave)
 
-  constructor(mesh: any, camera: any, scene: any, cameraShaker: any = null) {
+  constructor(mesh: any, camera: any, scene: Scene, cameraShaker: any = null) {
     this.mesh = mesh;
     this.camera = camera;
     this.scene = scene;
@@ -108,7 +111,7 @@ export class PlayerController {
     this.dashDuration = 0.18; // Segundos que dura el dash
     this.dashCooldown = 0.6; // Cooldown entre dashes
     this.dashTimer = 0;
-    this.dashCooldownTimer = 0; 
+    this.dashCooldownTimer = 0;
     this.isDashing = false;
     this.dashDirection = Vector3.Zero();
     this.lastFacingDirection = new Vector3(0, 0, 1); // Dirección por defecto
@@ -353,23 +356,14 @@ export class PlayerController {
    * Activa la hitbox para detectar impactos
    */
   activateHitbox() {
-    if (!this.weaponSystem) return;
+    if (!this.weaponSystem) {
+      return;
+    }
 
     console.log('¡Hitbox activada!');
 
     // Activar el sistema de detección de golpes del WeaponSystem
-    this.weaponSystem.isAttacking = true;
-    this.weaponSystem.attackTimer = this.weaponSystem.attackDuration;
-    this.weaponSystem.hitEnemiesThisSwing.clear();
-    this.weaponSystem.hitObjectsThisSwing.clear();
-
-    // Activar hitbox visual
-    if (this.weaponSystem.hitbox) {
-      this.weaponSystem.hitbox.setEnabled(true);
-      if (this.weaponSystem.debugMode) {
-        this.weaponSystem.hitbox.material.alpha = 0.5;
-      }
-    }
+    this.weaponSystem.activateHitbox();
   }
 
   /**
@@ -378,10 +372,7 @@ export class PlayerController {
   onFastPunchEnd() {
     // Desactivar hitbox
     if (this.weaponSystem) {
-      this.weaponSystem.isAttacking = false;
-      if (this.weaponSystem.hitbox) {
-        this.weaponSystem.hitbox.setEnabled(false);
-      }
+      this.weaponSystem.deactivateHitbox();
     }
 
     // Restaurar estado
@@ -462,6 +453,10 @@ export class PlayerController {
   setupInput() {
     // Capturar input del teclado
     this.scene.onKeyboardObservable.add((kbInfo: any) => {
+      if (!this.inputEnabled) {
+        return; // Ignorar input si está pausado
+      }
+
       const key = kbInfo.event.key.toLowerCase();
 
       if (kbInfo.type === 1) {
@@ -496,6 +491,10 @@ export class PlayerController {
 
     // Click izquierdo para atacar (spam permitido)
     this.scene.onPointerObservable.add((pointerInfo: any) => {
+      if (!this.inputEnabled) {
+        return; // Ignorar input si está pausado
+      }
+
       // Tipo 1 = POINTERDOWN
       if (pointerInfo.type === 1 && pointerInfo.event.button === 0) {
         this.tryFastPunch();
@@ -813,7 +812,8 @@ export class PlayerController {
     this.targetRotation = Quaternion.FromEulerAngles(0, targetAngle, 0);
 
     // Obtener modelo actual directamente
-    const modelRoot = this.mesh.animationModels?.[this.currentPlayingAnimation]?.root;
+    const modelRoot =
+      this.mesh.animationModels?.[this.currentPlayingAnimation]?.root;
 
     if (modelRoot) {
       if (!modelRoot.rotationQuaternion) {
@@ -846,9 +846,10 @@ export class PlayerController {
     this.dashCooldownTimer = this.dashCooldown;
 
     const moveDir = this.getMoveDirection();
-    this.dashDirection = moveDir.length() > 0.1 
-      ? moveDir.normalize() 
-      : this.lastFacingDirection.clone().normalize();
+    this.dashDirection =
+      moveDir.length() > 0.1
+        ? moveDir.normalize()
+        : this.lastFacingDirection.clone().normalize();
 
     this.targetScale = new Vector3(0.7, 1.3, 0.7);
 
@@ -1149,10 +1150,17 @@ export class PlayerController {
     this.isDashing = false;
     this.recoilVelocity = Vector3.Zero();
 
-    // Pequeña pausa dramática
-    setTimeout(() => {
-      this.respawn();
-    }, 500);
+    // Notificar al GameManager
+    if (this.gameManager && this.gameManager.gameOver) {
+      setTimeout(() => {
+        this.gameManager.gameOver();
+      }, 500);
+    } else {
+      // Fallback si no hay GameManager
+      setTimeout(() => {
+        this.respawn();
+      }, 500);
+    }
   }
 
   respawn() {
@@ -1177,19 +1185,24 @@ export class PlayerController {
     console.log('Player respawned!');
   }
 
-  setSpawnPoint(position: any) {
-    this.spawnPoint = position.clone();
+  /**
+   * ===== GAME STATE CONTROL =====
+   * Métodos para pausar/reanudar el input y movimiento del jugador
+   */
+  public setGameManager(gameManager: any) {
+    this.gameManager = gameManager;
   }
 
-  getHealth() {
-    return this.currentHealth;
+  public enableInput() {
+    this.inputEnabled = true;
+    // No es necesario re-attachar camera controls, el GameManager lo hace
   }
 
-  getMaxHealth() {
-    return this.maxHealth;
-  }
-
-  isAlive() {
-    return this.currentHealth > 0;
+  public detachControl() {
+    this.inputEnabled = false;
+    // Limpiar inputs activos
+    this.inputMap = {};
+    this.isDashing = false;
+    // El GameManager se encarga de detach/attach camera
   }
 }

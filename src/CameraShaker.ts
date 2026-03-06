@@ -46,7 +46,7 @@ export class CameraShaker {
     this.originalRadius = 0;
 
     // Frecuencia de la vibración (Hz)
-    this.frequency = 30; // Vibraciones por segundo
+    this.frequency = 5; // Vibraciones por segundo
 
     // Setup del update loop
     this.setupUpdate();
@@ -152,21 +152,21 @@ export class CameraShaker {
    * Shake suave (saltar/aterrizar)
    */
   shakeSoft() {
-    this.shake(0.05, 0.15);
+    this.shake(0.01, 0.15);
   }
 
   /**
    * Shake medio (golpear enemigo)
    */
   shakeMedium() {
-    this.shake(0.15, 0.2);
+    this.shake(0.03, 0.15);
   }
 
   /**
    * Shake fuerte (recibir daño)
    */
   shakeHard() {
-    this.shake(0.3, 0.3);
+    this.shake(0.05, 0.15);
   }
 
   /**
