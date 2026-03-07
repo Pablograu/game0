@@ -4,6 +4,7 @@ import {
   Color3,
   Vector3,
   Matrix,
+  Quaternion,
 } from '@babylonjs/core';
 import { HitboxSystem } from './HitboxSystem';
 
@@ -113,19 +114,17 @@ export class WeaponSystem {
    */
   updateHitboxPosition() {
     const playerPos = this.playerMesh.getAbsolutePosition();
-    const currentAnim = this.player?.currentPlayingAnimation || 'idle';
-    const modelRoot = this.playerMesh.animationModels?.[currentAnim]?.root;
 
-    // Obtener dirección forward del modelo
-    let forwardDirection = new Vector3(0, 0, 1);
-    if (modelRoot?.rotationQuaternion) {
-      const rotMatrix = new Matrix();
-      modelRoot.rotationQuaternion.toRotationMatrix(rotMatrix);
-      forwardDirection = Vector3.TransformCoordinates(
-        new Vector3(0, 0, 1),
-        rotMatrix,
-      );
-    }
+    // Obtener la rotación actual del jugador (targetRotation es la que se usa para rotar)
+    const playerRotation = this.player?.targetRotation || this.playerMesh.rotationQuaternion || Quaternion.Identity();
+
+    // Obtener dirección forward usando la rotación del jugador
+    const rotMatrix = new Matrix();
+    playerRotation.toRotationMatrix(rotMatrix);
+    const forwardDirection = Vector3.TransformCoordinates(
+      new Vector3(0, 0, 1),
+      rotMatrix,
+    );
 
     // Posicionar hitbox frente al jugador
     this.hitboxSystem?.setPosition(
@@ -134,10 +133,8 @@ export class WeaponSystem {
       forwardDirection,
     );
 
-    // Rotar hitbox igual que el modelo
-    if (modelRoot?.rotationQuaternion) {
-      this.hitboxSystem?.setRotation(modelRoot.rotationQuaternion);
-    }
+    // Rotar hitbox igual que el jugador
+    this.hitboxSystem?.setRotation(playerRotation);
   }
 
   checkHits() {
