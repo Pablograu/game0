@@ -148,7 +148,7 @@ export class WeaponSystem {
       }
 
       // Detectar colisión
-      if (this.hitboxSystem?.intersectsMesh(enemy.mesh, false)) {
+      if (this.hitboxSystem?.intersectsMesh(enemy.mesh, false)) {        
         this.onHitEnemy(enemy);
       }
     }

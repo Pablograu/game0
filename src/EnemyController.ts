@@ -582,6 +582,7 @@ export class EnemyController {
   // ==========================================================
   private _stateHit(dt: number) {
     this.stunTimer -= dt;
+    this._stop();
     if (this.stunTimer <= 0) {
       // Salir de stun
       if (this.hp <= 0) {

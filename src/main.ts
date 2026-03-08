@@ -1,17 +1,16 @@
 import './style.css';
 import {
-  Engine,
-  Scene,
-  Vector3,
-  HemisphericLight,
   ArcRotateCamera,
-  MeshBuilder,
+  Engine,
   HavokPlugin,
+  HDRCubeTexture,
+  HemisphericLight,
+  MeshBuilder,
   PhysicsAggregate,
   PhysicsShapeType,
   Quaternion,
-  CubeTexture,
-  HDRCubeTexture,
+  Scene,
+  Vector3,
 } from '@babylonjs/core';
 import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import '@babylonjs/core/Cameras/Inputs';

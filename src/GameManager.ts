@@ -56,6 +56,7 @@ export class GameManager {
     this.engine = engine;
     this.initializeUI();
     this.setupInputListeners();
+    // Los enemigos se desactivan aquí cuando se asignan (ver setEnemies)
   }
 
   /**
@@ -67,6 +68,8 @@ export class GameManager {
 
   public setEnemies(enemies: any[]) {
     this.enemies = enemies;
+    // Desactivar todos los enemigos inicialmente (el juego aún no ha comenzado)
+    this.disableEnemies();
   }
 
   public setCamera(camera: any) {

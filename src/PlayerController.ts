@@ -137,7 +137,7 @@ export class PlayerController {
     this.recoilDecay = 10;
 
     // ===== SISTEMA DE SALUD =====
-    this.maxHealth = 3;
+    this.maxHealth = 3000000000;
     this.currentHealth = this.maxHealth;
     this.isInvulnerable = false;
     this.invulnerabilityDuration = 1.5; // Segundos de invulnerabilidad tras daño
@@ -359,9 +359,6 @@ export class PlayerController {
     if (!this.weaponSystem) {
       return;
     }
-
-    console.log('¡Hitbox activada!');
-
     // Activar el sistema de detección de golpes del WeaponSystem
     this.weaponSystem.activateHitbox();
   }

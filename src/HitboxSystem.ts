@@ -86,6 +86,11 @@ export class HitboxSystem {
    * Detecta si intersecta con otro mesh
    */
   intersectsMesh(otherMesh: Mesh, precise: boolean = false): boolean {
+
+    if(this.mesh.intersectsMesh(otherMesh, precise)){
+      console.log('<<< hitboxsystem intersectsMesh',{ hitboxSystem: this.mesh.getAbsolutePosition(), otherMesh: otherMesh.getAbsolutePosition() });
+    }
+    
     return this.mesh.intersectsMesh(otherMesh, precise);
   }
 
