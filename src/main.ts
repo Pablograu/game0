@@ -249,7 +249,7 @@ class Game {
     console.log('Loading animated character...');
 
     const result = await ImportMeshAsync(
-      '/models/animations_test.glb',
+      '/models/player.glb',
       this.scene,
     );
     console.log('<<<char', result);
@@ -277,13 +277,37 @@ class Game {
       (ag) => ag.name.toLowerCase() === 'jump',
     );
     const punchLAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'punch_l',
+      (ag) => ag.name === 'punch_L',
     );
     const punchRAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'punch_r',
+      (ag) => ag.name === 'punch_R',
     );
     const breakdanceAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'breakdance',
+      (ag) => ag.name.toLowerCase() === 'macarena',
+    );
+
+    const dashAnim = animationGroups.find(
+      (ag) => ag.name.toLowerCase() === 'dash',
+    );
+
+    const deadAnim = animationGroups.find(
+      (ag) => ag.name.toLowerCase() === 'dead',
+    );
+
+    const fallingAnim = animationGroups.find(
+      (ag) => ag.name.toLowerCase() === 'falling',
+    );
+
+    const hitAnim = animationGroups.find(
+      (ag) => ag.name.toLowerCase() === 'hit',
+    );
+
+    const landingAnim = animationGroups.find(
+      (ag) => ag.name.toLowerCase() === 'landing',
+    );
+
+    const walkAnim = animationGroups.find(
+      (ag) => ag.name.toLowerCase() === 'walk',
     );
 
     if (!idleAnim || !runAnim || !jumpAnim) {
@@ -303,12 +327,18 @@ class Game {
       idle: { root: modelRoot, animations: idleAnim ? [idleAnim] : [] },
       run: { root: modelRoot, animations: runAnim ? [runAnim] : [] },
       jump: { root: modelRoot, animations: jumpAnim ? [jumpAnim] : [] },
-      punch_l: { root: modelRoot, animations: punchLAnim ? [punchLAnim] : [] },
-      punch_r: { root: modelRoot, animations: punchRAnim ? [punchRAnim] : [] },
-      breakdance: {
+      punch_L: { root: modelRoot, animations: punchLAnim ? [punchLAnim] : [] },
+      punch_R: { root: modelRoot, animations: punchRAnim ? [punchRAnim] : [] },
+      macarena: {
         root: modelRoot,
         animations: breakdanceAnim ? [breakdanceAnim] : [],
       },
+      dash: { root: modelRoot, animations: dashAnim ? [dashAnim] : [] },
+      dead: { root: modelRoot, animations: deadAnim ? [deadAnim] : [] },
+      falling: { root: modelRoot, animations: fallingAnim ? [fallingAnim] : [] },
+      hit: { root: modelRoot, animations: hitAnim ? [hitAnim] : [] },
+      landing: { root: modelRoot, animations: landingAnim ? [landingAnim] : [] },
+      walk: { root: modelRoot, animations: walkAnim ? [walkAnim] : [] },
     };
 
     return physicsBody;

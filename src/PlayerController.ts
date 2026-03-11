@@ -65,7 +65,7 @@ export class PlayerController {
 
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
   useLeftPunch: boolean = true; // Alternar entre puño izquierdo y derecho
-  punchSpeed: number = 2.5; // Velocidad de reproducción de las animaciones de puño (más alto = más rápido)
+  punchSpeed: number = 2; // Velocidad de reproducción de las animaciones de puño (más alto = más rápido)
   normalMoveSpeed: number = 8; // Guardar velocidad normal
   attackMoveSpeedMultiplier: number = 0.1; // Reducción de velocidad durante ataque (10%)
   punchHitboxDelay: number = 0.15; // Porcentaje de la animación para activar hitbox (15% para puños rápidos)
@@ -107,8 +107,8 @@ export class PlayerController {
     this.jumpKeyReleased = true; // Para detectar cuando suelta la tecla
 
     // ===== DASH =====
-    this.dashSpeed = 25;
-    this.dashDuration = 0.18; // Segundos que dura el dash
+    this.dashSpeed = 17;
+    this.dashDuration = 0.7; // Segundos que dura el dash
     this.dashCooldown = 0.6; // Cooldown entre dashes
     this.dashTimer = 0;
     this.dashCooldownTimer = 0;
@@ -292,7 +292,7 @@ export class PlayerController {
 
     // Alternar entre puño izquierdo y derecho
     // Usar la variable y actualizarla INMEDIATAMENTE para evitar race conditions con spam
-    const punchAnimation = this.useLeftPunch ? 'punch_l' : 'punch_r';
+    const punchAnimation = this.useLeftPunch ? 'punch_L' : 'punch_R';
 
     // Alternar para el próximo golpe ANTES de ejecutar (crítico para spam)
     this.useLeftPunch = !this.useLeftPunch;
@@ -422,6 +422,7 @@ export class PlayerController {
     // Iterar sobre todos los modelos de animación
     Object.keys(this.mesh.animationModels).forEach((animName) => {
       const animModel = this.mesh.animationModels[animName];
+      console.log('<<<', animModel);
 
       if (animModel?.animations && animModel.animations.length > 0) {
         const animGroup = animModel.animations[0];
@@ -456,8 +457,8 @@ export class PlayerController {
 
       const key = kbInfo.event.key.toLowerCase();
 
+      // KEYDOWN
       if (kbInfo.type === 1) {
-        // KEYDOWN
         this.inputMap[key] = true;
 
         // Jump Buffer: al presionar salto, iniciar el timer
@@ -467,7 +468,7 @@ export class PlayerController {
         }
 
         // Dash input (Shift)
-        if (key === 'shift' && this.dashCooldownTimer <= 0 && !this.isDashing) {
+        if (key === 'shift' && this.dashCooldownTimer <= 0) {
           this.startDash();
         }
 
@@ -475,8 +476,8 @@ export class PlayerController {
         if (key === 'k') {
           this.tryFastPunch();
         }
-      } else if (kbInfo.type === 2) {
         // KEYUP
+      } else if (kbInfo.type === 2) {
         this.inputMap[key] = false;
 
         // Variable Jump: detectar cuando suelta la tecla
@@ -629,8 +630,16 @@ export class PlayerController {
     let targetAnimation = 'idle';
     let animSpeed = 1.0;
 
-    // Determinar animación según estado
-    if (!this.isGrounded && velocity.y > 0.5) {
+    // Determinar animación según estado (dash primero, antes que run)
+    if (this.isDashing) {
+      // Dashing - animación de dash con velocidad rápida
+      targetAnimation = 'dash';
+      animSpeed = 1.5;
+    } else if (this.currentHealth <= 0) {
+      // Muerte
+      targetAnimation = 'dead';
+      animSpeed = 1.0;
+    } else if (!this.isGrounded && velocity.y > 0.5) {
       // Saltando (subiendo)
       targetAnimation = 'jump';
       animSpeed = Math.max(0.5, (velocity.y / this.jumpForce) * 1.2);
@@ -651,6 +660,7 @@ export class PlayerController {
       targetAnimation = 'idle';
       animSpeed = 1.0;
     }
+
 
     // ===== CAMBIAR ANIMACIÓN CON BLENDING SUAVE =====
     if (this.currentPlayingAnimation !== targetAnimation) {
@@ -838,9 +848,20 @@ export class PlayerController {
 
   // ===== DASH =====
   startDash() {
+    const animationName = 'dash';
+    const animGroup = this.animationGroups.get(animationName);
+
+    if (animGroup) {
+      // Reproducir animación de dash con velocidad rápida
+      this.playSmoothAnimation(animationName, false, true, 1.5);
+    } else {
+      console.warn(`Animación de dash '${animationName}' no encontrada`);
+    }
+
     this.isDashing = true;
     this.dashTimer = this.dashDuration;
     this.dashCooldownTimer = this.dashCooldown;
+
 
     const moveDir = this.getMoveDirection();
     this.dashDirection =
@@ -857,6 +878,7 @@ export class PlayerController {
       duration: 0.3,
       direction: 'radial',
     });
+
   }
 
   updateDash(deltaTime: number) {
