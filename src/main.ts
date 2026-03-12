@@ -103,7 +103,7 @@ class Game {
   }
 
   setupPlayerController() {
-        // Configurar la cámara para seguir al jugador
+    // Configurar la cámara para seguir al jugador
     if (this.camera && this.player) {
       this.camera.lockedTarget = this.player;
     }
@@ -158,13 +158,17 @@ class Game {
     // Crear skybox visible a partir del mismo HDR
     this.scene.createDefaultSkybox(
       hdrTexture,
-      true,  // pbr = true para calidad alta
-      1000,  // tamaño del skybox
-      0.0,   // blur (0 = nítido, 1 = muy difuminado)
+      true, // pbr = true para calidad alta
+      1000, // tamaño del skybox
+      0.0, // blur (0 = nítido, 1 = muy difuminado)
     );
 
     // Luz hemisférica de respaldo (por si el HDR es muy oscuro)
-    const light = new HemisphericLight('light', new Vector3(0, 1, 0), this.scene);
+    const light = new HemisphericLight(
+      'light',
+      new Vector3(0, 1, 0),
+      this.scene,
+    );
     light.intensity = 0.3;
 
     console.log('HDR skybox cargado: /hdr/skybox.hdr');
@@ -173,27 +177,24 @@ class Game {
   async loadEnvironment() {
     // Cargar el modelo oldtown.glb como entorno
     console.log('Cargando entorno oldtown.glb...');
-    
-    const result = await ImportMeshAsync(
-      '/models/oldtown.glb',
-      this.scene,
-    );
+
+    const result = await ImportMeshAsync('/models/oldtown.glb', this.scene);
 
     console.log('Entorno cargado:', result.meshes.length, 'meshes');
 
     // Obtener el root del modelo
     const root = result.meshes[0];
-    
+
     // ===== AJUSTAR TAMAÑO Y POSICIÓN AQUÍ =====
     root.position = new Vector3(0, 0, 0); // Ajusta X, Y, Z
-    root.scaling = new Vector3(0.1, 0.1, 0.1);  // Ajusta escala (1 = tamaño original)
+    root.scaling = new Vector3(0.1, 0.1, 0.1); // Ajusta escala (1 = tamaño original)
     // ==========================================
 
     // Configurar colisiones para todos los meshes del entorno
     result.meshes.forEach((mesh) => {
       if (mesh.name !== '__root__') {
         mesh.checkCollisions = true;
-        
+
         // Añadir física estática a los meshes sólidos
         if (mesh.getTotalVertices() > 0) {
           new PhysicsAggregate(
@@ -252,7 +253,6 @@ class Game {
       '/models/animations_test.glb',
       this.scene,
     );
-    console.log('<<<char', result);
 
     const modelRoot = result.meshes[0]!;
     modelRoot.parent = physicsBody;
@@ -314,10 +314,6 @@ class Game {
     return physicsBody;
   }
 
-
-
-
-
   async preloadEnemyAssets() {
     await EnemyFactory.preload('/models/ladron.glb', this.scene);
     console.log('Enemy assets precargados');
@@ -327,9 +323,9 @@ class Game {
     const LADRON_PATH = '/models/ladron.glb';
 
     const enemyPositions = [
-      new Vector3(3, 2, 3),
-      new Vector3(-3, 2, 5),
-      new Vector3(0, 2, -5),
+      new Vector3(3, 5, 13),
+      new Vector3(-3, 5, 15),
+      new Vector3(0, 5, -15),
     ];
 
     const enemyConfig = {
@@ -363,8 +359,6 @@ class Game {
   }
 
   setupDebugGUI() {
-    console.log('<<< player', this.player);
-
     this.debugGUI = new DebugGUI();
     this.debugGUI.setupPlayerControls(this.playerController);
     this.debugGUI.setupModelControls(this.player);
