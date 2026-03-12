@@ -599,79 +599,65 @@ export class EnemyController {
   private _onDead() {
     this._alive = false;
 
-    // 1. Limpiar TODOS los observables de animación PRIMERO para evitar que
-    //    callbacks de estados anteriores (ATTACK, HIT) disparen transiciones.
+    // 1. Stop all animations and clear callbacks to prevent state transitions
     for (const ag of this.animations.values()) {
       ag.onAnimationGroupEndObservable.clear();
       ag.stop();
     }
 
-    // 2. Detener movimiento (body todavía válido aquí)
+    // 2. Enable ragdoll collapse on the existing physics body.
+    //    The model is already parented to the capsule, so unlocking rotation
+    //    and applying forces will make the whole model topple over naturally.
     if (this.body) {
-      this.body.setLinearVelocity(Vector3.Zero());
-      this.body.setAngularVelocity(Vector3.Zero());
-    }
+      // Grab current velocity from knockback (applied in takeDamage) BEFORE modifying
+      const currentVel = this.body.getLinearVelocity();
 
-    // 3. Reproducir 'falling' directamente, SIN pasar por playAnimation,
-    //    para evitar que se llame a prevAg.stop() (que dispara observables)
-    //    y evitar el sistema de blending.
-    let fallingAg = this.animations.get('falling');
-    if (!fallingAg) {
-      // Búsqueda parcial de fallback
-      for (const [key, value] of this.animations) {
-        if (
-          key.includes('fall') ||
-          key.includes('dying') ||
-          key.includes('death')
-        ) {
-          fallingAg = value;
-          break;
-        }
+      // Unlock rotation — inertia was Vector3.Zero to prevent tipping during gameplay
+      this.body.setMassProperties({
+        mass: this.config.mass,
+        inertia: new Vector3(0.4, 0.1, 0.4),
+      });
+
+      // Calculate topple axis: perpendicular to knockback direction so the
+      // enemy falls AWAY from the hit (cross product with up vector)
+      const toppleAxis = new Vector3(-currentVel.z, 0, currentVel.x);
+      if (toppleAxis.length() > 0.01) {
+        toppleAxis.normalize();
+      } else {
+        // Fallback: random topple direction if no velocity
+        toppleAxis.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
       }
-    }
-    if (fallingAg) {
-      fallingAg.loopAnimation = false;
-      fallingAg.start(false, 1.0, fallingAg.from, fallingAg.to, false);
-      this.currentAnimName = fallingAg.name.toLowerCase();
+
+      // Apply angular velocity to topple the body over
+      this.body.setAngularVelocity(toppleAxis.scale(6));
+
+      // Add a small upward boost so the body lifts before falling
+      const boost = new Vector3(0, 20, 0);
+      this.body.applyImpulse(boost, this.physicsCapsule.getAbsolutePosition());
     }
 
-    // 4. Desactivar física y colisiones
-    if (this.physicsAggregate) {
-      this.physicsAggregate.dispose();
-      this.physicsAggregate = null;
-    }
-    this.physicsCapsule.checkCollisions = false;
+    // 3. Disable collisions and pickability on visual meshes
     for (const m of this.meshes) {
       m.checkCollisions = false;
       m.isPickable = false;
     }
 
-    // 5. Limpiar debug
+    // 4. Clean up debug visuals
     if (this.visionCircle) {
       this.visionCircle.dispose();
       this.visionCircle = null;
     }
 
-    // 6. Eliminar update observer
+    // 5. Remove AI update observer — physics engine handles the ragdoll from here
     if (this._updateObserver) {
       this.scene.onBeforeRenderObservable.remove(this._updateObserver);
       this._updateObserver = null;
     }
 
-    // 7. Calcular duración real de la animación falling (frames / fps)
-    //    y programar dispose con un timer simple (sin tocar materiales,
-    //    que son compartidos entre instancias).
-    let waitSeconds = 3.0; // fallback si no hay animación
-    if (fallingAg) {
-      // Las animaciones GLB corren a 60fps por defecto
-      const frames = fallingAg.to - fallingAg.from;
-      waitSeconds = frames / 60 + 2.0; // duración + 2 s en el suelo
-    }
-    this._scheduleDispose(waitSeconds);
+    // 6. After settling, freeze the body and schedule visual dispose
+    this._scheduleDispose(4.0);
 
-    console.log(
-      `[EnemyController] DEAD — dispose en ${waitSeconds.toFixed(1)}s`,
-    );
+    console.log('[EnemyController] DEAD — ragdoll collapse activated');
   }
 
   /**
