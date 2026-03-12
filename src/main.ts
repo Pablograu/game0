@@ -10,7 +10,6 @@ import {
   PhysicsAggregate,
   PhysicsShapeType,
   Quaternion,
-  CubeTexture,
   HDRCubeTexture,
 } from '@babylonjs/core';
 import { ImportMeshAsync } from '@babylonjs/core/Loading';
@@ -21,8 +20,8 @@ import { PlayerController } from './PlayerController.ts';
 import { EnemyFactory } from './EnemyFactory.ts';
 import { EffectManager } from './EffectManager.ts';
 import { CameraShaker } from './CameraShaker.ts';
-import { DebugGUI } from './DebugGUI.ts';
 import { GameManager } from './GameManager.ts';
+import { DebugGUI } from './DebugGUI.ts';
 
 class Game {
   canvas: any;
@@ -30,8 +29,8 @@ class Game {
   scene!: Scene;
   player: any;
   camera: ArcRotateCamera | null = null;
-  cameraShaker: any;
-  playerController: any;
+  cameraShaker: CameraShaker | null = null;
+  playerController: PlayerController | null = null;
   enemies: any[] = [];
   debugGUI: DebugGUI | null = null;
   gameManager: GameManager | null = null;
