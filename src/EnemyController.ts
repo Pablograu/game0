@@ -13,8 +13,10 @@ import {
   Scene,
   TransformNode,
   Matrix,
+  Skeleton,
 } from '@babylonjs/core';
 import { HitboxSystem } from './HitboxSystem';
+import { EnemyRagdoll } from './EnemyRagdoll.ts';
 
 // ===== ESTADOS DE IA =====
 export enum EnemyState {
@@ -123,6 +125,18 @@ export class EnemyController {
   private _alive: boolean = true;
   private _updateEnabled: boolean = true; // Para pausar/reanudar actualizaciones
 
+  // ===== RAGDOLL =====
+  private _ragdoll: EnemyRagdoll | null = null;
+  private _lastKnockbackVelocity: Vector3 = Vector3.Zero();
+
+  private _ragdollDetachSnapshot: {
+    parent: TransformNode | null;
+    position: Vector3;
+    scaling: Vector3;
+    rotation: Vector3;
+    rotationQuaternion: Quaternion | null;
+  } | null = null;
+
   // ===== COMPAT: WeaponSystem usa enemy.mesh =====
   get mesh(): Mesh {
     return this.physicsCapsule;
@@ -144,6 +158,7 @@ export class EnemyController {
     meshes: AbstractMesh[],
     root: TransformNode,
     scene: Scene,
+    skeleton: Skeleton | null = null,
   ) {
     this.scene = scene;
     this.physicsEngine = scene.getPhysicsEngine();
@@ -180,6 +195,13 @@ export class EnemyController {
     // Forzar uso de rotationQuaternion (los GLB lo necesitan, rotation.y se ignora si hay quaternion)
     this.root.rotationQuaternion = Quaternion.Identity();
     this._lastPosition = this.physicsCapsule.position.clone();
+
+    // Preparar ragdoll Babylon para esta instancia (si hay skeleton compatible)
+    this._ragdoll = EnemyRagdoll.create(
+      skeleton,
+      this.root,
+      this.root.name || 'enemy',
+    );
 
     // Primer patrol target
     this.pickNewPatrolTarget();
@@ -600,64 +622,187 @@ export class EnemyController {
     this._alive = false;
 
     // 1. Stop all animations and clear callbacks to prevent state transitions
+    this._attackHitboxSystem?.setEnabled(false);
+    this.isAttackAnimPlaying = false;
     for (const ag of this.animations.values()) {
       ag.onAnimationGroupEndObservable.clear();
-      ag.stop();
-    }
-
-    // 2. Enable ragdoll collapse on the existing physics body.
-    //    The model is already parented to the capsule, so unlocking rotation
-    //    and applying forces will make the whole model topple over naturally.
-    if (this.body) {
-      // Grab current velocity from knockback (applied in takeDamage) BEFORE modifying
-      const currentVel = this.body.getLinearVelocity();
-
-      // Unlock rotation — inertia was Vector3.Zero to prevent tipping during gameplay
-      this.body.setMassProperties({
-        mass: this.config.mass,
-        inertia: new Vector3(0.4, 0.1, 0.4),
-      });
-
-      // Calculate topple axis: perpendicular to knockback direction so the
-      // enemy falls AWAY from the hit (cross product with up vector)
-      const toppleAxis = new Vector3(-currentVel.z, 0, currentVel.x);
-      if (toppleAxis.length() > 0.01) {
-        toppleAxis.normalize();
-      } else {
-        // Fallback: random topple direction if no velocity
-        toppleAxis.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+      if (ag.isPlaying) {
+        ag.pause();
       }
-
-      // Apply angular velocity to topple the body over
-      this.body.setAngularVelocity(toppleAxis.scale(6));
-
-      // Add a small upward boost so the body lifts before falling
-      const boost = new Vector3(0, 20, 0);
-      this.body.applyImpulse(boost, this.physicsCapsule.getAbsolutePosition());
     }
 
-    // 3. Disable collisions and pickability on visual meshes
+    // 2. Compute death impulse source from knockback (fallback: current body velocity)
+    let deathVelocity = this._lastKnockbackVelocity.clone();
+    if (
+      deathVelocity.lengthSquared() < 0.0001 &&
+      this.body &&
+      this.body.getLinearVelocity
+    ) {
+      deathVelocity = this.body.getLinearVelocity();
+    }
+
+    // 3. Try Babylon skeletal ragdoll first; fallback to capsule collapse if unavailable.
+    let ragdollActivated = false;
+
+    if (this._ragdoll?.isReady()) {
+      this._prepareGameplayCapsuleForRagdoll();
+      this._ragdollDetachSnapshot = this._detachVisualRootForRagdoll();
+      ragdollActivated = this._ragdoll.activate(deathVelocity);
+
+      if (ragdollActivated) {
+        this._deactivateGameplayCapsule();
+      } else {
+        this._restoreVisualRootAfterFailedRagdoll();
+        this._restoreGameplayCapsuleAfterFailedRagdoll();
+      }
+    }
+
+    if (!ragdollActivated) {
+      this._applyFallbackCapsuleCollapse(deathVelocity);
+    }
+
+    // 4. Disable collisions and pickability on visual meshes
     for (const m of this.meshes) {
       m.checkCollisions = false;
       m.isPickable = false;
     }
 
-    // 4. Clean up debug visuals
+    // 5. Clean up debug visuals
     if (this.visionCircle) {
       this.visionCircle.dispose();
       this.visionCircle = null;
     }
 
-    // 5. Remove AI update observer — physics engine handles the ragdoll from here
+    // 6. Remove AI update observer — physics engine handles the ragdoll from here
     if (this._updateObserver) {
       this.scene.onBeforeRenderObservable.remove(this._updateObserver);
       this._updateObserver = null;
     }
 
-    // 6. After settling, freeze the body and schedule visual dispose
-    this._scheduleDispose(4.0);
+    // 7. After settling, schedule visual dispose
+    this._scheduleDispose(10.0);
 
-    console.log('[EnemyController] DEAD — ragdoll collapse activated');
+    console.log(
+      `[EnemyController] DEAD — ${ragdollActivated ? 'Babylon ragdoll activated' : 'fallback capsule collapse activated'}`,
+    );
+  }
+
+  private _prepareGameplayCapsuleForRagdoll() {
+    this.physicsCapsule.checkCollisions = false;
+    this.physicsCapsule.isPickable = false;
+
+    if (!this.body) {
+      return;
+    }
+
+    this.body.setLinearVelocity(Vector3.Zero());
+    this.body.setAngularVelocity(Vector3.Zero());
+  }
+
+  private _restoreGameplayCapsuleAfterFailedRagdoll() {
+    this.physicsCapsule.checkCollisions = true;
+    this.physicsCapsule.isPickable = true;
+  }
+
+  private _detachVisualRootForRagdoll() {
+    this.root.computeWorldMatrix(true);
+
+    const snapshot = {
+      parent: this.root.parent as TransformNode | null,
+      position: this.root.position.clone(),
+      scaling: this.root.scaling.clone(),
+      rotation: this.root.rotation.clone(),
+      rotationQuaternion: this.root.rotationQuaternion
+        ? this.root.rotationQuaternion.clone()
+        : null,
+    };
+
+    const worldPos = this.root.getAbsolutePosition().clone();
+    const worldScale = this.root.absoluteScaling.clone();
+    const worldRot = this.root.absoluteRotationQuaternion
+      ? this.root.absoluteRotationQuaternion.clone()
+      : this.root.rotationQuaternion
+        ? this.root.rotationQuaternion.clone()
+        : Quaternion.FromEulerAngles(
+            this.root.rotation.x,
+            this.root.rotation.y,
+            this.root.rotation.z,
+          );
+
+    this.root.parent = null;
+    this.root.position.copyFrom(worldPos);
+    this.root.scaling.copyFrom(worldScale);
+    this.root.rotationQuaternion = worldRot;
+
+    return snapshot;
+  }
+
+  private _restoreVisualRootAfterFailedRagdoll() {
+    if (!this._ragdollDetachSnapshot) {
+      return;
+    }
+
+    const snap = this._ragdollDetachSnapshot;
+    this.root.parent = snap.parent;
+    this.root.position.copyFrom(snap.position);
+    this.root.scaling.copyFrom(snap.scaling);
+
+    if (snap.rotationQuaternion) {
+      this.root.rotationQuaternion = snap.rotationQuaternion.clone();
+    } else {
+      this.root.rotationQuaternion = null;
+      this.root.rotation.copyFrom(snap.rotation);
+    }
+
+    this._ragdollDetachSnapshot = null;
+  }
+
+  private _deactivateGameplayCapsule() {
+    this.physicsCapsule.checkCollisions = false;
+    this.physicsCapsule.isPickable = false;
+    this.physicsCapsule.isVisible = false;
+
+    if (!this.body) {
+      return;
+    }
+
+    this.body.setLinearVelocity(Vector3.Zero());
+    this.body.setAngularVelocity(Vector3.Zero());
+
+    // Remove the old gameplay collider entirely so it doesn't intersect
+    // with ragdoll bodies and create unstable explosive motion.
+    if (this.physicsAggregate) {
+      this.physicsAggregate.dispose();
+      this.physicsAggregate = null;
+    }
+
+    this.body = null;
+  }
+
+  private _applyFallbackCapsuleCollapse(currentVel: Vector3) {
+    if (!this.body) {
+      return;
+    }
+
+    // Unlock rotation — inertia was Vector3.Zero to prevent tipping during gameplay
+    this.body.setMassProperties({
+      mass: this.config.mass,
+      inertia: new Vector3(0.4, 0.1, 0.4),
+    });
+
+    // Calculate topple axis: perpendicular to knockback direction
+    const toppleAxis = new Vector3(-currentVel.z, 0, currentVel.x);
+    if (toppleAxis.length() > 0.01) {
+      toppleAxis.normalize();
+    } else {
+      toppleAxis.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+    }
+
+    this.body.setAngularVelocity(toppleAxis.scale(1.8));
+
+    // Add a small upward boost so the body lifts before falling
+    const boost = new Vector3(0, 6, 0);
+    this.body.applyImpulse(boost, this.physicsCapsule.getAbsolutePosition());
   }
 
   /**
@@ -810,7 +955,10 @@ export class EnemyController {
         .normalize()
         .scale(this.config.knockbackForce);
       kb.y = this.config.knockbackForce * 0.3;
+      this._lastKnockbackVelocity.copyFrom(kb);
       this.body.applyImpulse(kb, this.physicsCapsule.getAbsolutePosition());
+    } else {
+      this._lastKnockbackVelocity.set(0, 0, 0);
     }
 
     // Entrar en HIT (o DEAD si no queda vida)
@@ -928,6 +1076,11 @@ export class EnemyController {
 
     if (this.visionCircle) {
       this.visionCircle.dispose();
+    }
+
+    if (this._ragdoll) {
+      this._ragdoll.dispose();
+      this._ragdoll = null;
     }
 
     if (this.physicsAggregate) {

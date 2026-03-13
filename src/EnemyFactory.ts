@@ -4,6 +4,7 @@ import {
   AnimationGroup,
   AbstractMesh,
   TransformNode,
+  Skeleton,
 } from '@babylonjs/core';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading';
 import { EnemyController, EnemyConfig } from './EnemyController.ts';
@@ -16,6 +17,7 @@ import { EnemyController, EnemyConfig } from './EnemyController.ts';
  */
 export class EnemyFactory {
   private static containers: Map<string, any> = new Map();
+  private static skeletonDebugLogged: Set<string> = new Set();
 
   /**
    * Pre-carga el asset container para un modelo GLB.
@@ -81,6 +83,28 @@ export class EnemyFactory {
       meshes.push(m);
     });
 
+    // Resolver skeleton clonado para esta instancia
+    let skeleton: Skeleton | null = null;
+    for (const m of meshes) {
+      if (m.skeleton) {
+        skeleton = m.skeleton;
+        break;
+      }
+    }
+
+    if (skeleton && !this.skeletonDebugLogged.has(path)) {
+      this.skeletonDebugLogged.add(path);
+      console.log(
+        `[EnemyFactory] Skeleton '${skeleton.name}' bones (${skeleton.bones.length}): ${skeleton.bones
+          .map((bone) => bone.name)
+          .join(', ')}`,
+      );
+    } else if (!skeleton) {
+      console.warn(
+        `[EnemyFactory] No skeleton found for '${path}' instance. Ragdoll will use fallback collapse.`,
+      );
+    }
+
     // Animation groups independientes de esta instancia
     const animGroups: AnimationGroup[] = instance.animationGroups;
 
@@ -96,6 +120,7 @@ export class EnemyFactory {
       meshes,
       root,
       scene,
+      skeleton,
     );
 
     return controller;

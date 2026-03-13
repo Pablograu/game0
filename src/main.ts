@@ -11,6 +11,7 @@ import {
   Quaternion,
   Scene,
   Vector3,
+  PhysicsViewer,
 } from '@babylonjs/core';
 import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import '@babylonjs/core/Cameras/Inputs';
@@ -34,6 +35,10 @@ class Game {
   enemies: any[] = [];
   debugGUI: DebugGUI | null = null;
   gameManager: GameManager | null = null;
+  physicsViewer: PhysicsViewer | null = null;
+  shownPhysicsBodies: Set<any> = new Set();
+  lastPhysicsDebugScanMs: number = 0;
+  readonly physicsDebugScanIntervalMs: number = 250;
 
   constructor() {
     this.canvas = document.getElementById('renderCanvas');
@@ -51,8 +56,9 @@ class Game {
     this.camera = this.createCamera();
     this.setupPlayerController();
     await this.createEnemies();
+    // this.setupPhysicsViewerDebug();
     this.setupGameManager();
-    this.setupDebugGUI();
+    // this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
   }
@@ -69,7 +75,6 @@ class Game {
 
     // Inicializar EffectManager
     EffectManager.init(this.scene);
-
     console.log('Física Havok inicializada');
   }
 
@@ -396,6 +401,48 @@ class Game {
     this.debugGUI.setupCameraControls(this.camera);
     this.debugGUI.addLogButton(this.playerController);
     console.log('Debug GUI initialized');
+  }
+
+  setupPhysicsViewerDebug() {
+    this.physicsViewer = new PhysicsViewer(this.scene);
+    this.scanPhysicsBodiesForDebug();
+
+    this.scene.onBeforeRenderObservable.add(() => {
+      const now = performance.now();
+      if (now - this.lastPhysicsDebugScanMs < this.physicsDebugScanIntervalMs) {
+        return;
+      }
+
+      this.lastPhysicsDebugScanMs = now;
+      this.scanPhysicsBodiesForDebug();
+    });
+
+    console.log('PhysicsViewer debug inicializado');
+  }
+
+  scanPhysicsBodiesForDebug() {
+    if (!this.physicsViewer) {
+      return;
+    }
+
+    for (const mesh of this.scene.meshes) {
+      this.showBodyIfAny(mesh);
+    }
+
+    for (const node of this.scene.transformNodes) {
+      this.showBodyIfAny(node as any);
+    }
+  }
+
+  showBodyIfAny(node: any) {
+    const body = node?.physicsBody;
+    if (!body || this.shownPhysicsBodies.has(body)) {
+      return;
+    }
+
+    this.shownPhysicsBodies.add(body);
+    this.physicsViewer?.showBody(body);
+    console.log(`[PhysicsViewer] body detectado: ${node.name}`);
   }
 
   startRenderLoop() {
