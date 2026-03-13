@@ -22,6 +22,7 @@ import { EffectManager } from './EffectManager.ts';
 import { CameraShaker } from './CameraShaker.ts';
 import { GameManager } from './GameManager.ts';
 import { DebugGUI } from './DebugGUI.ts';
+import { COLLISION_GROUP } from './RagdollSystem.ts';
 
 class Game {
   canvas: any;
@@ -52,7 +53,7 @@ class Game {
     this.setupPlayerController();
     await this.createEnemies();
     this.setupGameManager();
-    this.setupDebugGUI();
+    // this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
   }
@@ -197,7 +198,7 @@ class Game {
 
         // Añadir física estática a los meshes sólidos
         if (mesh.getTotalVertices() > 0) {
-          new PhysicsAggregate(
+          const envAggregate = new PhysicsAggregate(
             mesh,
             PhysicsShapeType.MESH,
             {
@@ -207,6 +208,12 @@ class Game {
             },
             this.scene,
           );
+
+          // Set membership so ragdoll bodies (filterCollideMask=ENVIRONMENT) can collide
+          if (envAggregate.shape) {
+            envAggregate.shape.filterMembershipMask = COLLISION_GROUP.ENVIRONMENT;
+            envAggregate.shape.filterCollideMask = 0xFFFF; // Collide with everything
+          }
         }
       }
     });
