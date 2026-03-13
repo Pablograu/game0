@@ -16,7 +16,7 @@ import {
   Skeleton,
 } from '@babylonjs/core';
 import { HitboxSystem } from './HitboxSystem';
-import { EnemyRagdoll } from './EnemyRagdoll.ts';
+// import { EnemyRagdoll } from './EnemyRagdoll.ts';
 
 // ===== ESTADOS DE IA =====
 export enum EnemyState {
@@ -126,7 +126,7 @@ export class EnemyController {
   private _updateEnabled: boolean = true; // Para pausar/reanudar actualizaciones
 
   // ===== RAGDOLL =====
-  private _ragdoll: EnemyRagdoll | null = null;
+  // private _ragdoll: EnemyRagdoll | null = null;
   private _lastKnockbackVelocity: Vector3 = Vector3.Zero();
 
   private _ragdollDetachSnapshot: {
@@ -197,11 +197,11 @@ export class EnemyController {
     this._lastPosition = this.physicsCapsule.position.clone();
 
     // Preparar ragdoll Babylon para esta instancia (si hay skeleton compatible)
-    this._ragdoll = EnemyRagdoll.create(
-      skeleton,
-      this.root,
-      this.root.name || 'enemy',
-    );
+    // this._ragdoll = EnemyRagdoll.create(
+    //   skeleton,
+    //   this.root,
+    //   this.root.name || 'enemy',
+    // );
 
     // Primer patrol target
     this.pickNewPatrolTarget();
@@ -644,18 +644,18 @@ export class EnemyController {
     // 3. Try Babylon skeletal ragdoll first; fallback to capsule collapse if unavailable.
     let ragdollActivated = false;
 
-    if (this._ragdoll?.isReady()) {
-      this._prepareGameplayCapsuleForRagdoll();
-      this._ragdollDetachSnapshot = this._detachVisualRootForRagdoll();
-      ragdollActivated = this._ragdoll.activate(deathVelocity);
+    // if (this._ragdoll?.isReady()) {
+    //   this._prepareGameplayCapsuleForRagdoll();
+    //   this._ragdollDetachSnapshot = this._detachVisualRootForRagdoll();
+    //   ragdollActivated = this._ragdoll.activate(deathVelocity);
 
-      if (ragdollActivated) {
-        this._deactivateGameplayCapsule();
-      } else {
-        this._restoreVisualRootAfterFailedRagdoll();
-        this._restoreGameplayCapsuleAfterFailedRagdoll();
-      }
-    }
+    //   if (ragdollActivated) {
+    //     this._deactivateGameplayCapsule();
+    //   } else {
+    //     this._restoreVisualRootAfterFailedRagdoll();
+    //     this._restoreGameplayCapsuleAfterFailedRagdoll();
+    //   }
+    // }
 
     if (!ragdollActivated) {
       this._applyFallbackCapsuleCollapse(deathVelocity);
@@ -1078,10 +1078,10 @@ export class EnemyController {
       this.visionCircle.dispose();
     }
 
-    if (this._ragdoll) {
-      this._ragdoll.dispose();
-      this._ragdoll = null;
-    }
+    // if (this._ragdoll) {
+    //   this._ragdoll.dispose();
+    //   this._ragdoll = null;
+    // }
 
     if (this.physicsAggregate) {
       this.physicsAggregate.dispose();

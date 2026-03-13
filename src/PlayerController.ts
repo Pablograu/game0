@@ -28,6 +28,7 @@ export class PlayerController {
   healthText: TextBlock | null;
   healthUI: AdvancedDynamicTexture | null;
   inputEnabled: boolean = true; // Flag para pausar input
+  physicsControlEnabled: boolean = true;
   inputMap: Record<string, boolean>;
   invulnerabilityDuration: number;
   invulnerabilityTimer: number;
@@ -528,7 +529,7 @@ export class PlayerController {
   }
 
   update() {
-    if (!this.body) return;
+    if (!this.body || !this.physicsControlEnabled) return;
     const deltaTime = this.scene.getEngine().getDeltaTime() / 1000;
 
     // ===== INVULNERABILIDAD UPDATE ====
@@ -1224,5 +1225,33 @@ export class PlayerController {
     this.inputMap = {};
     this.isDashing = false;
     // El GameManager se encarga de detach/attach camera
+  }
+
+  public suspendForRagdoll() {
+    this.detachControl();
+    this.physicsControlEnabled = false;
+    this.isAttacking = false;
+    this.recoilVelocity = Vector3.Zero();
+
+    if (this.weaponSystem) {
+      this.weaponSystem.deactivateHitbox();
+    }
+
+    this.animationGroups.forEach((ag) => {
+      ag.onAnimationGroupEndObservable.clear();
+      if (ag.isPlaying) {
+        ag.pause();
+      }
+    });
+
+    if (this.body) {
+      this.body.setLinearVelocity(Vector3.Zero());
+      this.body.setAngularVelocity(Vector3.Zero());
+    }
+  }
+
+  public resumeAfterFailedRagdoll() {
+    this.physicsControlEnabled = true;
+    this.enableInput();
   }
 }

@@ -1,17 +1,29 @@
 import './style.css';
 import {
-  ArcRotateCamera,
+  AdvancedDynamicTexture,
+  TextBlock,
+  Button,
+  Control,
+  StackPanel,
+  Rectangle,
+  Grid,
+} from '@babylonjs/gui';
+import {
+  Axis,
   Engine,
+  Scene,
+  Vector3,
+  HemisphericLight,
+  ArcRotateCamera,
   HavokPlugin,
   HDRCubeTexture,
-  HemisphericLight,
   MeshBuilder,
   PhysicsAggregate,
   PhysicsShapeType,
   Quaternion,
-  Scene,
-  Vector3,
   PhysicsViewer,
+  Ragdoll,
+  PhysicsConstraintType,
 } from '@babylonjs/core';
 import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import '@babylonjs/core/Cameras/Inputs';
@@ -58,7 +70,7 @@ class Game {
     await this.createEnemies();
     // this.setupPhysicsViewerDebug();
     this.setupGameManager();
-    // this.setupDebugGUI();
+    this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
   }
@@ -219,6 +231,17 @@ class Game {
     console.log('Entorno oldtown.glb configurado con física');
   }
 
+  createButton(id, text, top) {
+    let button = Button.CreateSimpleButton(id, text);
+    button.width = 0.2;
+    button.height = '50px';
+    button.color = 'white';
+    button.background = 'green';
+    button.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+    button.top = top;
+    return button;
+  }
+
   async createPlayer() {
     // Crear cápsula invisible para la física
     const physicsBody = MeshBuilder.CreateCapsule(
@@ -256,6 +279,96 @@ class Game {
 
     const result = await ImportMeshAsync('/models/player.glb', this.scene);
     console.log('<<<char', result);
+
+    const skeleton = result.skeletons[0];
+
+    const config = [
+      { bones: ['mixamorig:Hips'], size: 25, boxOffset: 0.01 },
+      {
+        bones: ['mixamorig:Spine2'],
+        size: 20,
+        boxOffset: 0.5,
+        boneOffsetAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        rotationAxis: Axis.Z,
+      },
+      // Arms.
+      {
+        bones: ['mixamorig:LeftArm', 'mixamorig:RightArm'],
+        depth: 10,
+        size: 20,
+        width: 20,
+        rotationAxis: Axis.Y,
+        //min: -1,
+        //max: 1,
+        boxOffset: 1,
+        boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig:LeftForeArm', 'mixamorig:RightForeArm'],
+        depth: 10,
+        size: 10,
+        width: 20,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 12,
+        boneOffsetAxis: Axis.Y,
+      },
+      // Legs
+      {
+        bones: ['mixamorig:LeftUpLeg', 'mixamorig:RightUpLeg'],
+        depth: 10,
+        size: 10,
+        width: 20,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 2,
+        boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig:LeftLeg', 'mixamorig:RightLeg'],
+        depth: 10,
+        size: 10,
+        width: 20,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 2,
+        boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig:LeftHand', 'mixamorig:RightHand'],
+        depth: 10,
+        size: 10,
+        width: 20,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 1,
+        boneOffsetAxis: Axis.Y,
+      },
+      //head
+      {
+        bones: ['mixamorig:Head'],
+        size: 10,
+        boxOffset: 3,
+        boneOffsetAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        rotationAxis: Axis.Z,
+      },
+    ];
+
+    const meshes = result.meshes;
+
+    const ragdoll = new Ragdoll(skeleton, meshes[0], config);
+
+    (window as any).jeje = () => {
+      return ragdoll.ragdoll.bind(ragdoll);
+    };
 
     const modelRoot = result.meshes[0]!;
     modelRoot.parent = physicsBody;

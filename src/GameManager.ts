@@ -144,7 +144,7 @@ export class GameManager {
     // Overlay oscuro semitransparente
     const overlay = new Rectangle();
     overlay.background = 'rgba(0, 0, 0, 0.6)';
-    root.addControl(overlay, 0, 0);
+    // root.addControl(overlay, 0, 0);
 
     // Panel de contenido
     const contentPanel = new StackPanel();
@@ -181,7 +181,7 @@ export class GameManager {
       this.startGame();
     });
 
-    contentPanel.addControl(this.startButton);
+    // contentPanel.addControl(this.startButton);
     contentPanel.addControl(this.titleText);
     root.addControl(contentPanel, 0, 0);
 
