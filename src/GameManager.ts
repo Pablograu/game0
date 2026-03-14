@@ -144,7 +144,7 @@ export class GameManager {
     // Overlay oscuro semitransparente
     const overlay = new Rectangle();
     overlay.background = 'rgba(0, 0, 0, 0.6)';
-    root.addControl(overlay, 0, 0);
+    // root.addControl(overlay, 0, 0);
 
     // Panel de contenido
     const contentPanel = new StackPanel();
@@ -154,20 +154,8 @@ export class GameManager {
     contentPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
     contentPanel.spacing = 30;
 
-    // Título
-    this.titleText = new TextBlock();
-    this.titleText.text = '🎮 empiese';
-    this.titleText.color = 'white';
-    this.titleText.fontSize = 60;
-    this.titleText.fontFamily = 'Arial';
-    this.titleText.fontWeight = 'bold';
-    this.titleText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-    this.titleText.textHorizontalAlignment =
-      Control.HORIZONTAL_ALIGNMENT_CENTER;
-    this.titleText.height = '80px';
-
     // Botón START
-    this.startButton = Button.CreateSimpleButton('startBtn', 'START');
+    this.startButton = Button.CreateSimpleButton('startBtn', 'empiese');
     this.startButton.width = 0.3;
     this.startButton.height = '70px';
     this.startButton.background = '#be3c3c';
@@ -181,7 +169,7 @@ export class GameManager {
       this.startGame();
     });
 
-    contentPanel.addControl(this.startButton);
+    // contentPanel.addControl(this.startButton);
     contentPanel.addControl(this.titleText);
     root.addControl(contentPanel, 0, 0);
 

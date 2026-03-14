@@ -60,6 +60,13 @@ export class Ragdoll {
         return this._rootTransformNode;
     }
     /**
+     * Returns all ragdoll aggregates
+     * @returns array of all physics aggregates
+     */
+    getAggregates() {
+        return this._aggregates;
+    }
+    /**
      * Returns the aggregate corresponding to the ragdoll bone index
      * @param index ragdoll bone aggregate index
      * @returns the aggregate for the bone index for the root aggregate if index is invalid

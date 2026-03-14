@@ -25,8 +25,13 @@ import { EffectManager } from './EffectManager.ts';
 import { CameraShaker } from './CameraShaker.ts';
 import { GameManager } from './GameManager.ts';
 import { DebugGUI } from './DebugGUI.ts';
-import { COLLISION_GROUP } from './RagdollSystem.ts';
 import { Ragdoll } from './ragdoll_copy.js';
+
+// Collision filter bitmasks
+const COL_ENVIRONMENT = 0x0001;
+const COL_PLAYER = 0x0002;
+const COL_RAGDOLL = 0x0004;
+const COL_ENEMY = 0x0008;
 
 class Game {
   canvas: any;
@@ -57,12 +62,10 @@ class Game {
     this.setupPlayerController();
     await this.createEnemies();
     this.setupGameManager();
-    // this.setupDebugGUI();
+    this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
-    this.setupPhysicsVisualizer();
-
-    console.log('this.player  :>> ', this.player);
+    // this.setupPhysicsVisualizer();
   }
 
   async initHavok() {
@@ -234,12 +237,11 @@ class Game {
             },
             this.scene,
           );
-
-          // Set membership so ragdoll bodies (filterCollideMask=ENVIRONMENT) can collide
-          // if (envAggregate.shape) {
-          //   envAggregate.shape.filterMembershipMask = COLLISION_GROUP.ENVIRONMENT;
-          //   envAggregate.shape.filterCollideMask = 0xFFFF; // Collide with everything
-          // }
+          // Environment collides with everything
+          if (envAggregate.shape) {
+            envAggregate.shape.filterMembershipMask = COL_ENVIRONMENT;
+            envAggregate.shape.filterCollideMask = COL_PLAYER | COL_RAGDOLL | COL_ENEMY;
+          }
         }
       }
     });
@@ -248,37 +250,6 @@ class Game {
   }
 
   async createPlayer() {
-    // Crear cápsula invisible para la física
-    // const physicsBody = MeshBuilder.CreateCapsule(
-    //   'player',
-    //   {
-    //     height: 2,
-    //     radius: 0.5,
-    //   },
-    //   this.scene,
-    // );
-
-    // // Posición inicial
-    // physicsBody.position = new Vector3(0, 3, 0);
-
-    // // Hacer invisible (solo para física)
-    // physicsBody.isVisible = false;
-
-    // // Habilitar colisiones para la cámara
-    // physicsBody.checkCollisions = true;
-
-    // // Agregar física a la cápsula
-    // new PhysicsAggregate(
-    //   physicsBody,
-    //   PhysicsShapeType.CAPSULE,
-    //   {
-    //     mass: 1,
-    //     restitution: 0,
-    //     friction: 0.5,
-    //   },
-    //   this.scene,
-    // );
-
     // ===== CARGAR MODELO CON TODAS LAS ANIMACIONES =====
     console.log('Loading animated character...');
 
@@ -288,7 +259,7 @@ class Game {
     );
 
     const modelRoot = result.meshes[0]!;
-    modelRoot.rotationQuaternion = Quaternion.FromEulerAngles(0, 0, 0);
+    // modelRoot.rotationQuaternion = Quaternion.FromEulerwAngles(0, 0, 0);
 
     const skeleton = result.skeletons[0];
     const config = [
@@ -383,6 +354,8 @@ class Game {
       }
     ];
     const rootNode = this.scene.getTransformNodeByName("__root__");
+
+    // armature vive dentro de __root__
     const armatureNode = this.scene.getTransformNodeByName("Armature");
 
     if (!skeleton || !armatureNode) {
@@ -390,6 +363,14 @@ class Game {
       return;
     }
     const ragdoll = new Ragdoll(skeleton, armatureNode, config);
+
+    // Set collision filters on ragdoll bone bodies: collide with ENVIRONMENT only, not PLAYER
+    for (const agg of ragdoll.getAggregates()) {
+      if (agg.shape) {
+        agg.shape.filterMembershipMask = COL_RAGDOLL;
+        agg.shape.filterCollideMask = COL_ENVIRONMENT;
+      }
+    }
 
     // for testing purposes
     window.ragdoll = () => ragdoll.ragdoll();
@@ -476,7 +457,7 @@ class Game {
     modelRoot.position = new Vector3(0, -1, 0); // offset visual to center inside capsule
 
     // Add physics to the capsule (not the Armature)
-    new PhysicsAggregate(
+    const capsuleAggregate = new PhysicsAggregate(
       physicsCapsule,
       PhysicsShapeType.CAPSULE,
       {
@@ -486,6 +467,11 @@ class Game {
       },
       this.scene,
     );
+    // Capsule is PLAYER — collides with ENVIRONMENT + ENEMY, NOT with RAGDOLL bones
+    if (capsuleAggregate.shape) {
+      capsuleAggregate.shape.filterMembershipMask = COL_PLAYER;
+      capsuleAggregate.shape.filterCollideMask = COL_ENVIRONMENT | COL_ENEMY;
+    }
 
     // Store ragdoll ref for death
     (physicsCapsule as any).ragdoll = ragdoll;
