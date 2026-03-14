@@ -353,9 +353,9 @@ class Game {
     const LADRON_PATH = '/models/ladron.glb';
 
     const enemyPositions = [
-      new Vector3(3, 2, 3),
-      new Vector3(-3, 2, 5),
-      new Vector3(0, 2, -5),
+      new Vector3(3, 5, 13),
+      new Vector3(-3, 5, 15),
+      new Vector3(0, 5, -15),
     ];
 
     const enemyConfig = {
@@ -389,8 +389,6 @@ class Game {
   }
 
   setupDebugGUI() {
-    console.log('<<< player', this.player);
-
     this.debugGUI = new DebugGUI();
     this.debugGUI.setupPlayerControls(this.playerController);
     this.debugGUI.setupModelControls(this.player);

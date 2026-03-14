@@ -97,7 +97,6 @@ export class DebugGUI {
     this.modelFolder = this.gui.addFolder('3D Models');
 
     const models = playerMesh.animationModels;
-    console.log('<<< rotation', models.idle.root.rotation.y);
 
     // Idle Model
     if (models.idle?.root) {
