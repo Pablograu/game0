@@ -12,6 +12,8 @@ import {
   Scene,
   Vector3,
   PhysicsViewer,
+  // Ragdoll,
+  Axis,
 } from '@babylonjs/core';
 import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import '@babylonjs/core/Cameras/Inputs';
@@ -24,6 +26,7 @@ import { CameraShaker } from './CameraShaker.ts';
 import { GameManager } from './GameManager.ts';
 import { DebugGUI } from './DebugGUI.ts';
 import { COLLISION_GROUP } from './RagdollSystem.ts';
+import { Ragdoll } from './ragdoll_copy.js';
 
 class Game {
   canvas: any;
@@ -58,6 +61,8 @@ class Game {
     this.startRenderLoop();
     this.setupResize();
     this.setupPhysicsVisualizer();
+
+    console.log('this.player  :>> ', this.player);
   }
 
   async initHavok() {
@@ -231,10 +236,10 @@ class Game {
           );
 
           // Set membership so ragdoll bodies (filterCollideMask=ENVIRONMENT) can collide
-          if (envAggregate.shape) {
-            envAggregate.shape.filterMembershipMask = COLLISION_GROUP.ENVIRONMENT;
-            envAggregate.shape.filterCollideMask = 0xFFFF; // Collide with everything
-          }
+          // if (envAggregate.shape) {
+          //   envAggregate.shape.filterMembershipMask = COLLISION_GROUP.ENVIRONMENT;
+          //   envAggregate.shape.filterCollideMask = 0xFFFF; // Collide with everything
+          // }
         }
       }
     });
@@ -244,35 +249,35 @@ class Game {
 
   async createPlayer() {
     // Crear cápsula invisible para la física
-    const physicsBody = MeshBuilder.CreateCapsule(
-      'player',
-      {
-        height: 2,
-        radius: 0.5,
-      },
-      this.scene,
-    );
+    // const physicsBody = MeshBuilder.CreateCapsule(
+    //   'player',
+    //   {
+    //     height: 2,
+    //     radius: 0.5,
+    //   },
+    //   this.scene,
+    // );
 
-    // Posición inicial
-    physicsBody.position = new Vector3(0, 3, 0);
+    // // Posición inicial
+    // physicsBody.position = new Vector3(0, 3, 0);
 
-    // Hacer invisible (solo para física)
-    physicsBody.isVisible = false;
+    // // Hacer invisible (solo para física)
+    // physicsBody.isVisible = false;
 
-    // Habilitar colisiones para la cámara
-    physicsBody.checkCollisions = true;
+    // // Habilitar colisiones para la cámara
+    // physicsBody.checkCollisions = true;
 
-    // Agregar física a la cápsula
-    new PhysicsAggregate(
-      physicsBody,
-      PhysicsShapeType.CAPSULE,
-      {
-        mass: 1,
-        restitution: 0,
-        friction: 0.5,
-      },
-      this.scene,
-    );
+    // // Agregar física a la cápsula
+    // new PhysicsAggregate(
+    //   physicsBody,
+    //   PhysicsShapeType.CAPSULE,
+    //   {
+    //     mass: 1,
+    //     restitution: 0,
+    //     friction: 0.5,
+    //   },
+    //   this.scene,
+    // );
 
     // ===== CARGAR MODELO CON TODAS LAS ANIMACIONES =====
     console.log('Loading animated character...');
@@ -283,10 +288,111 @@ class Game {
     );
 
     const modelRoot = result.meshes[0]!;
-    modelRoot.parent = physicsBody;
-    modelRoot.position = new Vector3(0, -1, 0);
-    modelRoot.scaling = new Vector3(1.5, 1.5, 1.5);
     modelRoot.rotationQuaternion = Quaternion.FromEulerAngles(0, 0, 0);
+
+    const skeleton = result.skeletons[0];
+    const config = [
+      { bones: ["mixamorig:Hips"], size: 0.25, boxOffset: 0.01 },
+      {
+        bones: ["mixamorig:Spine2"],
+        size: 0.2,
+        boxOffset: 0.05,
+        boneOffsetAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        rotationAxis: Axis.Z
+      },
+      // Arms.
+      {
+        bones: ["mixamorig:LeftArm", "mixamorig:RightArm"],
+        depth: 0.1,
+        size: 0.1,
+        width: 0.2,
+        rotationAxis: Axis.Y,
+        //min: -1,
+        //max: 1,
+        boxOffset: 0.10,
+        boneOffsetAxis: Axis.Y
+      },
+      {
+        bones: ["mixamorig:LeftForeArm", "mixamorig:RightForeArm"],
+        depth: 0.1,
+        size: 0.1,
+        width: 0.2,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.12,
+        boneOffsetAxis: Axis.Y
+      },
+      // Legs
+      {
+        bones: ["mixamorig:LeftUpLeg", "mixamorig:RightUpLeg"],
+        depth: 0.1,
+        size: 0.2,
+        width: 0.08,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.2,
+        boneOffsetAxis: Axis.Y
+      },
+      {
+        bones: ["mixamorig:LeftLeg", "mixamorig:RightLeg"],
+        depth: 0.08,
+        size: 0.3,
+        width: 0.1,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.2,
+        boneOffsetAxis: Axis.Y
+      },
+      {
+        bones: ["mixamorig:LeftHand", "mixamorig:RightHand"],
+        depth: 0.2,
+        size: 0.2,
+        width: 0.2,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.1,
+        boneOffsetAxis: Axis.Y
+      },
+      //head
+      {
+        bones: ["mixamorig:Head"],
+        size: 0.2,
+        boxOffset: 0,
+        boneOffsetAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        rotationAxis: Axis.Z
+      },
+      // feet
+      {
+        bones: ["mixamorig:LeftFoot", "mixamorig:RightFoot"],
+        depth: 0.1,
+        size: 0.1,
+        width: 0.2,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.05,
+        boneOffsetAxis: Axis.Y
+      }
+    ];
+    const rootNode = this.scene.getTransformNodeByName("__root__");
+    const armatureNode = this.scene.getTransformNodeByName("Armature");
+
+    if (!skeleton || !armatureNode) {
+      console.error("Ragdoll setup failed: skeleton or rootNode not found", { skeleton, rootNode });
+      return;
+    }
+    const ragdoll = new Ragdoll(skeleton, armatureNode, config);
+
+    // for testing purposes
+    window.ragdoll = () => ragdoll.ragdoll();
 
     // Encontrar animaciones por nombre
     const animationGroups = result.animationGroups;
@@ -350,8 +456,42 @@ class Game {
       ag.stop();
     }
 
-    // Guardar referencias - ahora todas usan el mismo root
-    (physicsBody as any).animationModels = {
+    const physicsCapsule = MeshBuilder.CreateCapsule(
+      'player',
+      {
+        height: 2,
+        radius: 0.5,
+      },
+      this.scene,
+    );
+
+    // ===== CONFIGURE PHYSICS CAPSULE =====
+    physicsCapsule.position = new Vector3(0, 3, 0);
+    physicsCapsule.isVisible = false;
+    physicsCapsule.checkCollisions = true;
+
+    // Parent entire GLB (modelRoot = __root__) under the capsule.
+    // This keeps Armature + skinned meshes in the same branch.
+    modelRoot.parent = physicsCapsule;
+    modelRoot.position = new Vector3(0, -1, 0); // offset visual to center inside capsule
+
+    // Add physics to the capsule (not the Armature)
+    new PhysicsAggregate(
+      physicsCapsule,
+      PhysicsShapeType.CAPSULE,
+      {
+        mass: 1,
+        restitution: 0,
+        friction: 0.5,
+      },
+      this.scene,
+    );
+
+    // Store ragdoll ref for death
+    (physicsCapsule as any).ragdoll = ragdoll;
+
+    // Guardar referencias de animaciones en la cápsula
+    (physicsCapsule as any).animationModels = {
       idle: { root: modelRoot, animations: idleAnim ? [idleAnim] : [] },
       run: { root: modelRoot, animations: runAnim ? [runAnim] : [] },
       jump: { root: modelRoot, animations: jumpAnim ? [jumpAnim] : [] },
@@ -369,7 +509,7 @@ class Game {
       walk: { root: modelRoot, animations: walkAnim ? [walkAnim] : [] },
     };
 
-    return physicsBody;
+    return physicsCapsule;
   }
 
   async preloadEnemyAssets() {

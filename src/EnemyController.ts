@@ -15,7 +15,6 @@ import {
   Matrix,
 } from '@babylonjs/core';
 import { HitboxSystem } from './HitboxSystem';
-import { RagdollSystem } from './RagdollSystem';
 
 // ===== ESTADOS DE IA =====
 export enum EnemyState {
@@ -139,9 +138,6 @@ export class EnemyController {
   // ===== DEBUG =====
   visionCircle: Mesh | null = null;
 
-  // ===== RAGDOLL SYSTEM =====
-  private _ragdoll: RagdollSystem | null = null;
-
   constructor(
     animationGroups: AnimationGroup[],
     config: EnemyConfig = {},
@@ -210,9 +206,6 @@ export class EnemyController {
     // Crear hitbox de ataque
     this._createAttackHitbox();
 
-    // ===== INIT RAGDOLL =====
-    this._initRagdoll();
-
     console.log('[EnemyController] Creado con estado PATROL');
   }
 
@@ -248,56 +241,6 @@ export class EnemyController {
     });
 
     return capsule;
-  }
-
-  // ==========================================================
-  //  DEBUG VISUALS
-  // ==========================================================
-  private _setupDebugVisuals() {
-    // Círculo de visión
-    this.visionCircle = MeshBuilder.CreateTorus(
-      'visionCircle',
-      {
-        diameter: this.config.visionRange * 2,
-        thickness: 0.05,
-        tessellation: 48,
-      },
-      this.scene,
-    );
-    this.visionCircle.parent = this.physicsCapsule;
-    this.visionCircle.position.y = 0.05;
-    const mat = new StandardMaterial('visionMat', this.scene);
-    mat.emissiveColor = new Color3(1, 1, 0);
-    mat.disableLighting = true;
-    mat.alpha = 0.3;
-    this.visionCircle.material = mat;
-  }
-
-  // ==========================================================
-  //  RAGDOLL INIT
-  // ==========================================================
-  private _initRagdoll() {
-    // Find skeleton AND the skinned mesh that owns it
-    let skeleton: any = null;
-    let skinnedMesh: AbstractMesh | null = null;
-    for (const m of this.meshes) {
-      if ((m as any).skeleton) {
-        skeleton = (m as any).skeleton;
-        skinnedMesh = m;
-        break;
-      }
-    }
-    if (!skeleton || !skinnedMesh) {
-      console.warn('[EnemyController] No skeleton found, ragdoll disabled');
-      return;
-    }
-
-    this._ragdoll = new RagdollSystem(this.root, this.scene, {
-      modelScale: this.config.modelScale,
-      debug: this.config.debug,
-    });
-    this._ragdoll.init(skeleton, skinnedMesh);
-    console.log('[EnemyController] Ragdoll initialized');
   }
 
   // ==========================================================
@@ -407,7 +350,7 @@ export class EnemyController {
     // ===== STATE MACHINE =====
     switch (this.currentState) {
       case EnemyState.PATROL:
-        this._statePatrol();
+        this._statePatrol(dt);
         break;
       case EnemyState.CHASE:
         this._stateChase();
@@ -452,7 +395,7 @@ export class EnemyController {
         this.playAnimation('running', true);
         break;
 
-      case EnemyState.ATTACK: {
+      case EnemyState.ATTACK:
         this._hasHitPlayerThisAttack = false;
         this.isAttackAnimPlaying = true;
         this._attackStartTime = performance.now() / 1000; // Guardar tiempo inicial
@@ -460,7 +403,6 @@ export class EnemyController {
         this.playAnimation('attack', false, 1.2);
 
         const attackAg = this.animations.get('attack');
-        
         if (attackAg) {
           attackAg.onAnimationGroupEndObservable.clear();
           attackAg.onAnimationGroupEndObservable.addOnce(() => {
@@ -479,7 +421,6 @@ export class EnemyController {
           });
         }
         break;
-      }
 
       case EnemyState.HIT:
         this.stunTimer = this.config.stunDuration;
@@ -494,189 +435,16 @@ export class EnemyController {
   }
 
   // ==========================================================
-  //  DISTANCE / COLLISION HELPERS
-  // ==========================================================
-  private _updateDistanceToPlayer() {
-    if (!this.playerRef?.mesh) {
-      this.distanceToPlayer = Infinity;
-      return;
-    }
-    const playerPos = this.playerRef.mesh.getAbsolutePosition();
-    const pos = this.physicsCapsule.position;
-    this.distanceToPlayer = Vector3.Distance(
-      new Vector3(pos.x, 0, pos.z),
-      new Vector3(playerPos.x, 0, playerPos.z),
-    );
-  }
-
-  private _checkPlayerCollision() {
-    if (!this.playerRef || !this.canDamagePlayer) return;
-    if (this.distanceToPlayer > 1.5) return;
-
-    this.canDamagePlayer = false;
-    this.damageCooldownTimer = this.damageCooldown;
-
-    const enemyPos = this.physicsCapsule.position;
-    this.playerRef.takeDamage(this.config.contactDamage, enemyPos);
-  }
-
-  // ==========================================================
-  //  MOVEMENT HELPERS
-  // ==========================================================
-  private _stop() {
-    if (!this.body) return;
-    const vel = this.body.getLinearVelocity();
-    this.body.setLinearVelocity(new Vector3(0, vel.y, 0));
-  }
-
-  private _moveInDirection(dir: Vector3, speed: number) {
-    if (!this.body) return;
-    const vel = this.body.getLinearVelocity();
-    this.body.setLinearVelocity(
-      new Vector3(dir.x * speed, vel.y, dir.z * speed),
-    );
-  }
-
-  private _faceDirection(dir: Vector3) {
-    this._targetYAngle = Math.atan2(dir.x, dir.z);
-  }
-
-  // ==========================================================
-  //  SMOOTH ROTATION
-  // ==========================================================
-  private _updateSmoothRotation(dt: number) {
-    if (!this.root.rotationQuaternion) return;
-
-    const targetQuat = Quaternion.FromEulerAngles(0, this._targetYAngle, 0);
-    Quaternion.SlerpToRef(
-      this.root.rotationQuaternion,
-      targetQuat,
-      Math.min(1, this._rotationSpeed * dt),
-      this.root.rotationQuaternion,
-    );
-  }
-
-  // ==========================================================
-  //  STUCK DETECTION
-  // ==========================================================
-  private _updateStuckDetection(dt: number) {
-    const pos = this.physicsCapsule.position;
-    const distMoved = Vector3.Distance(pos, this._lastPosition);
-
-    if (distMoved < this._stuckDistMin) {
-      this._stuckTimer += dt;
-      if (this._stuckTimer >= this._stuckThreshold) {
-        // Enemy is stuck — pick new patrol target
-        this._stuckTimer = 0;
-        this.pickNewPatrolTarget();
-      }
-    } else {
-      this._stuckTimer = 0;
-    }
-
-    this._lastPosition = pos.clone();
-  }
-
-  // ==========================================================
-  //  PUBLIC API
-  // ==========================================================
-  public setPlayerRef(playerController: any) {
-    this.playerRef = playerController;
-  }
-
-  public takeDamage(amount: number, sourcePosition: Vector3) {
-    if (!this._alive) return;
-
-    this.hp -= amount;
-    console.log(`[EnemyController] HP: ${this.hp}/${this.maxHP}`);
-
-    // Knockback
-    if (this.body && sourcePosition) {
-      const pos = this.physicsCapsule.position;
-      const knockDir = pos.subtract(sourcePosition);
-      knockDir.y = 0;
-      knockDir.normalize();
-      const force = knockDir.scale(this.config.knockbackForce);
-      this.body.setLinearVelocity(
-        new Vector3(force.x, this.body.getLinearVelocity().y + 2, force.z),
-      );
-    }
-
-    // Transition to HIT or DEAD
-    if (this.hp <= 0) {
-      this.hp = 0;
-      this.changeState(EnemyState.DEAD);
-    } else {
-      this.changeState(EnemyState.HIT);
-    }
-  }
-
-  // ==========================================================
-  //  DEBUG GUI SUPPORT (getters/setters & methods)
-  // ==========================================================
-  get patrolSpeed(): number {
-    return this.config.patrolSpeed;
-  }
-  set patrolSpeed(value: number) {
-    this.config.patrolSpeed = value;
-  }
-
-  get chaseSpeed(): number {
-    return this.config.chaseSpeed;
-  }
-  set chaseSpeed(value: number) {
-    this.config.chaseSpeed = value;
-  }
-
-  get visionRange(): number {
-    return this.config.visionRange;
-  }
-  set visionRange(value: number) {
-    this.config.visionRange = value;
-    this.setVisionRange(value);
-  }
-
-  get debugMode(): boolean {
-    return this.config.debug;
-  }
-  set debugMode(value: boolean) {
-    this.config.debug = value;
-    this.setDebugMode(value);
-  }
-
-  public setVisionRange(value: number) {
-    this.config.visionRange = value;
-    // Update vision circle if it exists
-    if (this.visionCircle) {
-      this.visionCircle.dispose();
-      this.visionCircle = null;
-      if (this.config.debug) {
-        this._setupDebugVisuals();
-      }
-    }
-  }
-
-  public setDebugMode(value: boolean) {
-    this.config.debug = value;
-    if (value && !this.visionCircle) {
-      this._setupDebugVisuals();
-    } else if (!value && this.visionCircle) {
-      this.visionCircle.dispose();
-      this.visionCircle = null;
-    }
-  }
-
-  // ==========================================================
   //  STATE: PATROL
   // ==========================================================
-  private _statePatrol() {
+  private _statePatrol(dt: number) {
     // Detectar jugador → CHASE
     if (this.distanceToPlayer < this.config.visionRange) {
       this.changeState(EnemyState.CHASE);
       return;
     }
 
-    // Moverse hacia el patrol 
+    // Moverse hacia el patrol target
     const pos = this.physicsCapsule.position;
     const dir = this.patrolTarget.subtract(pos);
     dir.y = 0;
@@ -824,103 +592,88 @@ export class EnemyController {
       }
     }
   }
-  
+
   // ==========================================================
-  //  STATE: DEAD (REPLACE ENTIRE METHOD)
+  //  STATE: DEAD
   // ==========================================================
   private _onDead() {
     this._alive = false;
 
-    // 1. Freeze current animation pose and clear callbacks
+    // 1. Stop all animations and clear callbacks to prevent state transitions
     for (const ag of this.animations.values()) {
       ag.onAnimationGroupEndObservable.clear();
-      if (ag.isPlaying) {
-        ag.pause(); // Freeze at current frame (stop() resets to bind pose)
-      }
+      ag.stop();
     }
 
-    // 2. Get knockback velocity BEFORE disabling the capsule
-    let knockbackVelocity = Vector3.Zero();
+    // 2. Enable ragdoll collapse on the existing physics body.
+    //    The model is already parented to the capsule, so unlocking rotation
+    //    and applying forces will make the whole model topple over naturally.
     if (this.body) {
-      knockbackVelocity = this.body.getLinearVelocity().clone();
+      // Grab current velocity from knockback (applied in takeDamage) BEFORE modifying
+      const currentVel = this.body.getLinearVelocity();
+
+      // Unlock rotation — inertia was Vector3.Zero to prevent tipping during gameplay
+      this.body.setMassProperties({
+        mass: this.config.mass,
+        inertia: new Vector3(0.4, 0.1, 0.4),
+      });
+
+      // Calculate topple axis: perpendicular to knockback direction so the
+      // enemy falls AWAY from the hit (cross product with up vector)
+      const toppleAxis = new Vector3(-currentVel.z, 0, currentVel.x);
+      if (toppleAxis.length() > 0.01) {
+        toppleAxis.normalize();
+      } else {
+        // Fallback: random topple direction if no velocity
+        toppleAxis.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+      }
+
+      // Apply angular velocity to topple the body over
+      this.body.setAngularVelocity(toppleAxis.scale(6));
+
+      // Add a small upward boost so the body lifts before falling
+      const boost = new Vector3(0, 20, 0);
+      this.body.applyImpulse(boost, this.physicsCapsule.getAbsolutePosition());
     }
 
-    // 3. Capture capsule world position BEFORE disposing it
-    const capsuleWorldPos = this.physicsCapsule.getAbsolutePosition().clone();
-
-    // 4. Dispose the movement capsule physics (root is still parented to it)
-    this.physicsCapsule.isVisible = false;
-    this.physicsCapsule.checkCollisions = false;
-    if (this.physicsAggregate) {
-      this.physicsAggregate.dispose();
-      this.physicsAggregate = null;
-      this.body = null;
-    }
-
-    // 5. Activate ragdoll — this will re-parent root from capsule to ragdoll body
-    //    Pass the capsule world position so the ragdoll spawns exactly where the enemy was
-    if (this._ragdoll) {
-      this._ragdoll.enable(knockbackVelocity, capsuleWorldPos, this.config.modelOffsetY);
-    }
-
-    // 6. Disable collisions on visual meshes
+    // 3. Disable collisions and pickability on visual meshes
     for (const m of this.meshes) {
       m.checkCollisions = false;
       m.isPickable = false;
     }
 
-    // 7. Disable attack hitbox
-    if (this._attackHitboxSystem) {
-      this._attackHitboxSystem.setEnabled(false);
-    }
-
-    // 8. Clean up debug visuals
+    // 4. Clean up debug visuals
     if (this.visionCircle) {
       this.visionCircle.dispose();
       this.visionCircle = null;
     }
 
-    // 9. Remove AI update observer
+    // 5. Remove AI update observer — physics engine handles the ragdoll from here
     if (this._updateObserver) {
       this.scene.onBeforeRenderObservable.remove(this._updateObserver);
       this._updateObserver = null;
     }
 
-    // 10. Fade out and dispose after 4 seconds
-    this._scheduleFadeAndDispose(4.0);
+    // 6. After settling, freeze the body and schedule visual dispose
+    this._scheduleDispose(4.0);
 
-    console.log('[EnemyController] DEAD — ragdoll activated');
+    console.log('[EnemyController] DEAD — ragdoll collapse activated');
   }
 
   /**
-   * Fade out meshes over time, then dispose everything.
+   * Programa el dispose del enemigo tras `seconds` segundos.
+   * Oculta los meshes y destruye el objeto sin tocar materiales compartidos.
    */
-  private _scheduleFadeAndDispose(totalSeconds: number) {
-    const fadeStartTime = totalSeconds * 0.6; // Start fading at 60% of total time
+  private _scheduleDispose(seconds: number) {
     let elapsed = 0;
-
     const observer = this.scene.onBeforeRenderObservable.add(() => {
       elapsed += this.scene.getEngine().getDeltaTime() / 1000;
-
-      // Fade out meshes during the last portion
-      if (elapsed >= fadeStartTime) {
-        const fadeProgress =
-          (elapsed - fadeStartTime) / (totalSeconds - fadeStartTime);
-        const alpha = Math.max(0, 1 - fadeProgress);
-
-        for (const m of this.meshes) {
-          m.visibility = alpha;
-        }
-      }
-
-      // Final dispose
-      if (elapsed >= totalSeconds) {
+      if (elapsed >= seconds) {
         this.scene.onBeforeRenderObservable.remove(observer);
-
+        // Ocultar todos los meshes antes de dispose
         for (const m of this.meshes) {
           m.isVisible = false;
         }
-
         this.root.setEnabled(false);
         this.dispose();
       }
@@ -928,7 +681,237 @@ export class EnemyController {
   }
 
   // ==========================================================
-  //  DISPOSE (UPDATED)
+  //  MOVEMENT HELPERS
+  // ==========================================================
+  private _moveInDirection(dir: Vector3, speed: number) {
+    const currentVel = this.body.getLinearVelocity();
+    this.body.setLinearVelocity(
+      new Vector3(dir.x * speed, currentVel.y, dir.z * speed),
+    );
+  }
+
+  private _stop() {
+    const currentVel = this.body.getLinearVelocity();
+    this.body.setLinearVelocity(new Vector3(0, currentVel.y, 0));
+  }
+
+  private _faceDirection(dir: Vector3) {
+    this._targetYAngle = Math.atan2(dir.x, dir.z);
+  }
+
+  private _updateSmoothRotation(dt: number) {
+    if (!this.root.rotationQuaternion) return;
+
+    // Interpolar suavemente hacia el ángulo objetivo
+    const targetQuat = Quaternion.FromEulerAngles(0, this._targetYAngle, 0);
+    Quaternion.SlerpToRef(
+      this.root.rotationQuaternion,
+      targetQuat,
+      Math.min(1, this._rotationSpeed * dt),
+      this.root.rotationQuaternion,
+    );
+  }
+
+  private _updateStuckDetection(dt: number) {
+    const pos = this.physicsCapsule.position;
+    const dx = pos.x - this._lastPosition.x;
+    const dz = pos.z - this._lastPosition.z;
+    const movedDist = Math.sqrt(dx * dx + dz * dz);
+
+    if (movedDist < this._stuckDistMin) {
+      this._stuckTimer += dt;
+    } else {
+      this._stuckTimer = 0;
+    }
+
+    this._lastPosition.copyFrom(pos);
+
+    // Si está atascado, elegir nueva dirección
+    if (this._stuckTimer >= this._stuckThreshold) {
+      this._stuckTimer = 0;
+      if (this.currentState === EnemyState.PATROL) {
+        this.pickNewPatrolTarget();
+      } else if (this.currentState === EnemyState.CHASE) {
+        // Intentar rodear el obstáculo: moverse perpendicular al jugador
+        this._dodgeObstacle();
+      }
+    }
+  }
+
+  private _dodgeObstacle() {
+    if (!this.playerRef?.mesh) return;
+    const playerPos = this.playerRef.mesh.getAbsolutePosition();
+    const pos = this.physicsCapsule.position;
+    const toPlayer = new Vector3(
+      playerPos.x - pos.x,
+      0,
+      playerPos.z - pos.z,
+    ).normalize();
+
+    // Elegir lado aleatorio (perpendicular izquierda o derecha)
+    const side = Math.random() > 0.5 ? 1 : -1;
+    const dodge = new Vector3(-toPlayer.z * side, 0, toPlayer.x * side);
+
+    // Moverse lateralmente brevemente
+    this._moveInDirection(dodge, this.config.chaseSpeed);
+    this._faceDirection(dodge);
+  }
+
+  // ==========================================================
+  //  DISTANCE & COLLISION
+  // ==========================================================
+  private _updateDistanceToPlayer() {
+    if (!this.playerRef?.mesh) {
+      this.distanceToPlayer = Infinity;
+      return;
+    }
+    const ep = this.physicsCapsule.position;
+    const pp = this.playerRef.mesh.getAbsolutePosition();
+    const dx = pp.x - ep.x;
+    const dz = pp.z - ep.z;
+    this.distanceToPlayer = Math.sqrt(dx * dx + dz * dz);
+  }
+
+  private _checkPlayerCollision() {
+    if (!this.playerRef || !this.canDamagePlayer) return;
+    if (
+      this.currentState === EnemyState.DEAD ||
+      this.currentState === EnemyState.HIT
+    )
+      return;
+
+    const playerMesh = this.playerRef.mesh;
+    if (!playerMesh) return;
+
+    if (this.physicsCapsule.intersectsMesh(playerMesh, false)) {
+      const myPos = this.physicsCapsule.getAbsolutePosition();
+      this.playerRef.takeDamage(this.config.contactDamage, myPos);
+      this.canDamagePlayer = false;
+      this.damageCooldownTimer = this.damageCooldown;
+    }
+  }
+
+  // ==========================================================
+  //  PUBLIC API
+  // ==========================================================
+
+  /**
+   * Aplica daño al enemigo. Entra en estado HIT con stun.
+   */
+  takeDamage(amount: number, knockbackDirection?: Vector3): boolean {
+    if (!this._alive || this.currentState === EnemyState.DEAD) return false;
+
+    this.hp -= amount;
+    console.log(`[EnemyController] Hit! HP: ${this.hp}/${this.maxHP}`);
+
+    // Knockback
+    if (knockbackDirection && this.body) {
+      const kb = knockbackDirection
+        .normalize()
+        .scale(this.config.knockbackForce);
+      kb.y = this.config.knockbackForce * 0.3;
+      this.body.applyImpulse(kb, this.physicsCapsule.getAbsolutePosition());
+    }
+
+    // Entrar en HIT (o DEAD si no queda vida)
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.changeState(EnemyState.DEAD);
+      return true; // murió
+    }
+
+    this.changeState(EnemyState.HIT);
+    return false;
+  }
+
+  setPlayerRef(player: any) {
+    this.playerRef = player;
+  }
+
+  isAlive(): boolean {
+    return this._alive;
+  }
+
+  getState(): EnemyState {
+    return this.currentState;
+  }
+
+  getPosition(): Vector3 {
+    return this.physicsCapsule.position.clone();
+  }
+
+  setVisionRange(range: number) {
+    this.config.visionRange = range;
+    if (this.visionCircle) {
+      this.visionCircle.dispose();
+      this.visionCircle = null;
+    }
+    if (this.config.debug) {
+      this._setupDebugVisuals();
+    }
+  }
+
+  setDebugMode(enabled: boolean) {
+    this.config.debug = enabled;
+    if (enabled && !this.visionCircle) {
+      this._setupDebugVisuals();
+    } else if (!enabled && this.visionCircle) {
+      this.visionCircle.dispose();
+      this.visionCircle = null;
+    }
+  }
+
+  // ==========================================================
+  //  DEBUG
+  // ==========================================================
+  private _setupDebugVisuals() {
+    this.visionCircle = MeshBuilder.CreateDisc(
+      'visionRange',
+      { radius: this.config.visionRange, tessellation: 32 },
+      this.scene,
+    );
+
+    const mat = new StandardMaterial('visionMat', this.scene);
+    mat.diffuseColor = new Color3(1, 1, 0);
+    mat.alpha = 0.15;
+    mat.backFaceCulling = false;
+    this.visionCircle.material = mat;
+
+    this.visionCircle.rotation.x = Math.PI / 2;
+    this.visionCircle.position.y = 0.05;
+    this.visionCircle.parent = this.physicsCapsule;
+    this.visionCircle.isPickable = false;
+    this.visionCircle.checkCollisions = false;
+  }
+
+  // ===== COMPAT: DebugGUI uses these directly =====
+  get patrolSpeed() {
+    return this.config.patrolSpeed;
+  }
+  set patrolSpeed(v: number) {
+    this.config.patrolSpeed = v;
+  }
+  get chaseSpeed() {
+    return this.config.chaseSpeed;
+  }
+  set chaseSpeed(v: number) {
+    this.config.chaseSpeed = v;
+  }
+  get visionRange() {
+    return this.config.visionRange;
+  }
+  set visionRange(v: number) {
+    this.config.visionRange = v;
+  }
+  get debugMode() {
+    return this.config.debug;
+  }
+  set debugMode(v: boolean) {
+    this.config.debug = v;
+  }
+
+  // ==========================================================
+  //  DISPOSE
   // ==========================================================
   dispose() {
     this._alive = false;
@@ -938,21 +921,9 @@ export class EnemyController {
       this._updateObserver = null;
     }
 
-    // Stop all animations
+    // Detener todas las animaciones
     for (const ag of this.animations.values()) {
       ag.stop();
-    }
-
-    // Dispose ragdoll
-    if (this._ragdoll) {
-      this._ragdoll.dispose();
-      this._ragdoll = null;
-    }
-
-    // Dispose attack hitbox
-    if (this._attackHitboxSystem) {
-      this._attackHitboxSystem.dispose();
-      this._attackHitboxSystem = null;
     }
 
     if (this.visionCircle) {
