@@ -423,8 +423,6 @@ export class PlayerController {
     // Iterar sobre todos los modelos de animación
     Object.keys(this.mesh.animationModels).forEach((animName) => {
       const animModel = this.mesh.animationModels[animName];
-      console.log('<<<', animModel);
-
       if (animModel?.animations && animModel.animations.length > 0) {
         const animGroup = animModel.animations[0];
 
@@ -628,8 +626,8 @@ export class PlayerController {
     // No interrumpir animaciones de ataque
     if (this.isAttacking) return;
 
-    let targetAnimation = 'idle';
-    let animSpeed = 1.0;
+    let targetAnimation;
+    let animSpeed;
 
     // Determinar animación según estado (dash primero, antes que run)
     if (this.isDashing) {
@@ -739,7 +737,7 @@ export class PlayerController {
     right.normalize();
 
     // Calcular dirección basada en input
-    let direction = Vector3.Zero();
+    const direction = Vector3.Zero();
 
     if (this.inputMap['w']) {
       direction.addInPlace(forward);

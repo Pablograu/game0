@@ -1,18 +1,18 @@
 import './style.css';
 import {
-  ArcRotateCamera,
-  Engine,
-  HavokPlugin,
-  HemisphericLight,
-  MeshBuilder,
-  PhysicsAggregate,
-  PhysicsShapeType,
-  Scene,
-  Vector3,
-  Axis,
-  Color3,
-  Ragdoll,
-  PhysicsViewer
+    ArcRotateCamera,
+    Engine,
+    HavokPlugin,
+    HemisphericLight,
+    MeshBuilder,
+    PhysicsAggregate,
+    PhysicsShapeType,
+    Scene,
+    Vector3,
+    Axis,
+    Color3,
+    Ragdoll,
+    PhysicsViewer
 } from '@babylonjs/core';
 import { Button, AdvancedDynamicTexture, Control } from '@babylonjs/gui';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
@@ -21,6 +21,8 @@ import { SceneLoader } from '@babylonjs/core/Loading/sceneLoader';
 import '@babylonjs/core/Cameras/Inputs';
 import '@babylonjs/loaders/glTF';
 import HavokPhysics from '@babylonjs/havok';
+import { ImportMeshAsync } from '@babylonjs/core/Loading';
+
 
 const createScene = async function () {
     // This creates a basic Babylon Scene object (non-mesh)
@@ -32,7 +34,7 @@ const createScene = async function () {
     scene.useRightHandedSystem = true;
     scene.collisionsEnabled = true;
     // This creates and positions a free camera (non-mesh)
-    const camera = new ArcRotateCamera("camera1", 1.1,1.4,5,new Vector3(0, 1, 0), scene);
+    const camera = new ArcRotateCamera("camera1", 1.1, 1.4, 5, new Vector3(0, 1, 0), scene);
 
     // This targets the camera to scene origin
     //camera.setTarget(Vector3.Zero());
@@ -47,7 +49,7 @@ const createScene = async function () {
     light.intensity = 0.7;
 
     // Our built-in 'ground' shape.
-    const ground = MeshBuilder.CreateGround("ground", {width: 10, height: 10}, scene);
+    const ground = MeshBuilder.CreateGround("ground", { width: 10, height: 10 }, scene);
 
     // enable physics in the scene with a gravity
     scene.enablePhysics(new Vector3(0, -9.8, 0), havokPlugin);
@@ -81,132 +83,121 @@ const createScene = async function () {
     const buttonImpulse = createButton("buttonImpulse", "Impulse", "80px");
     advancedTexture.addControl(buttonImpulse);
 
-    SceneLoader.ImportMesh("", "", "/models/player.glb", scene,
-        function (meshes, particleSystems, skeletons) {  
-        const skeleton = skeletons[0];
-        const config = [
-                { bones: ["mixamorig:Hips"], size: 0.25, boxOffset: 0.01 },
-                {
-                    bones: ["mixamorig:Spine2"],
-                    size: 0.2,
-                    boxOffset: 0.05,
-                    boneOffsetAxis: Axis.Y,
-                    min: -1,
-                    max: 1,
-                    rotationAxis: Axis.Z
-                },
-                // Arms.
-                {
-                    bones: ["mixamorig:LeftArm", "mixamorig:RightArm"],
-                    depth: 0.1,
-                    size: 0.1,
-                    width: 0.2,
-                    rotationAxis: Axis.Y,
-                    //min: -1,
-                    //max: 1,
-                    boxOffset: 0.10,
-                    boneOffsetAxis: Axis.Y
-                },
-                {
-                    bones: ["mixamorig:LeftForeArm", "mixamorig:RightForeArm"],
-                    depth: 0.1,
-                    size: 0.1,
-                    width: 0.2,
-                    rotationAxis: Axis.Y,
-                    min: -1,
-                    max: 1,
-                    boxOffset: 0.12,
-                    boneOffsetAxis: Axis.Y
-                },
-                // Legs
-                {
-                    bones: ["mixamorig:LeftUpLeg", "mixamorig:RightUpLeg"],
-                    depth: 0.1,
-                    size: 0.2,
-                    width: 0.08,
-                    rotationAxis: Axis.Y,
-                    min: -1,
-                    max: 1,
-                    boxOffset: 0.2,
-                    boneOffsetAxis: Axis.Y
-                },
-                {
-                    bones: ["mixamorig:LeftLeg", "mixamorig:RightLeg"],
-                    depth: 0.08,
-                    size: 0.3,
-                    width: 0.1,
-                    rotationAxis: Axis.Y,
-                    min: -1,
-                    max: 1,
-                    boxOffset: 0.2,
-                    boneOffsetAxis: Axis.Y
-                },
-                                {
-                    bones: ["mixamorig:LeftHand", "mixamorig:RightHand"],
-                    depth: 0.2,
-                    size: 0.2,
-                    width: 0.2,
-                    rotationAxis: Axis.Y,
-                    min: -1,
-                    max: 1,
-                    boxOffset: 0.1,
-                    boneOffsetAxis: Axis.Y
-                },
-                //head
-                {
-                    bones: ["mixamorig:Head"],
-                    size: 0.2,
-                    boxOffset: 0,
-                    boneOffsetAxis: Axis.Y,
-                    min: -1,
-                    max: 1,
-                    rotationAxis: Axis.Z
-                },
-                // feet
-                {
-                    bones: ["mixamorig:LeftFoot", "mixamorig:RightFoot"],
-                    depth: 0.1,
-                    size: 0.1,
-                    width: 0.2,
-                    rotationAxis: Axis.Y,
-                    min: -1,
-                    max: 1,
-                    boxOffset: 0.05,
-                    boneOffsetAxis: Axis.Y
-                }
-            ];
+    const result = await ImportMeshAsync(
+        '/models/player.glb',
+        scene,
+    );
 
-            const rootNode = scene.getTransformNodeByName("Armature");
-            if (!skeleton || !rootNode) {
-                console.error("Ragdoll setup failed: skeleton or rootNode not found", { skeleton, rootNode });
-                return;
-            }
-            const ragdoll = new Ragdoll(skeleton, rootNode, config);
+    const skeleton = result.skeletons[0];
+    const config = [
+        { bones: ["mixamorig:Hips"], size: 0.25, boxOffset: 0.01 },
+        {
+            bones: ["mixamorig:Spine2"],
+            size: 0.2,
+            boxOffset: 0.05,
+            boneOffsetAxis: Axis.Y,
+            min: -1,
+            max: 1,
+            rotationAxis: Axis.Z
+        },
+        // Arms.
+        {
+            bones: ["mixamorig:LeftArm", "mixamorig:RightArm"],
+            depth: 0.1,
+            size: 0.1,
+            width: 0.2,
+            rotationAxis: Axis.Y,
+            //min: -1,
+            //max: 1,
+            boxOffset: 0.10,
+            boneOffsetAxis: Axis.Y
+        },
+        {
+            bones: ["mixamorig:LeftForeArm", "mixamorig:RightForeArm"],
+            depth: 0.1,
+            size: 0.1,
+            width: 0.2,
+            rotationAxis: Axis.Y,
+            min: -1,
+            max: 1,
+            boxOffset: 0.12,
+            boneOffsetAxis: Axis.Y
+        },
+        // Legs
+        {
+            bones: ["mixamorig:LeftUpLeg", "mixamorig:RightUpLeg"],
+            depth: 0.1,
+            size: 0.2,
+            width: 0.08,
+            rotationAxis: Axis.Y,
+            min: -1,
+            max: 1,
+            boxOffset: 0.2,
+            boneOffsetAxis: Axis.Y
+        },
+        {
+            bones: ["mixamorig:LeftLeg", "mixamorig:RightLeg"],
+            depth: 0.08,
+            size: 0.3,
+            width: 0.1,
+            rotationAxis: Axis.Y,
+            min: -1,
+            max: 1,
+            boxOffset: 0.2,
+            boneOffsetAxis: Axis.Y
+        },
+        {
+            bones: ["mixamorig:LeftHand", "mixamorig:RightHand"],
+            depth: 0.2,
+            size: 0.2,
+            width: 0.2,
+            rotationAxis: Axis.Y,
+            min: -1,
+            max: 1,
+            boxOffset: 0.1,
+            boneOffsetAxis: Axis.Y
+        },
+        //head
+        {
+            bones: ["mixamorig:Head"],
+            size: 0.2,
+            boxOffset: 0,
+            boneOffsetAxis: Axis.Y,
+            min: -1,
+            max: 1,
+            rotationAxis: Axis.Z
+        },
+        // feet
+        {
+            bones: ["mixamorig:LeftFoot", "mixamorig:RightFoot"],
+            depth: 0.1,
+            size: 0.1,
+            width: 0.2,
+            rotationAxis: Axis.Y,
+            min: -1,
+            max: 1,
+            boxOffset: 0.05,
+            boneOffsetAxis: Axis.Y
+        }
+    ];
+    const rootNode = scene.getTransformNodeByName("Armature");
 
-            for (let index = 0; index < meshes.length; index++) {
-                meshes[index].receiveShadows = true;
-                shadowGenerator.addShadowCaster(meshes[index], true);
-            }
-            
-            const helper = scene.createDefaultEnvironment({enableGroundShadow: true});
-            helper.setMainColor(Color3.Gray());
-            helper.ground.position.y += 0.01;
+    if (!skeleton || !rootNode) {
+        console.error("Ragdoll setup failed: skeleton or rootNode not found", { skeleton, rootNode });
+        return;
+    }
+    const ragdoll = new Ragdoll(skeleton, rootNode, config);
 
-            buttonRagdoll.onPointerClickObservable.add(() => {
-                ragdoll.ragdoll();
-            });
+    // for testing purposes
+    window.ragdoll = () => ragdoll.ragdoll();
 
-            buttonImpulse.onPointerClickObservable.add(() => {
-                ragdoll.getAggregate(0)?.body.applyImpulse(new Vector3(0,2000,0), Vector3.ZeroReadOnly);
-            });
-
-        //     const viewer = new PhysicsViewer();
-        //     scene.transformNodes.forEach((mesh) => {
-        //     if (mesh.physicsBody) {
-        //         viewer.showBody(mesh.physicsBody);
-        //     }
-        // });
+    const viewer = new PhysicsViewer();
+    scene.transformNodes.forEach((mesh) => {
+        if (mesh.physicsBody) {
+            viewer.showBody(mesh.physicsBody);
+        }
     });
+
     return { scene, engine };
 };
 

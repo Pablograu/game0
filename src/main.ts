@@ -11,6 +11,7 @@ import {
   Quaternion,
   Scene,
   Vector3,
+  PhysicsViewer,
 } from '@babylonjs/core';
 import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import '@babylonjs/core/Cameras/Inputs';
@@ -56,6 +57,7 @@ class Game {
     // this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
+    this.setupPhysicsVisualizer();
   }
 
   async initHavok() {
@@ -72,6 +74,24 @@ class Game {
     EffectManager.init(this.scene);
 
     console.log('Física Havok inicializada');
+  }
+
+  setupPhysicsVisualizer() {
+    const viewer = new PhysicsViewer(this.scene);
+
+    // Meshes carry physics bodies (capsule, ground, environment, etc.)
+    this.scene.meshes.forEach((mesh) => {
+      if (mesh.physicsBody) {
+        viewer.showBody(mesh.physicsBody);
+      }
+    });
+
+    // Transform nodes (ragdoll bones, etc.)
+    this.scene.transformNodes.forEach((node) => {
+      if (node.physicsBody) {
+        viewer.showBody(node.physicsBody);
+      }
+    });
   }
 
   createCamera() {
@@ -118,6 +138,7 @@ class Game {
       this.scene,
       this.cameraShaker,
     );
+    console.log('<<< this.player', this.player);
 
     // Tunear valores
     this.playerController.setMoveSpeed(8);
