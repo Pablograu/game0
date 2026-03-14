@@ -10,14 +10,12 @@ import {
     Scene,
     Vector3,
     Axis,
-    Color3,
     Ragdoll,
     PhysicsViewer
 } from '@babylonjs/core';
 import { Button, AdvancedDynamicTexture, Control } from '@babylonjs/gui';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { SceneLoader } from '@babylonjs/core/Loading/sceneLoader';
 import '@babylonjs/core/Cameras/Inputs';
 import '@babylonjs/loaders/glTF';
 import HavokPhysics from '@babylonjs/havok';
@@ -28,7 +26,7 @@ const createScene = async function () {
     // This creates a basic Babylon Scene object (non-mesh)
     const havokInstance = await HavokPhysics();
     const havokPlugin = new HavokPlugin(true, havokInstance);
-    const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
+    const canvas = document.getElementById("renderCanvas");
     const engine = new Engine(canvas, true);
     const scene = new Scene(engine);
     scene.useRightHandedSystem = true;
@@ -55,7 +53,7 @@ const createScene = async function () {
     scene.enablePhysics(new Vector3(0, -9.8, 0), havokPlugin);
 
     // Create a static box shape.
-    const groundAggregate = new PhysicsAggregate(ground, PhysicsShapeType.BOX, { mass: 0 }, scene);
+    new PhysicsAggregate(ground, PhysicsShapeType.BOX, { mass: 0 }, scene);
 
     const light2 = new DirectionalLight("dir01", new Vector3(-1, -0.5, -1.0), scene);
     light2.position = new Vector3(3, 6, 4);
