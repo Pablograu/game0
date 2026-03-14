@@ -20,8 +20,8 @@ import { PlayerController } from './PlayerController.ts';
 import { EnemyFactory } from './EnemyFactory.ts';
 import { EffectManager } from './EffectManager.ts';
 import { CameraShaker } from './CameraShaker.ts';
-import { DebugGUI } from './DebugGUI.ts';
 import { GameManager } from './GameManager.ts';
+import { DebugGUI } from './DebugGUI.ts';
 
 class Game {
   canvas: any;
@@ -29,8 +29,8 @@ class Game {
   scene!: Scene;
   player: any;
   camera: ArcRotateCamera | null = null;
-  cameraShaker: any;
-  playerController: any;
+  cameraShaker: CameraShaker | null = null;
+  playerController: PlayerController | null = null;
   enemies: any[] = [];
   debugGUI: DebugGUI | null = null;
   gameManager: GameManager | null = null;
@@ -103,7 +103,7 @@ class Game {
   }
 
   setupPlayerController() {
-        // Configurar la cámara para seguir al jugador
+    // Configurar la cámara para seguir al jugador
     if (this.camera && this.player) {
       this.camera.lockedTarget = this.player;
     }
@@ -158,13 +158,17 @@ class Game {
     // Crear skybox visible a partir del mismo HDR
     this.scene.createDefaultSkybox(
       hdrTexture,
-      true,  // pbr = true para calidad alta
-      1000,  // tamaño del skybox
-      0.0,   // blur (0 = nítido, 1 = muy difuminado)
+      true, // pbr = true para calidad alta
+      1000, // tamaño del skybox
+      0.0, // blur (0 = nítido, 1 = muy difuminado)
     );
 
     // Luz hemisférica de respaldo (por si el HDR es muy oscuro)
-    const light = new HemisphericLight('light', new Vector3(0, 1, 0), this.scene);
+    const light = new HemisphericLight(
+      'light',
+      new Vector3(0, 1, 0),
+      this.scene,
+    );
     light.intensity = 0.3;
 
     console.log('HDR skybox cargado: /hdr/skybox.hdr');
@@ -173,27 +177,24 @@ class Game {
   async loadEnvironment() {
     // Cargar el modelo oldtown.glb como entorno
     console.log('Cargando entorno oldtown.glb...');
-    
-    const result = await ImportMeshAsync(
-      '/models/oldtown.glb',
-      this.scene,
-    );
+
+    const result = await ImportMeshAsync('/models/oldtown.glb', this.scene);
 
     console.log('Entorno cargado:', result.meshes.length, 'meshes');
 
     // Obtener el root del modelo
     const root = result.meshes[0];
-    
+
     // ===== AJUSTAR TAMAÑO Y POSICIÓN AQUÍ =====
     root.position = new Vector3(0, 0, 0); // Ajusta X, Y, Z
-    root.scaling = new Vector3(0.1, 0.1, 0.1);  // Ajusta escala (1 = tamaño original)
+    root.scaling = new Vector3(0.1, 0.1, 0.1); // Ajusta escala (1 = tamaño original)
     // ==========================================
 
     // Configurar colisiones para todos los meshes del entorno
     result.meshes.forEach((mesh) => {
       if (mesh.name !== '__root__') {
         mesh.checkCollisions = true;
-        
+
         // Añadir física estática a los meshes sólidos
         if (mesh.getTotalVertices() > 0) {
           new PhysicsAggregate(
@@ -248,10 +249,7 @@ class Game {
     // ===== CARGAR MODELO CON TODAS LAS ANIMACIONES =====
     console.log('Loading animated character...');
 
-    const result = await ImportMeshAsync(
-      '/models/player.glb',
-      this.scene,
-    );
+    const result = await ImportMeshAsync('/models/player.glb', this.scene);
     console.log('<<<char', result);
 
     const modelRoot = result.meshes[0]!;
@@ -276,12 +274,8 @@ class Game {
     const jumpAnim = animationGroups.find(
       (ag) => ag.name.toLowerCase() === 'jump',
     );
-    const punchLAnim = animationGroups.find(
-      (ag) => ag.name === 'punch_L',
-    );
-    const punchRAnim = animationGroups.find(
-      (ag) => ag.name === 'punch_R',
-    );
+    const punchLAnim = animationGroups.find((ag) => ag.name === 'punch_L');
+    const punchRAnim = animationGroups.find((ag) => ag.name === 'punch_R');
     const breakdanceAnim = animationGroups.find(
       (ag) => ag.name.toLowerCase() === 'macarena',
     );
@@ -335,18 +329,20 @@ class Game {
       },
       dash: { root: modelRoot, animations: dashAnim ? [dashAnim] : [] },
       dead: { root: modelRoot, animations: deadAnim ? [deadAnim] : [] },
-      falling: { root: modelRoot, animations: fallingAnim ? [fallingAnim] : [] },
+      falling: {
+        root: modelRoot,
+        animations: fallingAnim ? [fallingAnim] : [],
+      },
       hit: { root: modelRoot, animations: hitAnim ? [hitAnim] : [] },
-      landing: { root: modelRoot, animations: landingAnim ? [landingAnim] : [] },
+      landing: {
+        root: modelRoot,
+        animations: landingAnim ? [landingAnim] : [],
+      },
       walk: { root: modelRoot, animations: walkAnim ? [walkAnim] : [] },
     };
 
     return physicsBody;
   }
-
-
-
-
 
   async preloadEnemyAssets() {
     await EnemyFactory.preload('/models/ladron.glb', this.scene);

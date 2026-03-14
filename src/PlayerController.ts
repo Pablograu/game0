@@ -3,6 +3,7 @@ import {
   Quaternion,
   PhysicsRaycastResult,
   Scene,
+  Camera,
 } from '@babylonjs/core';
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
 import { WeaponSystem } from './WeaponSystem.ts';
@@ -11,7 +12,7 @@ import { EffectManager } from './EffectManager.ts';
 export class PlayerController {
   blinkInterval: any;
   body: any;
-  camera: any;
+  camera: Camera;
   cameraShaker: any;
   coyoteTime: number;
   coyoteTimer: number;
