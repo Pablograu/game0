@@ -78,6 +78,7 @@ export class Ragdoll {
         return this._aggregates[index];
     }
     _createColliders() {
+        console.log('<< tras node  :', this._rootTransformNode);
         this._rootTransformNode.computeWorldMatrix();
         this._skeleton.computeAbsoluteMatrices(true);
         this._skeleton.prepare(true);
@@ -266,6 +267,13 @@ export class Ragdoll {
             this._syncBonesAndBoxes();
         });
         this._syncBonesToPhysics();
+        console.log('<< init', {
+            rootTransform: this._rootTransformNode,
+            skeleton: this._skeleton, bones: this._bones,
+            transforms: this._transforms,
+            aggregates: this._aggregates,
+            constraints: this._constraints,
+        })
     }
     /**
      * Enable ragdoll mode. Create physics objects and make them dynamic.
@@ -282,6 +290,13 @@ export class Ragdoll {
         for (let i = 0; i < this._aggregates.length; i++) {
             this._aggregates[i].body.setMotionType(2 /* PhysicsMotionType.DYNAMIC */);
         }
+        console.log('<< ragdoll', {
+            rootTransform: this._rootTransformNode,
+            skeleton: this._skeleton, bones: this._bones,
+            transforms: this._transforms,
+            aggregates: this._aggregates,
+            constraints: this._constraints,
+        })
     }
     /**
      * Dispose resources and remove physics objects

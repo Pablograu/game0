@@ -12,8 +12,6 @@ import {
   Scene,
   Vector3,
   PhysicsViewer,
-  // Ragdoll,
-  Axis,
 } from '@babylonjs/core';
 import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import '@babylonjs/core/Cameras/Inputs';
@@ -25,7 +23,6 @@ import { EffectManager } from './EffectManager.ts';
 import { CameraShaker } from './CameraShaker.ts';
 import { GameManager } from './GameManager.ts';
 import { DebugGUI } from './DebugGUI.ts';
-import { Ragdoll } from './ragdoll_copy.js';
 
 // Collision filter bitmasks
 const COL_ENVIRONMENT = 0x0001;
@@ -34,7 +31,7 @@ const COL_RAGDOLL = 0x0004;
 const COL_ENEMY = 0x0008;
 
 class Game {
-  canvas: any;
+  canvas: HTMLCanvasElement;
   engine: Engine;
   scene!: Scene;
   player: any;
@@ -46,7 +43,7 @@ class Game {
   gameManager: GameManager | null = null;
 
   constructor() {
-    this.canvas = document.getElementById('renderCanvas');
+    this.canvas = document.getElementById('renderCanvas') as HTMLCanvasElement;
     this.engine = new Engine(this.canvas, true);
 
     this.init();
@@ -62,10 +59,10 @@ class Game {
     this.setupPlayerController();
     await this.createEnemies();
     this.setupGameManager();
-    this.setupDebugGUI();
+    // this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
-    // this.setupPhysicsVisualizer();
+    this.setupPhysicsVisualizer();
   }
 
   async initHavok() {
@@ -154,6 +151,7 @@ class Game {
 
     // Inicializar AnimationHandler ahora que los modelos están cargados
     this.playerController.setupAnimationHandler();
+    this.playerController.initRagdoll(this.player.skeleton, this.player.armatureNode);
 
     console.log('PlayerController inicializado');
   }
@@ -257,123 +255,32 @@ class Game {
       '/models/player.glb',
       this.scene,
     );
-
-    const modelRoot = result.meshes[0]!;
-    // modelRoot.rotationQuaternion = Quaternion.FromEulerwAngles(0, 0, 0);
-
+    const rootMesh = result.meshes[0];
     const skeleton = result.skeletons[0];
-    const config = [
-      { bones: ["mixamorig:Hips"], size: 0.25, boxOffset: 0.01 },
-      {
-        bones: ["mixamorig:Spine2"],
-        size: 0.2,
-        boxOffset: 0.05,
-        boneOffsetAxis: Axis.Y,
-        min: -1,
-        max: 1,
-        rotationAxis: Axis.Z
-      },
-      // Arms.
-      {
-        bones: ["mixamorig:LeftArm", "mixamorig:RightArm"],
-        depth: 0.1,
-        size: 0.1,
-        width: 0.2,
-        rotationAxis: Axis.Y,
-        //min: -1,
-        //max: 1,
-        boxOffset: 0.10,
-        boneOffsetAxis: Axis.Y
-      },
-      {
-        bones: ["mixamorig:LeftForeArm", "mixamorig:RightForeArm"],
-        depth: 0.1,
-        size: 0.1,
-        width: 0.2,
-        rotationAxis: Axis.Y,
-        min: -1,
-        max: 1,
-        boxOffset: 0.12,
-        boneOffsetAxis: Axis.Y
-      },
-      // Legs
-      {
-        bones: ["mixamorig:LeftUpLeg", "mixamorig:RightUpLeg"],
-        depth: 0.1,
-        size: 0.2,
-        width: 0.08,
-        rotationAxis: Axis.Y,
-        min: -1,
-        max: 1,
-        boxOffset: 0.2,
-        boneOffsetAxis: Axis.Y
-      },
-      {
-        bones: ["mixamorig:LeftLeg", "mixamorig:RightLeg"],
-        depth: 0.08,
-        size: 0.3,
-        width: 0.1,
-        rotationAxis: Axis.Y,
-        min: -1,
-        max: 1,
-        boxOffset: 0.2,
-        boneOffsetAxis: Axis.Y
-      },
-      {
-        bones: ["mixamorig:LeftHand", "mixamorig:RightHand"],
-        depth: 0.2,
-        size: 0.2,
-        width: 0.2,
-        rotationAxis: Axis.Y,
-        min: -1,
-        max: 1,
-        boxOffset: 0.1,
-        boneOffsetAxis: Axis.Y
-      },
-      //head
-      {
-        bones: ["mixamorig:Head"],
-        size: 0.2,
-        boxOffset: 0,
-        boneOffsetAxis: Axis.Y,
-        min: -1,
-        max: 1,
-        rotationAxis: Axis.Z
-      },
-      // feet
-      {
-        bones: ["mixamorig:LeftFoot", "mixamorig:RightFoot"],
-        depth: 0.1,
-        size: 0.1,
-        width: 0.2,
-        rotationAxis: Axis.Y,
-        min: -1,
-        max: 1,
-        boxOffset: 0.05,
-        boneOffsetAxis: Axis.Y
-      }
-    ];
-    const rootNode = this.scene.getTransformNodeByName("__root__");
+    const armatureNode = result.transformNodes.find((node) => node.name === 'Armature');
 
-    // armature vive dentro de __root__
-    const armatureNode = this.scene.getTransformNodeByName("Armature");
+    // ===== CREATE CAPSULE & SET UP HIERARCHY BEFORE RAGDOLL =====
+    const physicsCapsule = MeshBuilder.CreateCapsule(
+      'player',
+      {
+        height: 2,
+        radius: 0.5,
+      },
+      this.scene,
+    );
 
-    if (!skeleton || !armatureNode) {
-      console.error("Ragdoll setup failed: skeleton or rootNode not found", { skeleton, rootNode });
-      return;
-    }
-    const ragdoll = new Ragdoll(skeleton, armatureNode, config);
+    physicsCapsule.position = new Vector3(0, 3, 0);
+    physicsCapsule.isVisible = false;
+    physicsCapsule.checkCollisions = true;
+    physicsCapsule.scaling = new Vector3(1, 1, 1);
+    physicsCapsule.rotationQuaternion = Quaternion.FromEulerAngles(0, Math.PI, 0);
 
-    // Set collision filters on ragdoll bone bodies: collide with ENVIRONMENT only, not PLAYER
-    for (const agg of ragdoll.getAggregates()) {
-      if (agg.shape) {
-        agg.shape.filterMembershipMask = COL_RAGDOLL;
-        agg.shape.filterCollideMask = COL_ENVIRONMENT;
-      }
-    }
+    rootMesh.parent = physicsCapsule;
+    rootMesh.position = new Vector3(0, -1, 0);
 
-    // for testing purposes
-    window.ragdoll = () => ragdoll.ragdoll();
+    // Store for ragdoll init in PlayerController
+    (physicsCapsule as any).skeleton = skeleton;
+    (physicsCapsule as any).armatureNode = armatureNode;
 
     // Encontrar animaciones por nombre
     const animationGroups = result.animationGroups;
@@ -425,11 +332,21 @@ class Game {
       (ag) => ag.name.toLowerCase() === 'walk',
     );
 
-    if (!idleAnim || !runAnim || !jumpAnim) {
-      console.error('No se encontraron todas las animaciones requeridas');
-      console.error('Idle:', idleAnim?.name);
-      console.error('Run:', runAnim?.name);
-      console.error('Jump:', jumpAnim?.name);
+    if ([idleAnim, runAnim, jumpAnim, punchLAnim, punchRAnim, breakdanceAnim, dashAnim, deadAnim, fallingAnim, hitAnim, landingAnim, walkAnim].some((anim) => !anim)) {
+      console.error('No se encontraron todas las animaciones necesarias. Animaciones encontradas:', {
+        idleAnim: !!idleAnim,
+        runAnim: !!runAnim,
+        jumpAnim: !!jumpAnim,
+        punchLAnim: !!punchLAnim,
+        punchRAnim: !!punchRAnim,
+        breakdanceAnim: !!breakdanceAnim,
+        dashAnim: !!dashAnim,
+        deadAnim: !!deadAnim,
+        fallingAnim: !!fallingAnim,
+        hitAnim: !!hitAnim,
+        landingAnim: !!landingAnim,
+        walkAnim: !!walkAnim,
+      });
     }
 
     // Detener todas las animaciones inicialmente
@@ -437,26 +354,7 @@ class Game {
       ag.stop();
     }
 
-    const physicsCapsule = MeshBuilder.CreateCapsule(
-      'player',
-      {
-        height: 2,
-        radius: 0.5,
-      },
-      this.scene,
-    );
-
-    // ===== CONFIGURE PHYSICS CAPSULE =====
-    physicsCapsule.position = new Vector3(0, 3, 0);
-    physicsCapsule.isVisible = false;
-    physicsCapsule.checkCollisions = true;
-
-    // Parent entire GLB (modelRoot = __root__) under the capsule.
-    // This keeps Armature + skinned meshes in the same branch.
-    modelRoot.parent = physicsCapsule;
-    modelRoot.position = new Vector3(0, -1, 0); // offset visual to center inside capsule
-
-    // Add physics to the capsule (not the Armature)
+    // Add physics to the capsule
     const capsuleAggregate = new PhysicsAggregate(
       physicsCapsule,
       PhysicsShapeType.CAPSULE,
@@ -467,32 +365,30 @@ class Game {
       },
       this.scene,
     );
+
     // Capsule is PLAYER — collides with ENVIRONMENT + ENEMY, NOT with RAGDOLL bones
     if (capsuleAggregate.shape) {
       capsuleAggregate.shape.filterMembershipMask = COL_PLAYER;
       capsuleAggregate.shape.filterCollideMask = COL_ENVIRONMENT | COL_ENEMY;
     }
 
-    // Store ragdoll ref for death
-    (physicsCapsule as any).ragdoll = ragdoll;
-
     // Guardar referencias de animaciones en la cápsula
     (physicsCapsule as any).animationModels = {
-      idle: { root: modelRoot, animations: idleAnim ? [idleAnim] : [] },
-      run: { root: modelRoot, animations: runAnim ? [runAnim] : [] },
-      jump: { root: modelRoot, animations: jumpAnim ? [jumpAnim] : [] },
-      punch_L: { root: modelRoot, animations: punchLAnim ? [punchLAnim] : [] },
-      punch_R: { root: modelRoot, animations: punchRAnim ? [punchRAnim] : [] },
+      idle: { root: rootMesh, animations: idleAnim ? [idleAnim] : [] },
+      run: { root: rootMesh, animations: runAnim ? [runAnim] : [] },
+      jump: { root: rootMesh, animations: jumpAnim ? [jumpAnim] : [] },
+      punch_L: { root: rootMesh, animations: punchLAnim ? [punchLAnim] : [] },
+      punch_R: { root: rootMesh, animations: punchRAnim ? [punchRAnim] : [] },
       macarena: {
-        root: modelRoot,
+        root: rootMesh,
         animations: breakdanceAnim ? [breakdanceAnim] : [],
       },
-      dash: { root: modelRoot, animations: dashAnim ? [dashAnim] : [] },
-      dead: { root: modelRoot, animations: deadAnim ? [deadAnim] : [] },
-      falling: { root: modelRoot, animations: fallingAnim ? [fallingAnim] : [] },
-      hit: { root: modelRoot, animations: hitAnim ? [hitAnim] : [] },
-      landing: { root: modelRoot, animations: landingAnim ? [landingAnim] : [] },
-      walk: { root: modelRoot, animations: walkAnim ? [walkAnim] : [] },
+      dash: { root: rootMesh, animations: dashAnim ? [dashAnim] : [] },
+      dead: { root: rootMesh, animations: deadAnim ? [deadAnim] : [] },
+      falling: { root: rootMesh, animations: fallingAnim ? [fallingAnim] : [] },
+      hit: { root: rootMesh, animations: hitAnim ? [hitAnim] : [] },
+      landing: { root: rootMesh, animations: landingAnim ? [landingAnim] : [] },
+      walk: { root: rootMesh, animations: walkAnim ? [walkAnim] : [] },
     };
 
     return physicsCapsule;

@@ -1,4 +1,5 @@
 import {
+  Axis,
   Vector3,
   Quaternion,
   PhysicsRaycastResult,
@@ -8,6 +9,7 @@ import {
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
 import { WeaponSystem } from './WeaponSystem.ts';
 import { EffectManager } from './EffectManager.ts';
+import { Ragdoll } from './ragdoll_copy.js';
 
 export class PlayerController {
   blinkInterval: any;
@@ -62,6 +64,7 @@ export class PlayerController {
   targetRotation: Quaternion;
   targetScale: Vector3;
   wasGrounded: boolean;
+  ragdoll: any = null;
   weaponSystem: WeaponSystem | null;
 
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
@@ -138,7 +141,7 @@ export class PlayerController {
     this.recoilDecay = 10;
 
     // ===== SISTEMA DE SALUD =====
-    this.maxHealth = 3000000000;
+    this.maxHealth = 3;
     this.currentHealth = this.maxHealth;
     this.isInvulnerable = false;
     this.invulnerabilityDuration = 1.5; // Segundos de invulnerabilidad tras daño
@@ -221,8 +224,6 @@ export class PlayerController {
 
     console.log('WeaponSystem inicializado');
   }
-
-  // ===== SISTEMA DE PUÑOS SPAM =====
 
   /**
    * ===== REPRODUCCIÓN SUAVE DE ANIMACIONES =====
@@ -604,9 +605,6 @@ export class PlayerController {
     // ===== VARIABLE JUMP (cortar salto al soltar) =====
     this.handleVariableJump();
 
-    // ===== SQUASH & STRETCH =====
-    this.updateSquashStretch(deltaTime);
-
     // ===== DETECTAR ATERRIZAJE =====
     if (this.isGrounded && !this.wasGrounded) {
       this.onLand();
@@ -777,9 +775,6 @@ export class PlayerController {
       this.jumpBufferTimer = 0;
       this.coyoteTimer = 0;
 
-      // Feedback visual: estirar al saltar
-      this.applyJumpStretch();
-
       // Partículas de polvo al saltar
       const dustPos = this.mesh.getAbsolutePosition().clone();
       dustPos.y -= this.playerHeight / 2;
@@ -905,42 +900,8 @@ export class PlayerController {
     this.targetScale = this.originalScale.clone();
   }
 
-  // ===== SQUASH & STRETCH =====
-  applyJumpStretch() {
-    // Estirar verticalmente al saltar
-    this.targetScale = new Vector3(0.8, 1.2, 0.8);
-
-    // Volver a normal después de un momento
-    setTimeout(() => {
-      this.targetScale = this.originalScale.clone();
-    }, 100);
-  }
-
-  applyLandSquash() {
-    // Aplastar al aterrizar
-    this.targetScale = new Vector3(1.2, 0.8, 1.2);
-
-    // Volver a normal
-    setTimeout(() => {
-      this.targetScale = this.originalScale.clone();
-    }, 100);
-  }
-
-  updateSquashStretch(deltaTime: number) {
-    // Interpolar suavemente hacia la escala objetivo
-    const lerpFactor = Math.min(1, this.scaleSpeed * deltaTime);
-
-    this.mesh.scaling.x +=
-      (this.targetScale.x - this.mesh.scaling.x) * lerpFactor;
-    this.mesh.scaling.y +=
-      (this.targetScale.y - this.mesh.scaling.y) * lerpFactor;
-    this.mesh.scaling.z +=
-      (this.targetScale.z - this.mesh.scaling.z) * lerpFactor;
-  }
-
   // ===== EVENTOS =====
   onLand() {
-    this.applyLandSquash();
 
     // Partículas de polvo con EffectManager
     const dustPos = this.mesh.getAbsolutePosition().clone();
@@ -1168,6 +1129,9 @@ export class PlayerController {
     this.isDashing = false;
     this.recoilVelocity = Vector3.Zero();
 
+    // Activate ragdoll on death
+    this.ragdoll?.ragdoll();
+
     // Notificar al GameManager
     if (this.gameManager && this.gameManager.gameOver) {
       setTimeout(() => {
@@ -1201,6 +1165,127 @@ export class PlayerController {
     this.startInvulnerability();
 
     console.log('Player respawned!');
+  }
+
+  initRagdoll(skeleton: any, armatureNode: any) {
+    if (!skeleton || !armatureNode) {
+      console.error('Ragdoll setup failed: skeleton or armatureNode not found');
+      return;
+    }
+
+    // Por alguna razon el scaling del Armature es 0.09 
+    // y se hace enorme si lo escalo a 1.7 (raro)
+    armatureNode.scaling = new Vector3(0.017, 0.017, 0.017);
+
+    const config = [
+      { bones: ['mixamorig:Hips'], size: 0.45, boxOffset: 0.01 },
+      {
+        bones: ['mixamorig:Spine2'],
+        size: 0.4,
+        height: 0.6,
+        boxOffset: 0.05,
+        boneOffsetAxis: Axis.Z,
+        min: -1,
+        max: 1,
+        rotationAxis: Axis.Z,
+      },
+      // Arms
+      {
+        bones: ['mixamorig:LeftArm', 'mixamorig:RightArm'],
+        depth: 0.1,
+        size: 0.1,
+        width: 0.5,
+        rotationAxis: Axis.Y,
+        boxOffset: 0.10,
+        boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig:LeftForeArm', 'mixamorig:RightForeArm'],
+        depth: 0.1,
+        size: 0.1,
+        width: 0.5,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.12,
+        boneOffsetAxis: Axis.Y,
+      },
+      // Legs
+      {
+        bones: ['mixamorig:LeftUpLeg', 'mixamorig:RightUpLeg'],
+        depth: 0.1,
+        size: 0.2,
+        width: 0.08,
+        height: 0.7,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.2,
+        boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig:LeftLeg', 'mixamorig:RightLeg'],
+        depth: 0.08,
+        size: 0.3,
+        width: 0.1,
+        height: 0.4,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.2,
+        boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig:LeftHand', 'mixamorig:RightHand'],
+        depth: 0.2,
+        size: 0.2,
+        width: 0.2,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.1,
+        boneOffsetAxis: Axis.Y,
+      },
+      // Head
+      {
+        bones: ['mixamorig:Head'],
+        size: 0.4,
+        boxOffset: 0,
+        boneOffsetAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        rotationAxis: Axis.Z,
+      },
+      // Feet
+      {
+        bones: ['mixamorig:LeftFoot', 'mixamorig:RightFoot'],
+        depth: 0.1,
+        size: 0.1,
+        width: 0.2,
+        rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.05,
+        boneOffsetAxis: Axis.Y,
+      },
+    ];
+
+    const COL_RAGDOLL = 0x0004;
+    const COL_ENVIRONMENT = 0x0001;
+
+    this.ragdoll = new Ragdoll(skeleton, armatureNode, config);
+
+    for (const agg of this.ragdoll.getAggregates()) {
+      if (agg.shape) {
+        agg.shape.filterMembershipMask = COL_RAGDOLL;
+        agg.shape.filterCollideMask = COL_ENVIRONMENT;
+      }
+    }
+
+    // Expose for debugging
+    (window as any).ragdoll = () => this.ragdoll.ragdoll();
+
+    console.log('Ragdoll initialized');
   }
 
   /**
