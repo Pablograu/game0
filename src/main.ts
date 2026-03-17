@@ -62,7 +62,7 @@ class Game {
     // this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
-    this.setupPhysicsVisualizer();
+    // this.setupPhysicsVisualizer();
   }
 
   async initHavok() {

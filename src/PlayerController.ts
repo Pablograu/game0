@@ -37,7 +37,9 @@ export class PlayerController {
   isDashing: boolean;
   isGrounded: boolean;
   isInvulnerable: boolean;
+  isKnockedBack: boolean = false;
   isMoving: boolean = false;
+  knockbackDuration: number;
   jumpBufferTime: number;
   jumpBufferTimer: number;
   jumpCutMultiplier: number;
@@ -65,6 +67,7 @@ export class PlayerController {
   targetScale: Vector3;
   wasGrounded: boolean;
   ragdoll: any = null;
+  lastKnockbackDir: Vector3 = Vector3.Zero();
   weaponSystem: WeaponSystem | null;
 
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
@@ -141,13 +144,14 @@ export class PlayerController {
     this.recoilDecay = 10;
 
     // ===== SISTEMA DE SALUD =====
-    this.maxHealth = 3;
+    this.maxHealth = 1;
     this.currentHealth = this.maxHealth;
     this.isInvulnerable = false;
     this.invulnerabilityDuration = 1.5; // Segundos de invulnerabilidad tras daño
     this.invulnerabilityTimer = 0;
     this.blinkInterval = null;
-    this.damageKnockbackForce = 6; // Fuerza de knockback al recibir daño
+    this.damageKnockbackForce = 12; // Fuerza de knockback al recibir daño
+    this.knockbackDuration = 0.3; // Seconds player movement is suppressed after a hit
 
     // ===== SPAWN POINT =====
     this.spawnPoint = mesh.position.clone(); // Guardar posición inicial
@@ -569,7 +573,19 @@ export class PlayerController {
       this.lastFacingDirection = moveDirection.clone();
     }
 
-    // Decaer el recoil con el tiempo
+    // ===== DAMAGE KNOCKBACK WINDOW =====
+    if (this.isKnockedBack) {
+      this.knockbackDuration -= deltaTime;
+      if (this.knockbackDuration <= 0) {
+        this.isKnockedBack = false;
+      }
+      // Let Havok carry the impulse velocity naturally.
+      // Only lock rotation and suppress player input this frame.
+      this.body.setAngularVelocity(new Vector3(0, 0, 0));
+      return; // Skip normal movement this frame
+    }
+
+    // Decaer el recoil con el tiempo (weapon recoil, not damage knockback)
     if (this.recoilVelocity.length() > 0.1) {
       this.recoilVelocity = this.recoilVelocity.scale(
         1 - this.recoilDecay * deltaTime,
@@ -642,11 +658,11 @@ export class PlayerController {
       animSpeed = Math.max(0.5, (velocity.y / this.jumpForce) * 1.2);
     } else if (!this.isGrounded && velocity.y < -0.5) {
       // Cayendo - velocidad proporcional a la caída
-      targetAnimation = 'jump';
+      targetAnimation = 'falling';
       animSpeed = Math.min(1.0, Math.abs(velocity.y) / 10);
     } else if (!this.isGrounded) {
       // En el aire cerca del pico del salto
-      targetAnimation = 'jump';
+      targetAnimation = 'falling';
       animSpeed = 0.3;
     } else if (this.isGrounded && moveDirection.length() > 0.1) {
       // Corriendo
@@ -657,7 +673,6 @@ export class PlayerController {
       targetAnimation = 'idle';
       animSpeed = 1.0;
     }
-
 
     // ===== CAMBIAR ANIMACIÓN CON BLENDING SUAVE =====
     if (this.currentPlayingAnimation !== targetAnimation) {
@@ -1030,7 +1045,24 @@ export class PlayerController {
    * @param {Vector3} damageSourcePosition - Posición de la fuente de daño (para knockback)
    */
   takeDamage(amount: number, damageSourcePosition: any = null) {
-    // Ignorar si es invulnerable o está muerto
+    const playerPos = this.mesh.getAbsolutePosition();
+    const knockbackDir = damageSourcePosition
+      ? playerPos.subtract(damageSourcePosition).normalize()
+      : new Vector3(0, 0, 0);
+
+    // ===== KNOCKBACK (always applied, even when dead or invulnerable) =====
+    if (damageSourcePosition && this.body) {
+      this.lastKnockbackDir = knockbackDir.clone();
+      this.body.applyImpulse(
+        knockbackDir.scale(this.damageKnockbackForce),
+        playerPos
+      );
+      this.recoilVelocity = Vector3.Zero(); // Don't let recoil fight the impulse
+      this.isKnockedBack = true;
+      this.knockbackDuration = 0.3;
+    }
+
+    // Ignorar daño si es invulnerable o está muerto
     if (this.isInvulnerable || this.currentHealth <= 0) {
       console.log('Damage ignored (invulnerable or dead)');
       return;
@@ -1038,6 +1070,7 @@ export class PlayerController {
 
     // Restar salud
     this.currentHealth -= amount;
+
     console.log(`Player hit! Health: ${this.currentHealth}/${this.maxHealth}`);
 
     // Actualizar UI
@@ -1047,29 +1080,6 @@ export class PlayerController {
     if (this.currentHealth <= 0) {
       this.die();
       return;
-    }
-
-    // ===== KNOCKBACK =====
-    if (damageSourcePosition && this.body) {
-      const playerPos = this.mesh.getAbsolutePosition();
-      const knockbackDir = playerPos.subtract(damageSourcePosition).normalize();
-      knockbackDir.y = 0.3; // Pequeño impulso hacia arriba
-
-      this.recoilVelocity = new Vector3(
-        knockbackDir.x * this.damageKnockbackForce,
-        0,
-        knockbackDir.z * this.damageKnockbackForce,
-      );
-
-      // También aplicar impulso vertical
-      const currentVel = this.body.getLinearVelocity();
-      this.body.setLinearVelocity(
-        new Vector3(
-          currentVel.x,
-          this.damageKnockbackForce * 0.5,
-          currentVel.z,
-        ),
-      );
     }
 
     // ===== INVULNERABILIDAD TEMPORAL =====
@@ -1124,13 +1134,24 @@ export class PlayerController {
   die() {
     console.log('Player died!');
 
+    if (this.ragdoll) {
+      this.ragdoll.ragdoll();
+      // Use setTimeout(0) so Havok has one tick to register the DYNAMIC motion type.
+      const impulse = this.lastKnockbackDir.scale(this.damageKnockbackForce * 5);
+      const appPoint = this.mesh.getAbsolutePosition();
+      setTimeout(() => {
+        for (const agg of this.ragdoll.getAggregates()) {
+          agg.body?.applyImpulse(impulse, appPoint);
+        }
+      }, 0);
+    }
+
     // Detener cualquier estado activo
     this.stopBlinking();
     this.isDashing = false;
-    this.recoilVelocity = Vector3.Zero();
+    // this.recoilVelocity = Vector3.Zero();
 
     // Activate ragdoll on death
-    this.ragdoll?.ragdoll();
 
     // Notificar al GameManager
     if (this.gameManager && this.gameManager.gameOver) {
