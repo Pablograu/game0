@@ -13,8 +13,10 @@ import {
   Scene,
   TransformNode,
   Matrix,
+  Axis,
 } from '@babylonjs/core';
 import { HitboxSystem } from './HitboxSystem';
+import { Ragdoll } from './ragdoll_copy.js';
 
 // ===== ESTADOS DE IA =====
 export enum EnemyState {
@@ -138,6 +140,10 @@ export class EnemyController {
   // ===== DEBUG =====
   visionCircle: Mesh | null = null;
 
+  // ===== RAGDOLL =====
+  ragdoll: any = null;
+  lastKnockbackDir: Vector3 = Vector3.Zero();
+
   constructor(
     animationGroups: AnimationGroup[],
     config: EnemyConfig = {},
@@ -215,7 +221,7 @@ export class EnemyController {
   private _createPhysicsCapsule(): Mesh {
     const capsule = MeshBuilder.CreateCapsule(
       'enemyCapsule',
-      { height: 2, radius: 0.5 },
+      { height: 2.5, radius: 0.5 },
       this.scene,
     );
     capsule.isVisible = false;
@@ -239,6 +245,20 @@ export class EnemyController {
       mass: this.config.mass,
       inertia: new Vector3(0, 0, 0),
     });
+
+    // ===== COLLISION FILTER =====
+    // Membership: COL_ENEMY (0x0008)
+    // Collide with: COL_ENVIRONMENT (0x0001) only.
+    // Must NOT collide with COL_PLAYER (0x0002) — contact damage is handled by
+    // intersectsMesh in _checkPlayerCollision(), not by physics. Allowing physics
+    // collision with the player capsule causes the enemy to physically push/overlap
+    // the player in unwanted ways.
+    // Must NOT collide with COL_RAGDOLL (0x0004) — ragdoll ANIMATED bodies would
+    // prop the capsule up at spawn height and prevent gravity from working.
+    if (this.physicsAggregate.shape) {
+      this.physicsAggregate.shape.filterMembershipMask = 0x0008; // COL_ENEMY
+      this.physicsAggregate.shape.filterCollideMask = 0x0001; // COL_ENVIRONMENT only
+    }
 
     return capsule;
   }
@@ -605,35 +625,33 @@ export class EnemyController {
       ag.stop();
     }
 
-    // 2. Enable ragdoll collapse on the existing physics body.
-    //    The model is already parented to the capsule, so unlocking rotation
-    //    and applying forces will make the whole model topple over naturally.
-    if (this.body) {
-      // Grab current velocity from knockback (applied in takeDamage) BEFORE modifying
-      const currentVel = this.body.getLinearVelocity();
+    // 2. Activate ragdoll if initialised, otherwise fall back to capsule topple
+    if (this.ragdoll) {
+      this.ragdoll.ragdoll();
 
-      // Unlock rotation — inertia was Vector3.Zero to prevent tipping during gameplay
-      this.body.setMassProperties({
-        mass: this.config.mass,
-        inertia: new Vector3(0.4, 0.1, 0.4),
-      });
-
-      // Calculate topple axis: perpendicular to knockback direction so the
-      // enemy falls AWAY from the hit (cross product with up vector)
-      const toppleAxis = new Vector3(-currentVel.z, 0, currentVel.x);
-      if (toppleAxis.length() > 0.01) {
-        toppleAxis.normalize();
-      } else {
-        // Fallback: random topple direction if no velocity
-        toppleAxis.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+      // Apply the knockback impulse to every bone body.
+      // setTimeout(0) gives Havok one tick to register DYNAMIC motion type.
+      const impulse = this.lastKnockbackDir.scale(this.config.knockbackForce * 1.5);
+      const appPoint = this.physicsCapsule.getAbsolutePosition();
+      setTimeout(() => {
+        for (const agg of this.ragdoll.getAggregates()) {
+          agg.body?.applyImpulse(impulse, appPoint);
+        }
+      }, 0);
+    } else {
+      // Fallback: unlock inertia and topple the capsule
+      if (this.body) {
+        const currentVel = this.body.getLinearVelocity();
+        this.body.setMassProperties({
+          mass: this.config.mass,
+          inertia: new Vector3(0.4, 0.1, 0.4),
+        });
+        const toppleAxis = new Vector3(-currentVel.z, 0, currentVel.x);
+        if (toppleAxis.length() > 0.01) toppleAxis.normalize();
+        else toppleAxis.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+        this.body.setAngularVelocity(toppleAxis.scale(6));
+        this.body.applyImpulse(new Vector3(0, 20, 0), this.physicsCapsule.getAbsolutePosition());
       }
-
-      // Apply angular velocity to topple the body over
-      this.body.setAngularVelocity(toppleAxis.scale(6));
-
-      // Add a small upward boost so the body lifts before falling
-      const boost = new Vector3(0, 20, 0);
-      this.body.applyImpulse(boost, this.physicsCapsule.getAbsolutePosition());
     }
 
     // 3. Disable collisions and pickability on visual meshes
@@ -648,16 +666,90 @@ export class EnemyController {
       this.visionCircle = null;
     }
 
-    // 5. Remove AI update observer — physics engine handles the ragdoll from here
+    // 5. Remove AI update observer
     if (this._updateObserver) {
       this.scene.onBeforeRenderObservable.remove(this._updateObserver);
       this._updateObserver = null;
     }
 
-    // 6. After settling, freeze the body and schedule visual dispose
+    // 6. After settling, schedule visual dispose
     this._scheduleDispose(4.0);
 
-    console.log('[EnemyController] DEAD — ragdoll collapse activated');
+    console.log('[EnemyController] DEAD — ragdoll activated');
+  }
+
+  // ==========================================================
+  //  RAGDOLL
+  // ==========================================================
+  /**
+   * Initialises the Ragdoll for this enemy.
+   * Call once after the enemy is spawned (done automatically by EnemyFactory).
+   * Uses the same Mixamo bone config as the PlayerController.
+   * If ragdoll boxes appear mis-scaled, adjust armatureNode.scaling before calling.
+   */
+  initRagdoll(skeleton: any, armatureNode: any) {
+    if (!skeleton || !armatureNode) {
+      console.warn('[EnemyController] Ragdoll skipped: skeleton or armatureNode missing');
+      return;
+    }
+
+    const config = [
+      { bones: ['mixamorig7:Hips'], size: 0.45, boxOffset: 0.01 },
+      {
+        bones: ['mixamorig7:Spine2'],
+        size: 0.4, height: 0.6, boxOffset: 0.05,
+        boneOffsetAxis: Axis.Z, min: -1, max: 1, rotationAxis: Axis.Z,
+      },
+      {
+        bones: ['mixamorig7:LeftArm', 'mixamorig7:RightArm'],
+        depth: 0.1, size: 0.1, width: 0.5,
+        rotationAxis: Axis.Y, boxOffset: 0.10, boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig7:LeftForeArm', 'mixamorig7:RightForeArm'],
+        depth: 0.1, size: 0.1, width: 0.5,
+        rotationAxis: Axis.Y, min: -1, max: 1, boxOffset: 0.12, boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig7:LeftUpLeg', 'mixamorig7:RightUpLeg'],
+        depth: 0.1, size: 0.2, width: 0.08, height: 0.7,
+        rotationAxis: Axis.Y, min: -1, max: 1, boxOffset: 0.2, boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig7:LeftLeg', 'mixamorig7:RightLeg'],
+        depth: 0.08, size: 0.3, width: 0.1, height: 0.4,
+        rotationAxis: Axis.Y, min: -1, max: 1, boxOffset: 0.2, boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig7:LeftHand', 'mixamorig7:RightHand'],
+        depth: 0.2, size: 0.2, width: 0.2,
+        rotationAxis: Axis.Y, min: -1, max: 1, boxOffset: 0.1, boneOffsetAxis: Axis.Y,
+      },
+      {
+        bones: ['mixamorig7:Head'],
+        size: 0.4, boxOffset: 0, boneOffsetAxis: Axis.Y,
+        min: -1, max: 1, rotationAxis: Axis.Z,
+      },
+      {
+        bones: ['mixamorig7:LeftFoot', 'mixamorig7:RightFoot'],
+        depth: 0.1, size: 0.1, width: 0.2,
+        rotationAxis: Axis.Y, min: -1, max: 1, boxOffset: 0.05, boneOffsetAxis: Axis.Y,
+      },
+    ];
+
+    const COL_RAGDOLL = 0x0004;
+    const COL_ENVIRONMENT = 0x0001;
+
+    this.ragdoll = new Ragdoll(skeleton, armatureNode, config);
+
+    for (const agg of this.ragdoll.getAggregates()) {
+      if (agg.shape) {
+        agg.shape.filterMembershipMask = COL_RAGDOLL;
+        agg.shape.filterCollideMask = COL_ENVIRONMENT;
+      }
+    }
+
+    console.log('[EnemyController] Ragdoll initialised');
   }
 
   /**
@@ -806,9 +898,8 @@ export class EnemyController {
 
     // Knockback
     if (knockbackDirection && this.body) {
-      const kb = knockbackDirection
-        .normalize()
-        .scale(this.config.knockbackForce);
+      this.lastKnockbackDir = knockbackDirection.normalize().clone();
+      const kb = this.lastKnockbackDir.scale(this.config.knockbackForce);
       kb.y = this.config.knockbackForce * 0.3;
       this.body.applyImpulse(kb, this.physicsCapsule.getAbsolutePosition());
     }
@@ -928,6 +1019,11 @@ export class EnemyController {
 
     if (this.visionCircle) {
       this.visionCircle.dispose();
+    }
+
+    if (this.ragdoll) {
+      this.ragdoll.dispose();
+      this.ragdoll = null;
     }
 
     if (this.physicsAggregate) {

@@ -5,6 +5,9 @@ import {
   PhysicsRaycastResult,
   Scene,
   Camera,
+  Mesh,
+  CreateAudioEngineAsync,
+  CreateSoundAsync,
 } from '@babylonjs/core';
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
 import { WeaponSystem } from './WeaponSystem.ts';
@@ -12,6 +15,7 @@ import { EffectManager } from './EffectManager.ts';
 import { Ragdoll } from './ragdoll_copy.js';
 
 export class PlayerController {
+  audioEngine: any;
   blinkInterval: any;
   body: any;
   camera: Camera;
@@ -69,6 +73,15 @@ export class PlayerController {
   ragdoll: any = null;
   lastKnockbackDir: Vector3 = Vector3.Zero();
   weaponSystem: WeaponSystem | null;
+  walkingSound: any;
+
+  // Grace timer: how long (s) player must be airborne before 'falling' anim plays.
+  // Prevents the anim firing on the very first frames after spawn.
+  private _airTime: number = 0;
+  private readonly _fallingAnimDelay: number = 0.18;
+
+  // Walking sound state — avoids polling isPlaying every frame
+  private _walkingSoundActive: boolean = false;
 
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
   useLeftPunch: boolean = true; // Alternar entre puño izquierdo y derecho
@@ -80,7 +93,7 @@ export class PlayerController {
   currentPlayingAnimation: string = 'idle'; // Animación actualmente en reproducción
   blendingSpeed: number = 0.1; // Velocidad de blending global (alta = rápida pero suave)
 
-  constructor(mesh: any, camera: any, scene: Scene, cameraShaker: any = null) {
+  constructor(mesh: Mesh, camera: Camera, scene: Scene, cameraShaker: any = null) {
     this.mesh = mesh;
     this.camera = camera;
     this.scene = scene;
@@ -144,7 +157,7 @@ export class PlayerController {
     this.recoilDecay = 10;
 
     // ===== SISTEMA DE SALUD =====
-    this.maxHealth = 1;
+    this.maxHealth = 1000;
     this.currentHealth = this.maxHealth;
     this.isInvulnerable = false;
     this.invulnerabilityDuration = 1.5; // Segundos de invulnerabilidad tras daño
@@ -167,12 +180,16 @@ export class PlayerController {
     this.useLeftPunch = true;
     this.normalMoveSpeed = this.moveSpeed;
 
+
     this.setupInput();
     this.setupPhysics();
     this.setupWeaponSystem();
     this.setupHealthUI();
     this.setupAnimationHandler();
     this.setupUpdate();
+    this.audioEngine = this._initAudioEngine();
+    this._loadWalkingSound();
+
   }
 
   setupHealthUI() {
@@ -450,6 +467,50 @@ export class PlayerController {
     console.log(
       `🎬 Blending configurado en ${this.animationGroups.size} animaciones`,
     );
+
+    // ===== PREVENT T-POSE ON FIRST FRAME =====
+    // Start idle immediately so bones are driven by an animation from frame 1.
+    const idleAg = this.animationGroups.get('idle');
+    if (idleAg) {
+      idleAg.start(true, 1.0, idleAg.from, idleAg.to, false);
+      this.currentPlayingAnimation = 'idle';
+    }
+  }
+
+  private async _initAudioEngine() {
+    try {
+      const audioEngine = await CreateAudioEngineAsync();
+      await audioEngine.unlockAsync();
+      console.log('Audio engine initialized');
+      return audioEngine;
+    } catch (e) {
+      console.warn('Audio engine failed to initialize:', e);
+    }
+
+    // Defer unlock to the first real user gesture (browser autoplay policy)
+    const unlock = async () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+
+  }
+
+  private async _loadWalkingSound() {
+    try {
+
+      this.walkingSound = await CreateSoundAsync('walking', '/audio/walking.mp3', {
+        loop: true,          // CRITICAL: without this the clip plays once then restarts choppy every frame
+        volume: 0.45,
+        spatialEnabled: false, // No 3D attenuation for footsteps
+      });
+
+      console.log('Walking sound loaded');
+    } catch (e) {
+      console.warn('Walking sound failed to load:', e);
+      this.walkingSound = null;
+    }
   }
 
   setupInput() {
@@ -657,21 +718,48 @@ export class PlayerController {
       targetAnimation = 'jump';
       animSpeed = Math.max(0.5, (velocity.y / this.jumpForce) * 1.2);
     } else if (!this.isGrounded && velocity.y < -0.5) {
-      // Cayendo - velocidad proporcional a la caída
-      targetAnimation = 'falling';
-      animSpeed = Math.min(1.0, Math.abs(velocity.y) / 10);
+      // Cayendo - sólo mostrar si llevamos un tiempo en el aire (evita flash al spawn)
+      this._airTime += this.scene.getEngine().getDeltaTime() / 1000;
+      if (this._airTime >= this._fallingAnimDelay) {
+        targetAnimation = 'falling';
+        animSpeed = Math.min(1.0, Math.abs(velocity.y) / 10);
+      } else {
+        targetAnimation = 'idle';
+        animSpeed = 1.0;
+      }
     } else if (!this.isGrounded) {
-      // En el aire cerca del pico del salto
-      targetAnimation = 'falling';
-      animSpeed = 0.3;
+      // Cerca del pico del salto
+      this._airTime += this.scene.getEngine().getDeltaTime() / 1000;
+      if (this._airTime >= this._fallingAnimDelay) {
+        targetAnimation = 'falling';
+        animSpeed = 0.3;
+      } else {
+        targetAnimation = 'idle';
+        animSpeed = 1.0;
+      }
     } else if (this.isGrounded && moveDirection.length() > 0.1) {
+      this._airTime = 0; // reset air timer on ground
       // Corriendo
       targetAnimation = 'run';
       animSpeed = 1.0;
     } else {
+      this._airTime = 0; // reset air timer on ground
       // Idle
       targetAnimation = 'idle';
       animSpeed = 1.0;
+    }
+
+    // ===== WALKING SOUND =====
+    const shouldWalk = targetAnimation === 'run' && this.isGrounded;
+    if (this.walkingSound) {
+      if (shouldWalk && !this._walkingSoundActive) {
+        this.walkingSound.play();
+        this._walkingSoundActive = true;
+      } else if (!shouldWalk && this._walkingSoundActive) {
+        // pause() keeps position in the loop; stop() would reset and cause a click on resume
+        this.walkingSound.pause();
+        this._walkingSoundActive = false;
+      }
     }
 
     // ===== CAMBIAR ANIMACIÓN CON BLENDING SUAVE =====

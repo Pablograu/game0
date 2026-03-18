@@ -263,7 +263,7 @@ class Game {
     const physicsCapsule = MeshBuilder.CreateCapsule(
       'player',
       {
-        height: 2,
+        height: 2.2,
         radius: 0.5,
       },
       this.scene,
