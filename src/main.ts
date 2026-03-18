@@ -11,6 +11,7 @@ import {
   Quaternion,
   Scene,
   Vector3,
+  PhysicsViewer,
 } from '@babylonjs/core';
 import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import '@babylonjs/core/Cameras/Inputs';
@@ -23,8 +24,14 @@ import { CameraShaker } from './CameraShaker.ts';
 import { GameManager } from './GameManager.ts';
 import { DebugGUI } from './DebugGUI.ts';
 
+// Collision filter bitmasks
+const COL_ENVIRONMENT = 0x0001;
+const COL_PLAYER = 0x0002;
+const COL_RAGDOLL = 0x0004;
+const COL_ENEMY = 0x0008;
+
 class Game {
-  canvas: any;
+  canvas: HTMLCanvasElement;
   engine: Engine;
   scene!: Scene;
   player: any;
@@ -36,7 +43,7 @@ class Game {
   gameManager: GameManager | null = null;
 
   constructor() {
-    this.canvas = document.getElementById('renderCanvas');
+    this.canvas = document.getElementById('renderCanvas') as HTMLCanvasElement;
     this.engine = new Engine(this.canvas, true);
 
     this.init();
@@ -52,9 +59,10 @@ class Game {
     this.setupPlayerController();
     await this.createEnemies();
     this.setupGameManager();
-    this.setupDebugGUI();
+    // this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
+    // this.setupPhysicsVisualizer();
   }
 
   async initHavok() {
@@ -71,6 +79,24 @@ class Game {
     EffectManager.init(this.scene);
 
     console.log('Física Havok inicializada');
+  }
+
+  setupPhysicsVisualizer() {
+    const viewer = new PhysicsViewer(this.scene);
+
+    // Meshes carry physics bodies (capsule, ground, environment, etc.)
+    this.scene.meshes.forEach((mesh) => {
+      if (mesh.physicsBody) {
+        viewer.showBody(mesh.physicsBody);
+      }
+    });
+
+    // Transform nodes (ragdoll bones, etc.)
+    this.scene.transformNodes.forEach((node) => {
+      if (node.physicsBody) {
+        viewer.showBody(node.physicsBody);
+      }
+    });
   }
 
   createCamera() {
@@ -117,6 +143,7 @@ class Game {
       this.scene,
       this.cameraShaker,
     );
+    console.log('<<< this.player', this.player);
 
     // Tunear valores
     this.playerController.setMoveSpeed(8);
@@ -124,6 +151,7 @@ class Game {
 
     // Inicializar AnimationHandler ahora que los modelos están cargados
     this.playerController.setupAnimationHandler();
+    this.playerController.initRagdoll(this.player.skeleton, this.player.armatureNode);
 
     console.log('PlayerController inicializado');
   }
@@ -197,7 +225,7 @@ class Game {
 
         // Añadir física estática a los meshes sólidos
         if (mesh.getTotalVertices() > 0) {
-          new PhysicsAggregate(
+          const envAggregate = new PhysicsAggregate(
             mesh,
             PhysicsShapeType.MESH,
             {
@@ -207,6 +235,11 @@ class Game {
             },
             this.scene,
           );
+          // Environment collides with everything
+          if (envAggregate.shape) {
+            envAggregate.shape.filterMembershipMask = COL_ENVIRONMENT;
+            envAggregate.shape.filterCollideMask = COL_PLAYER | COL_RAGDOLL | COL_ENEMY;
+          }
         }
       }
     });
@@ -215,37 +248,6 @@ class Game {
   }
 
   async createPlayer() {
-    // Crear cápsula invisible para la física
-    const physicsBody = MeshBuilder.CreateCapsule(
-      'player',
-      {
-        height: 2,
-        radius: 0.5,
-      },
-      this.scene,
-    );
-
-    // Posición inicial
-    physicsBody.position = new Vector3(0, 3, 0);
-
-    // Hacer invisible (solo para física)
-    physicsBody.isVisible = false;
-
-    // Habilitar colisiones para la cámara
-    physicsBody.checkCollisions = true;
-
-    // Agregar física a la cápsula
-    new PhysicsAggregate(
-      physicsBody,
-      PhysicsShapeType.CAPSULE,
-      {
-        mass: 1,
-        restitution: 0,
-        friction: 0.5,
-      },
-      this.scene,
-    );
-
     // ===== CARGAR MODELO CON TODAS LAS ANIMACIONES =====
     console.log('Loading animated character...');
 
@@ -253,12 +255,32 @@ class Game {
       '/models/player.glb',
       this.scene,
     );
+    const rootMesh = result.meshes[0];
+    const skeleton = result.skeletons[0];
+    const armatureNode = result.transformNodes.find((node) => node.name === 'Armature');
 
-    const modelRoot = result.meshes[0]!;
-    modelRoot.parent = physicsBody;
-    modelRoot.position = new Vector3(0, -1, 0);
-    modelRoot.scaling = new Vector3(1.5, 1.5, 1.5);
-    modelRoot.rotationQuaternion = Quaternion.FromEulerAngles(0, 0, 0);
+    // ===== CREATE CAPSULE & SET UP HIERARCHY BEFORE RAGDOLL =====
+    const physicsCapsule = MeshBuilder.CreateCapsule(
+      'player',
+      {
+        height: 2.2,
+        radius: 0.5,
+      },
+      this.scene,
+    );
+
+    physicsCapsule.position = new Vector3(0, 3, 0);
+    physicsCapsule.isVisible = false;
+    physicsCapsule.checkCollisions = true;
+    physicsCapsule.scaling = new Vector3(1, 1, 1);
+    physicsCapsule.rotationQuaternion = Quaternion.FromEulerAngles(0, Math.PI, 0);
+
+    rootMesh.parent = physicsCapsule;
+    rootMesh.position = new Vector3(0, -1, 0);
+
+    // Store for ragdoll init in PlayerController
+    (physicsCapsule as any).skeleton = skeleton;
+    (physicsCapsule as any).armatureNode = armatureNode;
 
     // Encontrar animaciones por nombre
     const animationGroups = result.animationGroups;
@@ -310,11 +332,21 @@ class Game {
       (ag) => ag.name.toLowerCase() === 'walk',
     );
 
-    if (!idleAnim || !runAnim || !jumpAnim) {
-      console.error('No se encontraron todas las animaciones requeridas');
-      console.error('Idle:', idleAnim?.name);
-      console.error('Run:', runAnim?.name);
-      console.error('Jump:', jumpAnim?.name);
+    if ([idleAnim, runAnim, jumpAnim, punchLAnim, punchRAnim, breakdanceAnim, dashAnim, deadAnim, fallingAnim, hitAnim, landingAnim, walkAnim].some((anim) => !anim)) {
+      console.error('No se encontraron todas las animaciones necesarias. Animaciones encontradas:', {
+        idleAnim: !!idleAnim,
+        runAnim: !!runAnim,
+        jumpAnim: !!jumpAnim,
+        punchLAnim: !!punchLAnim,
+        punchRAnim: !!punchRAnim,
+        breakdanceAnim: !!breakdanceAnim,
+        dashAnim: !!dashAnim,
+        deadAnim: !!deadAnim,
+        fallingAnim: !!fallingAnim,
+        hitAnim: !!hitAnim,
+        landingAnim: !!landingAnim,
+        walkAnim: !!walkAnim,
+      });
     }
 
     // Detener todas las animaciones inicialmente
@@ -322,26 +354,44 @@ class Game {
       ag.stop();
     }
 
-    // Guardar referencias - ahora todas usan el mismo root
-    (physicsBody as any).animationModels = {
-      idle: { root: modelRoot, animations: idleAnim ? [idleAnim] : [] },
-      run: { root: modelRoot, animations: runAnim ? [runAnim] : [] },
-      jump: { root: modelRoot, animations: jumpAnim ? [jumpAnim] : [] },
-      punch_L: { root: modelRoot, animations: punchLAnim ? [punchLAnim] : [] },
-      punch_R: { root: modelRoot, animations: punchRAnim ? [punchRAnim] : [] },
+    // Add physics to the capsule
+    const capsuleAggregate = new PhysicsAggregate(
+      physicsCapsule,
+      PhysicsShapeType.CAPSULE,
+      {
+        mass: 1,
+        restitution: 0,
+        friction: 0.5,
+      },
+      this.scene,
+    );
+
+    // Capsule is PLAYER — collides with ENVIRONMENT + ENEMY, NOT with RAGDOLL bones
+    if (capsuleAggregate.shape) {
+      capsuleAggregate.shape.filterMembershipMask = COL_PLAYER;
+      capsuleAggregate.shape.filterCollideMask = COL_ENVIRONMENT | COL_ENEMY;
+    }
+
+    // Guardar referencias de animaciones en la cápsula
+    (physicsCapsule as any).animationModels = {
+      idle: { root: rootMesh, animations: idleAnim ? [idleAnim] : [] },
+      run: { root: rootMesh, animations: runAnim ? [runAnim] : [] },
+      jump: { root: rootMesh, animations: jumpAnim ? [jumpAnim] : [] },
+      punch_L: { root: rootMesh, animations: punchLAnim ? [punchLAnim] : [] },
+      punch_R: { root: rootMesh, animations: punchRAnim ? [punchRAnim] : [] },
       macarena: {
-        root: modelRoot,
+        root: rootMesh,
         animations: breakdanceAnim ? [breakdanceAnim] : [],
       },
-      dash: { root: modelRoot, animations: dashAnim ? [dashAnim] : [] },
-      dead: { root: modelRoot, animations: deadAnim ? [deadAnim] : [] },
-      falling: { root: modelRoot, animations: fallingAnim ? [fallingAnim] : [] },
-      hit: { root: modelRoot, animations: hitAnim ? [hitAnim] : [] },
-      landing: { root: modelRoot, animations: landingAnim ? [landingAnim] : [] },
-      walk: { root: modelRoot, animations: walkAnim ? [walkAnim] : [] },
+      dash: { root: rootMesh, animations: dashAnim ? [dashAnim] : [] },
+      dead: { root: rootMesh, animations: deadAnim ? [deadAnim] : [] },
+      falling: { root: rootMesh, animations: fallingAnim ? [fallingAnim] : [] },
+      hit: { root: rootMesh, animations: hitAnim ? [hitAnim] : [] },
+      landing: { root: rootMesh, animations: landingAnim ? [landingAnim] : [] },
+      walk: { root: rootMesh, animations: walkAnim ? [walkAnim] : [] },
     };
 
-    return physicsBody;
+    return physicsCapsule;
   }
 
   async preloadEnemyAssets() {

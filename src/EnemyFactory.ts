@@ -30,8 +30,8 @@ export class EnemyFactory {
 
     console.log(
       `[EnemyFactory] Container listo: ${container.meshes.length} meshes, ` +
-        `${container.animationGroups.length} animation groups ` +
-        `(${container.animationGroups.map((ag: AnimationGroup) => ag.name).join(', ')})`,
+      `${container.animationGroups.length} animation groups ` +
+      `(${container.animationGroups.map((ag: AnimationGroup) => ag.name).join(', ')})`,
     );
   }
 
@@ -86,7 +86,7 @@ export class EnemyFactory {
 
     console.log(
       `[EnemyFactory] Spawned en (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}) — ` +
-        `${meshes.length} meshes, ${animGroups.length} anims: [${animGroups.map((ag) => ag.name).join(', ')}]`,
+      `${meshes.length} meshes, ${animGroups.length} anims: [${animGroups.map((ag) => ag.name).join(', ')}]`,
     );
 
     // Crear el controller
@@ -97,6 +97,19 @@ export class EnemyFactory {
       root,
       scene,
     );
+
+    console.log('instance :>> ', instance);
+    // ===== RAGDOLL =====
+    // Extract skeleton and armatureNode from the instantiated model
+    const skeleton = instance.skeletons?.[0] ?? null;
+    // The Armature node name gets the factory suffix appended, so we search by partial match
+    const armatureNode = root.getChildTransformNodes(false).find((tn) => tn.id.includes('Clone of ladron')) ?? null;
+
+    // without this scaling the ragdoll looks small
+    root.scaling = new Vector3(1, 1, 1);
+    armatureNode.scaling = new Vector3(0.017, 0.017, 0.017);
+
+    controller.initRagdoll(skeleton, armatureNode);
 
     return controller;
   }
