@@ -23,6 +23,7 @@ import { EffectManager } from './EffectManager.ts';
 import { CameraShaker } from './CameraShaker.ts';
 import { GameManager } from './GameManager.ts';
 import { DebugGUI } from './DebugGUI.ts';
+import { AudioManager } from './AudioManager.ts';
 
 // Collision filter bitmasks
 const COL_ENVIRONMENT = 0x0001;
@@ -77,6 +78,9 @@ class Game {
 
     // Inicializar EffectManager
     EffectManager.init(this.scene);
+
+    // Inicializar AudioManager (async — preloads all sounds)
+    await AudioManager.init();
 
     console.log('Física Havok inicializada');
   }

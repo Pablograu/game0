@@ -16,6 +16,7 @@ import {
   Axis,
 } from '@babylonjs/core';
 import { HitboxSystem } from './HitboxSystem';
+import { AudioManager } from './AudioManager.ts';
 import { Ragdoll } from './ragdoll_copy.js';
 
 // ===== ESTADOS DE IA =====
@@ -412,6 +413,10 @@ export class EnemyController {
         break;
 
       case EnemyState.CHASE:
+        // Alert sound only on first detection (coming from PATROL)
+        if (this.previousState === EnemyState.PATROL) {
+          AudioManager.play('enemy_alert');
+        }
         this.playAnimation('running', true);
         break;
 
@@ -421,6 +426,7 @@ export class EnemyController {
         this._attackStartTime = performance.now() / 1000; // Guardar tiempo inicial
         this._stop();
         this.playAnimation('attack', false, 1.2);
+        AudioManager.play('enemy_attack');
 
         const attackAg = this.animations.get('attack');
         if (attackAg) {
@@ -446,9 +452,11 @@ export class EnemyController {
         this.stunTimer = this.config.stunDuration;
         this._stop();
         this.playAnimation('hit', false);
+        AudioManager.play('enemy_hit');
         break;
 
       case EnemyState.DEAD:
+        AudioManager.play('enemy_death');
         this._onDead();
         break;
     }

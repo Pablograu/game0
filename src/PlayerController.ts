@@ -6,16 +6,14 @@ import {
   Scene,
   Camera,
   Mesh,
-  CreateAudioEngineAsync,
-  CreateSoundAsync,
 } from '@babylonjs/core';
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
 import { WeaponSystem } from './WeaponSystem.ts';
 import { EffectManager } from './EffectManager.ts';
+import { AudioManager } from './AudioManager.ts';
 import { Ragdoll } from './ragdoll_copy.js';
 
 export class PlayerController {
-  audioEngine: any;
   blinkInterval: any;
   body: any;
   camera: Camera;
@@ -73,15 +71,11 @@ export class PlayerController {
   ragdoll: any = null;
   lastKnockbackDir: Vector3 = Vector3.Zero();
   weaponSystem: WeaponSystem | null;
-  walkingSound: any;
 
   // Grace timer: how long (s) player must be airborne before 'falling' anim plays.
   // Prevents the anim firing on the very first frames after spawn.
   private _airTime: number = 0;
   private readonly _fallingAnimDelay: number = 0.18;
-
-  // Walking sound state — avoids polling isPlaying every frame
-  private _walkingSoundActive: boolean = false;
 
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
   useLeftPunch: boolean = true; // Alternar entre puño izquierdo y derecho
@@ -187,8 +181,6 @@ export class PlayerController {
     this.setupHealthUI();
     this.setupAnimationHandler();
     this.setupUpdate();
-    this.audioEngine = this._initAudioEngine();
-    this._loadWalkingSound();
 
   }
 
@@ -347,6 +339,7 @@ export class PlayerController {
     // ===== REPRODUCIR CON VELOCIDAD RÁPIDA =====
     // forceReset = true para que el golpe empiece desde el frame 0
     // punchSpeed hace que la animación sea más rápida
+    AudioManager.play('player_punch');
     this.playSmoothAnimation(animationName, false, true, this.punchSpeed);
 
     // Calcular duración de la animación para sincronizar el daño
@@ -474,42 +467,6 @@ export class PlayerController {
     if (idleAg) {
       idleAg.start(true, 1.0, idleAg.from, idleAg.to, false);
       this.currentPlayingAnimation = 'idle';
-    }
-  }
-
-  private async _initAudioEngine() {
-    try {
-      const audioEngine = await CreateAudioEngineAsync();
-      await audioEngine.unlockAsync();
-      console.log('Audio engine initialized');
-      return audioEngine;
-    } catch (e) {
-      console.warn('Audio engine failed to initialize:', e);
-    }
-
-    // Defer unlock to the first real user gesture (browser autoplay policy)
-    const unlock = async () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
-    };
-    window.addEventListener('pointerdown', unlock, { once: true });
-    window.addEventListener('keydown', unlock, { once: true });
-
-  }
-
-  private async _loadWalkingSound() {
-    try {
-
-      this.walkingSound = await CreateSoundAsync('walking', '/audio/walking.mp3', {
-        loop: true,          // CRITICAL: without this the clip plays once then restarts choppy every frame
-        volume: 0.45,
-        spatialEnabled: false, // No 3D attenuation for footsteps
-      });
-
-      console.log('Walking sound loaded');
-    } catch (e) {
-      console.warn('Walking sound failed to load:', e);
-      this.walkingSound = null;
     }
   }
 
@@ -751,15 +708,10 @@ export class PlayerController {
 
     // ===== WALKING SOUND =====
     const shouldWalk = targetAnimation === 'run' && this.isGrounded;
-    if (this.walkingSound) {
-      if (shouldWalk && !this._walkingSoundActive) {
-        this.walkingSound.play();
-        this._walkingSoundActive = true;
-      } else if (!shouldWalk && this._walkingSoundActive) {
-        // pause() keeps position in the loop; stop() would reset and cause a click on resume
-        this.walkingSound.pause();
-        this._walkingSoundActive = false;
-      }
+    if (shouldWalk) {
+      AudioManager.playLoop('player_walk');
+    } else {
+      AudioManager.stopLoop('player_walk');
     }
 
     // ===== CAMBIAR ANIMACIÓN CON BLENDING SUAVE =====
@@ -861,7 +813,7 @@ export class PlayerController {
     return direction;
   }
 
-  handleJump(currentVelocity: any) {
+  handleJump(currentVelocity: Vector3) {
     // Usar Jump Buffer: saltar si hay buffer Y puede saltar
     const shouldJump = this.jumpBufferTimer > 0 && this.canJump();
 
@@ -877,6 +829,8 @@ export class PlayerController {
       // Consumir el buffer y el coyote time
       this.jumpBufferTimer = 0;
       this.coyoteTimer = 0;
+
+      AudioManager.play('player_jump');
 
       // Partículas de polvo al saltar
       const dustPos = this.mesh.getAbsolutePosition().clone();
@@ -959,6 +913,7 @@ export class PlayerController {
     this.dashTimer = this.dashDuration;
     this.dashCooldownTimer = this.dashCooldown;
 
+    AudioManager.play('player_dash');
 
     const moveDir = this.getMoveDirection();
     this.dashDirection =
@@ -1155,6 +1110,8 @@ export class PlayerController {
       console.log('Damage ignored (invulnerable or dead)');
       return;
     }
+
+    AudioManager.play('player_take_damage');
 
     // Restar salud
     this.currentHealth -= amount;

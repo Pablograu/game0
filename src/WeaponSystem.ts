@@ -7,6 +7,7 @@ import {
   Quaternion,
 } from '@babylonjs/core';
 import { HitboxSystem } from './HitboxSystem';
+import { AudioManager } from './AudioManager.ts';
 
 export class WeaponSystem {
   player: any;
@@ -148,7 +149,7 @@ export class WeaponSystem {
       }
 
       // Detectar colisión
-      if (this.hitboxSystem?.intersectsMesh(enemy.mesh, false)) {        
+      if (this.hitboxSystem?.intersectsMesh(enemy.mesh, false)) {
         this.onHitEnemy(enemy);
       }
     }
@@ -171,6 +172,8 @@ export class WeaponSystem {
     this.hitEnemiesThisSwing.add(enemy);
 
     console.log(`💥 Hit enemy! Damage: ${this.damage}`);
+
+    AudioManager.play('player_punch');
 
     // Aplicar daño
     if (enemy.takeDamage) {

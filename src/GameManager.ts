@@ -8,6 +8,7 @@ import {
   Grid,
 } from '@babylonjs/gui';
 import { Scene, Vector3 } from '@babylonjs/core';
+import { AudioManager } from './AudioManager.ts';
 
 /**
  * Estados principales del juego
@@ -321,6 +322,7 @@ export class GameManager {
    */
   public startGame() {
     console.log('[GameManager] Iniciando juego...');
+    AudioManager.play('ui_start');
     this.changeState(GameState.PLAYING);
     this.hideStartScreen();
 
@@ -350,6 +352,7 @@ export class GameManager {
     }
 
     console.log('[GameManager] Jugador pausó');
+    AudioManager.play('ui_pause');
     this.changeState(GameState.PAUSED);
     this.showPauseScreen();
 
@@ -377,6 +380,7 @@ export class GameManager {
     }
 
     console.log('[GameManager] Reanudando juego...');
+    AudioManager.play('ui_resume');
     this.changeState(GameState.PLAYING);
     this.hidePauseScreen();
 
@@ -405,6 +409,7 @@ export class GameManager {
     }
 
     console.log('[GameManager] GAME OVER');
+    AudioManager.play('ui_game_over');
     this.changeState(GameState.DEAD);
     this.showDeadScreen();
 
