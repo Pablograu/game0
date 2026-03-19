@@ -85,8 +85,8 @@ export class PlayerController {
   private _jumpPhase: JumpPhase = JumpPhase.GROUNDED;
   private _airTime: number = 0;                            // Seconds airborne in current hop
   private readonly _minAirTime: number = 0.15;             // Guard against spawn-frame flash
-  private readonly _fallingAnimDelay: number = 1.0;        // Seconds before 'falling' anim plays
-  private readonly _landingAnticipationDist: number = 2.0; // Units above ground to start landing anim early
+  private readonly _fallingAnimDelay: number = 0.15;        // Seconds before 'falling' anim plays
+  private readonly _landingAnticipationDist: number = 1.0; // Units above ground to start landing anim early
 
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
   useLeftPunch: boolean = true; // Alternar entre puño izquierdo y derecho
@@ -695,8 +695,18 @@ export class PlayerController {
   updateAnimation(moveDirection: any, velocity: any) {
     if (this.animationGroups.size === 0) return;
     if (this.isAttacking) return;
-    // PRE_LANDING: landing anim is running — don't interrupt it
-    if (this._jumpPhase === JumpPhase.PRE_LANDING) return;
+    // PRE_LANDING: landing anim is running — allow movement to cancel it early
+    if (this._jumpPhase === JumpPhase.PRE_LANDING) {
+      if (this.isGrounded && moveDirection.length() > 0.1) {
+        // Player started running — skip the rest of the landing clip
+        this._jumpPhase = JumpPhase.GROUNDED;
+        const landingAg = this.animationGroups.get('land');
+        if (landingAg) landingAg.onAnimationGroupEndObservable.clear();
+        // Fall through to normal animation logic below
+      } else {
+        return;
+      }
+    }
 
     let targetAnimation: string;
     let animSpeed: number;
@@ -714,6 +724,7 @@ export class PlayerController {
     } else if (this._jumpPhase === JumpPhase.FALLING) {
       if (this._airTime >= this._fallingAnimDelay) {
         // Extended airtime — switch to falling anim
+        console.log('<<< falling......', { airTime: this._airTime.toFixed(2), fallingAnimDelay: this._fallingAnimDelay });
         targetAnimation = 'falling';
         animSpeed = Math.min(1.0, Math.abs(velocity.y) / 10);
       } else {
@@ -987,10 +998,10 @@ export class PlayerController {
 
     // Short hop: anticipation never fired — play landing now as fallback
     this._jumpPhase = JumpPhase.PRE_LANDING;
-    const landingAg = this.animationGroups.get('landing');
+    const landingAg = this.animationGroups.get('land');
     if (landingAg) {
       // forceReset: false — let blending smooth the entry, no skeleton snap
-      this.playSmoothAnimation('landing', false, false, 1.0);
+      this.playSmoothAnimation('land', false, false, 1.0);
       landingAg.onAnimationGroupEndObservable.clear();
       landingAg.onAnimationGroupEndObservable.addOnce(() => {
         this._jumpPhase = JumpPhase.GROUNDED;
@@ -1070,11 +1081,11 @@ export class PlayerController {
     if (!this.raycastResult.hasHit || this.raycastResult.body === this.body) return;
 
     this._jumpPhase = JumpPhase.PRE_LANDING;
-    const landingAg = this.animationGroups.get('landing');
+    const landingAg = this.animationGroups.get('land');
     if (!landingAg) return;
 
     // forceReset: false — smooth blend-in, prevents skeleton snap to frame 0
-    this.playSmoothAnimation('landing', false, false, 1.0);
+    this.playSmoothAnimation('land', false, false, 1.0);
     landingAg.onAnimationGroupEndObservable.clear();
     landingAg.onAnimationGroupEndObservable.addOnce(() => {
       // Anim ended: go to GROUNDED if on ground, back to FALLING if still airborne

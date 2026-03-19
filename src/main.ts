@@ -63,7 +63,7 @@ class Game {
     // this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
-    this.setupPhysicsVisualizer();
+    // this.setupPhysicsVisualizer();
   }
 
   async initHavok() {
@@ -329,7 +329,7 @@ class Game {
     );
 
     const landingAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'landing',
+      (ag) => ag.name.toLowerCase() === 'land',
     );
 
     const walkAnim = animationGroups.find(
@@ -391,7 +391,7 @@ class Game {
       dead: { root: rootMesh, animations: deadAnim ? [deadAnim] : [] },
       falling: { root: rootMesh, animations: fallingAnim ? [fallingAnim] : [] },
       hit: { root: rootMesh, animations: hitAnim ? [hitAnim] : [] },
-      landing: { root: rootMesh, animations: landingAnim ? [landingAnim] : [] },
+      land: { root: rootMesh, animations: landingAnim ? [landingAnim] : [] },
       walk: { root: rootMesh, animations: walkAnim ? [walkAnim] : [] },
     };
 
