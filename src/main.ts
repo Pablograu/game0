@@ -63,7 +63,7 @@ class Game {
     // this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
-    // this.setupPhysicsVisualizer();
+    this.setupPhysicsVisualizer();
   }
 
   async initHavok() {
@@ -273,14 +273,14 @@ class Game {
       this.scene,
     );
 
-    physicsCapsule.position = new Vector3(0, 3, 0);
+    physicsCapsule.position = new Vector3(0, 4, 0);
     physicsCapsule.isVisible = false;
     physicsCapsule.checkCollisions = true;
     physicsCapsule.scaling = new Vector3(1, 1, 1);
     physicsCapsule.rotationQuaternion = Quaternion.FromEulerAngles(0, Math.PI, 0);
 
     rootMesh.parent = physicsCapsule;
-    rootMesh.position = new Vector3(0, -1, 0);
+    rootMesh.position = new Vector3(0, -1.1, 0);
 
     // Store for ragdoll init in PlayerController
     (physicsCapsule as any).skeleton = skeleton;

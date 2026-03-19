@@ -36,6 +36,7 @@ export class PlayerController {
   invulnerabilityDuration: number;
   invulnerabilityTimer: number;
   isAttacking: boolean = false;
+  isLanding: boolean = false;
   isDashing: boolean;
   isGrounded: boolean;
   isInvulnerable: boolean;
@@ -52,7 +53,7 @@ export class PlayerController {
   mesh: any;
   moveSpeed: number;
   originalScale: Vector3;
-  physicsEngine: any;
+  physicsEngine: any; º
   playerHeight: number;
   playerRadius: number;
   pogoForce: number;
@@ -68,7 +69,7 @@ export class PlayerController {
   targetRotation: Quaternion;
   targetScale: Vector3;
   wasGrounded: boolean;
-  ragdoll: any = null;
+  ragdoll: Ragdoll | null = null;
   lastKnockbackDir: Vector3 = Vector3.Zero();
   weaponSystem: WeaponSystem | null;
 
@@ -672,6 +673,7 @@ export class PlayerController {
 
     // ===== DETECTAR ATERRIZAJE =====
     if (this.isGrounded && !this.wasGrounded) {
+      console.log('<< landed!! >>');
       this.onLand();
     }
 
@@ -686,8 +688,9 @@ export class PlayerController {
   updateAnimation(moveDirection: any, velocity: any) {
     if (this.animationGroups.size === 0) return;
 
-    // No interrumpir animaciones de ataque
+    // No interrumpir animaciones de ataque ni de aterrizaje
     if (this.isAttacking) return;
+    if (this.isLanding) return;
 
     let targetAnimation;
     let animSpeed;
@@ -705,7 +708,7 @@ export class PlayerController {
       // Saltando (subiendo)
       targetAnimation = 'jump';
       animSpeed = Math.max(0.5, (velocity.y / this.jumpForce) * 1.2);
-    } else if (!this.isGrounded && velocity.y < -0.5) {
+    } else if (!this.isGrounded && velocity.y < -0.5 && !this.isLanding) {
       // Cayendo - sólo mostrar si llevamos un tiempo en el aire (evita flash al spawn)
       this._airTime += this.scene.getEngine().getDeltaTime() / 1000;
       if (this._airTime >= this._fallingAnimDelay) {
@@ -995,7 +998,6 @@ export class PlayerController {
 
   // ===== EVENTOS =====
   onLand() {
-
     // Partículas de polvo con EffectManager
     const dustPos = this.mesh.getAbsolutePosition().clone();
     dustPos.y -= this.playerHeight / 2;
@@ -1007,6 +1009,17 @@ export class PlayerController {
 
     if (this.cameraShaker) {
       this.cameraShaker.shakeSoft();
+    }
+
+    // ===== LANDING ANIMATION (one-shot) =====
+    const landingAg = this.animationGroups.get('landing');
+    if (landingAg) {
+      this.isLanding = true;
+      this.playSmoothAnimation('landing', false, true, 1.0);
+      landingAg.onAnimationGroupEndObservable.clear();
+      landingAg.onAnimationGroupEndObservable.addOnce(() => {
+        this.isLanding = false;
+      });
     }
   }
 
