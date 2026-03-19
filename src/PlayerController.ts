@@ -13,6 +13,14 @@ import { EffectManager } from './EffectManager.ts';
 import { AudioManager } from './AudioManager.ts';
 import { Ragdoll } from './ragdoll_copy.js';
 
+// ===== JUMP PHASE STATE MACHINE =====
+enum JumpPhase {
+  GROUNDED = 'GROUNDED',
+  RISING = 'RISING',
+  FALLING = 'FALLING',
+  PRE_LANDING = 'PRE_LANDING', // Landing anim playing, awaiting physics contact
+}
+
 export class PlayerController {
   blinkInterval: any;
   body: any;
@@ -36,7 +44,6 @@ export class PlayerController {
   invulnerabilityDuration: number;
   invulnerabilityTimer: number;
   isAttacking: boolean = false;
-  isLanding: boolean = false;
   isDashing: boolean;
   isGrounded: boolean;
   isInvulnerable: boolean;
@@ -73,10 +80,13 @@ export class PlayerController {
   lastKnockbackDir: Vector3 = Vector3.Zero();
   weaponSystem: WeaponSystem | null;
 
-  // Grace timer: how long (s) player must be airborne before 'falling' anim plays.
-  // Prevents the anim firing on the very first frames after spawn.
-  private _airTime: number = 0;
-  private readonly _fallingAnimDelay: number = 0.18;
+  // ===== JUMP PHASE STATE MACHINE =====
+  // Single source of truth — replaces isLanding, _landingAnticipated, stale _airTime checks.
+  private _jumpPhase: JumpPhase = JumpPhase.GROUNDED;
+  private _airTime: number = 0;                            // Seconds airborne in current hop
+  private readonly _minAirTime: number = 0.15;             // Guard against spawn-frame flash
+  private readonly _fallingAnimDelay: number = 1.0;        // Seconds before 'falling' anim plays
+  private readonly _landingAnticipationDist: number = 2.0; // Units above ground to start landing anim early
 
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
   useLeftPunch: boolean = true; // Alternar entre puño izquierdo y derecho
@@ -671,11 +681,8 @@ export class PlayerController {
     // ===== VARIABLE JUMP (cortar salto al soltar) =====
     this.handleVariableJump();
 
-    // ===== DETECTAR ATERRIZAJE =====
-    if (this.isGrounded && !this.wasGrounded) {
-      console.log('<< landed!! >>');
-      this.onLand();
-    }
+    // ===== JUMP PHASE STATE MACHINE =====
+    this.updateJumpPhase(currentVelocity, deltaTime);
 
     // ===== ACTUALIZAR ANIMACIONES =====
     this.updateAnimation(moveDirection, currentVelocity);
@@ -687,55 +694,37 @@ export class PlayerController {
    */
   updateAnimation(moveDirection: any, velocity: any) {
     if (this.animationGroups.size === 0) return;
-
-    // No interrumpir animaciones de ataque ni de aterrizaje
     if (this.isAttacking) return;
-    if (this.isLanding) return;
+    // PRE_LANDING: landing anim is running — don't interrupt it
+    if (this._jumpPhase === JumpPhase.PRE_LANDING) return;
 
-    let targetAnimation;
-    let animSpeed;
+    let targetAnimation: string;
+    let animSpeed: number;
 
-    // Determinar animación según estado (dash primero, antes que run)
     if (this.isDashing) {
-      // Dashing - animación de dash con velocidad rápida
       targetAnimation = 'dash';
       animSpeed = 1.5;
     } else if (this.currentHealth <= 0) {
-      // Muerte
       targetAnimation = 'dead';
       animSpeed = 1.0;
-    } else if (!this.isGrounded && velocity.y > 0.5) {
-      // Saltando (subiendo)
+    } else if (this._jumpPhase === JumpPhase.RISING) {
+      // Ascending — scale anim speed to vertical velocity
       targetAnimation = 'jump';
       animSpeed = Math.max(0.5, (velocity.y / this.jumpForce) * 1.2);
-    } else if (!this.isGrounded && velocity.y < -0.5 && !this.isLanding) {
-      // Cayendo - sólo mostrar si llevamos un tiempo en el aire (evita flash al spawn)
-      this._airTime += this.scene.getEngine().getDeltaTime() / 1000;
+    } else if (this._jumpPhase === JumpPhase.FALLING) {
       if (this._airTime >= this._fallingAnimDelay) {
+        // Extended airtime — switch to falling anim
         targetAnimation = 'falling';
         animSpeed = Math.min(1.0, Math.abs(velocity.y) / 10);
       } else {
-        targetAnimation = 'idle';
-        animSpeed = 1.0;
-      }
-    } else if (!this.isGrounded) {
-      // Cerca del pico del salto
-      this._airTime += this.scene.getEngine().getDeltaTime() / 1000;
-      if (this._airTime >= this._fallingAnimDelay) {
-        targetAnimation = 'falling';
+        // Near apex — keep jump anim playing slowly
+        targetAnimation = 'jump';
         animSpeed = 0.3;
-      } else {
-        targetAnimation = 'idle';
-        animSpeed = 1.0;
       }
-    } else if (this.isGrounded && moveDirection.length() > 0.1) {
-      this._airTime = 0; // reset air timer on ground
-      // Corriendo
+    } else if (moveDirection.length() > 0.1) {
       targetAnimation = 'run';
       animSpeed = 1.0;
     } else {
-      this._airTime = 0; // reset air timer on ground
-      // Idle
       targetAnimation = 'idle';
       animSpeed = 1.0;
     }
@@ -748,12 +737,10 @@ export class PlayerController {
       AudioManager.stopLoop('player_walk');
     }
 
-    // ===== CAMBIAR ANIMACIÓN CON BLENDING SUAVE =====
     if (this.currentPlayingAnimation !== targetAnimation) {
       this.playSmoothAnimation(targetAnimation, true, false);
     }
 
-    // Actualizar velocidad de la animación si es necesario
     const currentAnimGroup = this.animationGroups.get(targetAnimation);
     if (currentAnimGroup && currentAnimGroup.isPlaying) {
       currentAnimGroup.speedRatio = animSpeed;
@@ -848,40 +835,27 @@ export class PlayerController {
   }
 
   handleJump(currentVelocity: Vector3) {
-    // Usar Jump Buffer: saltar si hay buffer Y puede saltar
     const shouldJump = this.jumpBufferTimer > 0 && this.canJump();
+    if (!shouldJump) return;
 
-    if (shouldJump) {
-      // Aplicar impulso vertical instantáneo
-      const jumpVelocity = new Vector3(
-        currentVelocity.x,
-        this.jumpForce,
-        currentVelocity.z,
-      );
-      this.body.setLinearVelocity(jumpVelocity);
+    const jumpVelocity = new Vector3(currentVelocity.x, this.jumpForce, currentVelocity.z);
+    this.body.setLinearVelocity(jumpVelocity);
 
-      // Consumir el buffer y el coyote time
-      this.jumpBufferTimer = 0;
-      this.coyoteTimer = 0;
+    this.jumpBufferTimer = 0;
+    this.coyoteTimer = 0;
+    this._jumpPhase = JumpPhase.RISING;
+    this._airTime = 0;
 
-      AudioManager.play('player_jump');
+    AudioManager.play('player_jump');
 
-      // Partículas de polvo al saltar
-      const dustPos = this.mesh.getAbsolutePosition().clone();
-      dustPos.y -= this.playerHeight / 2;
-      EffectManager.showDust(dustPos, {
-        count: 12,
-        duration: 0.35,
-        direction: 'up',
-      });
-    }
+    const dustPos = this.mesh.getAbsolutePosition().clone();
+    dustPos.y -= this.playerHeight / 2;
+    EffectManager.showDust(dustPos, { count: 12, duration: 0.35, direction: 'up' });
   }
 
   // ===== VARIABLE JUMP (cortar altura al soltar) =====
   handleVariableJump() {
     const currentVelocity = this.body.getLinearVelocity();
-
-    // Si el jugador soltó la tecla mientras sube
     if (this.jumpKeyReleased && currentVelocity.y > 0 && !this.isGrounded) {
       // Cortar la velocidad vertical
       const cutVelocity = new Vector3(
@@ -998,29 +972,116 @@ export class PlayerController {
 
   // ===== EVENTOS =====
   onLand() {
-    // Partículas de polvo con EffectManager
+    this._airTime = 0;
+
+    // Particles + camera shake
     const dustPos = this.mesh.getAbsolutePosition().clone();
     dustPos.y -= this.playerHeight / 2;
-    EffectManager.showDust(dustPos, {
-      count: 20,
-      duration: 0.5,
-      direction: 'radial',
-    });
+    EffectManager.showDust(dustPos, { count: 20, duration: 0.5, direction: 'radial' });
+    if (this.cameraShaker) this.cameraShaker.shakeSoft();
 
-    if (this.cameraShaker) {
-      this.cameraShaker.shakeSoft();
+    if (this._jumpPhase === JumpPhase.PRE_LANDING) {
+      // Anticipation already started the anim — observable will set GROUNDED when it ends
+      return;
     }
 
-    // ===== LANDING ANIMATION (one-shot) =====
+    // Short hop: anticipation never fired — play landing now as fallback
+    this._jumpPhase = JumpPhase.PRE_LANDING;
     const landingAg = this.animationGroups.get('landing');
     if (landingAg) {
-      this.isLanding = true;
-      this.playSmoothAnimation('landing', false, true, 1.0);
+      // forceReset: false — let blending smooth the entry, no skeleton snap
+      this.playSmoothAnimation('landing', false, false, 1.0);
       landingAg.onAnimationGroupEndObservable.clear();
       landingAg.onAnimationGroupEndObservable.addOnce(() => {
-        this.isLanding = false;
+        this._jumpPhase = JumpPhase.GROUNDED;
       });
+    } else {
+      this._jumpPhase = JumpPhase.GROUNDED;
     }
+  }
+
+  /**
+   * Central jump/fall/landing state machine — single source of truth.
+   * Called every frame from update(). Owns all phase transitions.
+   */
+  private updateJumpPhase(velocity: Vector3, deltaTime: number) {
+    // ── Physics landing detected ───────────────────────────────────
+    if (this.isGrounded && !this.wasGrounded) {
+      this.onLand();
+      return;
+    }
+
+    // ── Already on ground ─────────────────────────────────────────
+    if (this.isGrounded) {
+      this._airTime = 0;
+      // Don't override PRE_LANDING — its observable handles the GROUNDED transition
+      if (this._jumpPhase !== JumpPhase.PRE_LANDING) {
+        this._jumpPhase = JumpPhase.GROUNDED;
+      }
+      return;
+    }
+
+    // ── Airborne ──────────────────────────────────────────────────
+    this._airTime += deltaTime;
+
+    switch (this._jumpPhase) {
+      case JumpPhase.GROUNDED:
+        // Walked off a ledge without jumping
+        this._jumpPhase = JumpPhase.FALLING;
+        break;
+
+      case JumpPhase.RISING:
+        // Transition to falling once past the apex
+        if (velocity.y <= 0 && this._airTime > this._minAirTime) {
+          this._jumpPhase = JumpPhase.FALLING;
+        }
+        break;
+
+      case JumpPhase.FALLING:
+        // Check if ground is close enough to start landing anim early
+        if (velocity.y < -0.5) {
+          this._checkLandingAnticipation();
+        }
+        break;
+
+      case JumpPhase.PRE_LANDING:
+        // Landing anim is playing — wait for observable or physics contact
+        break;
+    }
+  }
+
+  /**
+   * Short downward raycast. If ground is within _landingAnticipationDist,
+   * transitions to PRE_LANDING and starts the landing clip early so its
+   * falling-intro lines up with actual physics contact.
+   * Tune _landingAnticipationDist to adjust lead time.
+   */
+  private _checkLandingAnticipation() {
+    const playerPos = this.mesh.position;
+    const rayStart = new Vector3(playerPos.x, playerPos.y, playerPos.z);
+    const rayEnd = new Vector3(
+      playerPos.x,
+      playerPos.y - (this.playerHeight / 2 + this._landingAnticipationDist),
+      playerPos.z,
+    );
+
+    // Reuse existing result object — no extra allocation per frame
+    this.physicsEngine.raycastToRef(rayStart, rayEnd, this.raycastResult);
+    if (!this.raycastResult.hasHit || this.raycastResult.body === this.body) return;
+
+    this._jumpPhase = JumpPhase.PRE_LANDING;
+    const landingAg = this.animationGroups.get('landing');
+    if (!landingAg) return;
+
+    // forceReset: false — smooth blend-in, prevents skeleton snap to frame 0
+    this.playSmoothAnimation('landing', false, false, 1.0);
+    landingAg.onAnimationGroupEndObservable.clear();
+    landingAg.onAnimationGroupEndObservable.addOnce(() => {
+      // Anim ended: go to GROUNDED if on ground, back to FALLING if still airborne
+      if (this._jumpPhase === JumpPhase.PRE_LANDING) {
+        this._jumpPhase = this.isGrounded ? JumpPhase.GROUNDED : JumpPhase.FALLING;
+      }
+    });
   }
 
   // ===== MÉTODOS PÚBLICOS =====
