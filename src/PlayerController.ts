@@ -87,6 +87,10 @@ export class PlayerController {
   currentPlayingAnimation: string = 'idle'; // Animación actualmente en reproducción
   blendingSpeed: number = 0.1; // Velocidad de blending global (alta = rápida pero suave)
 
+  // ===== ATTACK INPUT BUFFER =====
+  private readonly MAX_ATTACK_QUEUE = 1;
+  private attackQueue: string[] = [];
+
   constructor(mesh: Mesh, camera: Camera, scene: Scene, cameraShaker: any = null) {
     this.mesh = mesh;
     this.camera = camera;
@@ -295,35 +299,60 @@ export class PlayerController {
   }
 
   /**
-   * Ejecuta un puñetazo rápido alternando izquierda/derecha
-   * Sin cooldown, puro spam
+   * Encola un puñetazo en el attack buffer (máx 4 slots).
+   * Si no hay ataque activo, drena la cola inmediatamente.
    */
   tryFastPunch() {
-    // Verificar que las animaciones estén configuradas
     if (this.animationGroups.size === 0) {
       console.warn('AnimationGroups no configurados');
       return;
     }
 
-    // Alternar entre puño izquierdo y derecho
-    // Usar la variable y actualizarla INMEDIATAMENTE para evitar race conditions con spam
-    const punchAnimation = this.useLeftPunch ? 'punch_L' : 'punch_R';
+    // Descartar input si la cola está llena
+    if (this.attackQueue.length >= this.MAX_ATTACK_QUEUE) {
+      console.log(`🚫 Attack queue full (${this.MAX_ATTACK_QUEUE}), input discarded`);
+      return;
+    }
 
-    // Alternar para el próximo golpe ANTES de ejecutar (crítico para spam)
+    // Resolver el nombre de animación y alternar AHORA para preservar el orden correcto
+    const punchAnimation = this.useLeftPunch ? 'punch_L' : 'punch_R';
     this.useLeftPunch = !this.useLeftPunch;
 
-    console.log(`👊 Ejecutando: ${punchAnimation}`);
+    this.attackQueue.push(punchAnimation);
+    console.log(`📥 Queued: ${punchAnimation} (queue size: ${this.attackQueue.length})`);
 
-    // Ejecutar el puñetazo
-    this.executeFastPunch(punchAnimation);
+    // Iniciar ejecución solo si no hay ataque en curso
+    if (!this.isAttacking) {
+      this.drainAttackQueue();
+    }
+  }
+
+  /**
+   * Toma el primer ataque de la cola y lo ejecuta.
+   * Si la cola está vacía, vuelve a idle/run.
+   */
+  private drainAttackQueue() {
+    const next = this.attackQueue.shift();
+    if (next !== undefined) {
+      console.log(`👊 Ejecutando: ${next} (remaining: ${this.attackQueue.length})`);
+      this.executeFastPunch(next);
+    } else {
+      this.returnToIdleOrRun();
+    }
   }
 
   /**
    * ===== EJECUTAR PUÑETAZO RÁPIDO =====
-   * Puños rápidos sin bloqueo, puro spam
-   * @param animationName - Nombre de la animación ('punch_l' o 'punch_r')
+   * Sólo debe ser llamado desde drainAttackQueue.
+   * @param animationName - Nombre de la animación ('punch_L' o 'punch_R')
    */
   executeFastPunch(animationName: string) {
+    // Guardia: nunca interrumpir un ataque en curso
+    if (this.isAttacking) {
+      console.warn('executeFastPunch called while already attacking — skipped');
+      return;
+    }
+
     // Marcar que estamos atacando
     this.isAttacking = true;
 
@@ -333,6 +362,7 @@ export class PlayerController {
     if (!animGroup) {
       console.warn(`❌ Animación '${animationName}' no encontrada`);
       this.isAttacking = false;
+      this.drainAttackQueue();
       return;
     }
 
@@ -380,7 +410,8 @@ export class PlayerController {
   }
 
   /**
-   * Callback cuando termina la animación de puñetazo rápido
+   * Callback cuando termina la animación de puñetazo rápido.
+   * Drena la cola para encadenar el siguiente ataque pendiente.
    */
   onFastPunchEnd() {
     // Desactivar hitbox
@@ -388,11 +419,11 @@ export class PlayerController {
       this.weaponSystem.deactivateHitbox();
     }
 
-    // Restaurar estado
+    // Liberar el bloqueo de ataque
     this.isAttacking = false;
 
-    // Volver a animación de idle/run basada en el estado actual
-    this.returnToIdleOrRun();
+    // Ejecutar el siguiente ataque de la cola, o volver a idle/run
+    this.drainAttackQueue();
   }
 
   /**
@@ -913,6 +944,10 @@ export class PlayerController {
     this.dashTimer = this.dashDuration;
     this.dashCooldownTimer = this.dashCooldown;
 
+    // Cancelar ataques pendientes al iniciar el dash
+    this.attackQueue = [];
+    this.isAttacking = false;
+
     AudioManager.play('player_dash');
 
     const moveDir = this.getMoveDirection();
@@ -1194,6 +1229,8 @@ export class PlayerController {
     // Detener cualquier estado activo
     this.stopBlinking();
     this.isDashing = false;
+    this.attackQueue = [];
+    this.isAttacking = false;
     // this.recoilVelocity = Vector3.Zero();
 
     // Activate ragdoll on death
