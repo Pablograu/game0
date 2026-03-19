@@ -767,7 +767,7 @@ export class PlayerController {
 
     // Punto final del rayo (hacia abajo)
     // Longitud = mitad de altura + un poco de margen
-    const rayLength = this.playerHeight / 2 + 0.15;
+    const rayLength = this.playerHeight / 2 + 0.55;
     const rayEnd = new Vector3(
       playerPos.x,
       playerPos.y - rayLength,
