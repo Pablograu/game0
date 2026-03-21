@@ -900,7 +900,9 @@ export class EnemyController {
    * Aplica daño al enemigo. Entra en estado HIT con stun.
    */
   takeDamage(amount: number, knockbackDirection?: Vector3): boolean {
-    if (!this._alive || this.currentState === EnemyState.DEAD) return false;
+    if (!this._alive || this.currentState === EnemyState.DEAD) {
+      return false
+    };
 
     this.hp -= amount;
     console.log(`[EnemyController] Hit! HP: ${this.hp}/${this.maxHP}`);
@@ -909,7 +911,7 @@ export class EnemyController {
     if (knockbackDirection && this.body) {
       this.lastKnockbackDir = knockbackDirection.normalize().clone();
       const kb = this.lastKnockbackDir.scale(this.config.knockbackForce);
-      kb.y = this.config.knockbackForce * 0.3;
+      kb.y = this.config.knockbackForce * 0.6;
       this.body.applyImpulse(kb, this.physicsCapsule.getAbsolutePosition());
     }
 

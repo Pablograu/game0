@@ -88,6 +88,11 @@ export class PlayerController {
   private readonly _fallingAnimDelay: number = 0.15;        // Seconds before 'falling' anim plays
   private readonly _landingAnticipationDist: number = 1; // Units above ground to start landing anim early
 
+  // ===== GROUND DETECTION DEBOUNCE =====
+  private _groundLostTimer: number = 0;                    // Time since last valid ground contact
+  private readonly _groundLostGrace: number = 0.08;        // 80ms grace before marking airborne
+  private readonly COL_ENVIRONMENT: number = 0x0001;       // Must match main.ts collision mask
+
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
   useLeftPunch: boolean = true; // Alternar entre puño izquierdo y derecho
   punchSpeed: number = 2; // Velocidad de reproducción de las animaciones de puño (más alto = más rápido)
@@ -689,16 +694,23 @@ export class PlayerController {
    * Actualiza la animación según el estado del jugador
    */
   updateAnimation(moveDirection: any, velocity: any) {
-    if (this.animationGroups.size === 0) return;
-    if (this.isAttacking) return;
+
+    if (this.animationGroups.size === 0) {
+      return
+    };
+
+    if (this.isAttacking) {
+      return
+    };
     // PRE_LANDING: landing anim is running — allow movement to cancel it early
     if (this._jumpPhase === JumpPhase.PRE_LANDING) {
       if (this.isGrounded && moveDirection.length() > 0.1) {
         // Player started running — skip the rest of the landing clip
         this._jumpPhase = JumpPhase.GROUNDED;
         const landingAg = this.animationGroups.get('land');
-        if (landingAg) landingAg.onAnimationGroupEndObservable.clear();
-        // Fall through to normal animation logic below
+        if (landingAg) {
+          landingAg.onAnimationGroupEndObservable.clear()
+        };
       } else {
         return;
       }
@@ -753,15 +765,18 @@ export class PlayerController {
     }
   }
 
-  isSurface(node) {
-    // TODO. to be improved
-    console.log('<<< node name >>>', node.name);
-    return node.name.toLowerCase().includes('city')
+  isSurface(node: any): boolean {
+    const body = node?.physicsBody;
+    if (!body) return false;
+    const shape = body.shape;
+    if (!shape) return false;
+    return (shape.filterMembershipMask & this.COL_ENVIRONMENT) !== 0;
   }
 
   // ===== GROUND CHECK CON RAYCAST =====
   checkGrounded() {
     const playerPos = this.mesh.position.clone();
+    const deltaTime = this.scene.getEngine().getDeltaTime() / 1000;
 
     // Punto de inicio del rayo (centro del jugador)
     const rayStart = new Vector3(playerPos.x, playerPos.y, playerPos.z);
@@ -778,23 +793,22 @@ export class PlayerController {
     // Realizar el raycast usando el motor de física
     this.physicsEngine.raycastToRef(rayStart, rayEnd, this.raycastResult);
 
-    // Si el rayo golpea algo Y no es el propio jugador
+    // Si el rayo golpea una superficie válida (environment collision mask)
     if (this.raycastResult.hasHit) {
       const hitBody = this.raycastResult.body;
 
-      // Filtrar para que no detecte al propio jugador
       if (this.isSurface(hitBody.transformNode)) {
         this.isGrounded = true;
-        if (this._airTime) {
-          console.log('<<< is grounded it hit:', hitBody);
-        }
+        this._groundLostTimer = 0;
         return;
-      } else {
-        console.log('<<< ray cast hit something else than player body, ignoring', { hitBody });
       }
     }
 
-    this.isGrounded = false;
+    // Grace period: don't immediately mark as airborne to prevent single-frame flickers
+    this._groundLostTimer += deltaTime;
+    if (this._groundLostTimer >= this._groundLostGrace) {
+      this.isGrounded = false;
+    }
   }
 
   // ===== COYOTE TIME =====
@@ -1089,8 +1103,13 @@ export class PlayerController {
     this.physicsEngine.raycastToRef(rayStart, rayEnd, this.raycastResult);
 
     if (!this.raycastResult.hasHit || this.raycastResult.body === this.body) {
-      return
-    };
+      return;
+    }
+
+    // Only anticipate landing on actual environment surfaces
+    if (!this.isSurface(this.raycastResult.body.transformNode)) {
+      return;
+    }
 
     this._jumpPhase = JumpPhase.PRE_LANDING;
     const landingAg = this.animationGroups.get('land');
