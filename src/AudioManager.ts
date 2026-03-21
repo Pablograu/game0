@@ -59,7 +59,7 @@ const SOUND_MANIFEST: Record<SoundKey, SoundDef> = {
 
     // Enemy — no files yet; entries kept for when assets arrive
     enemy_attack: { url: '/audio/enemy/attack.mp3', loop: false, volume: 0.7, spatial: false },
-    enemy_hit: { url: '/audio/enemy/hit.mp3', loop: false, volume: 0.6, spatial: false },
+    enemy_hit: { url: ['/audio/enemy/enemy-hit1.mp3', '/audio/enemy/enemy-hit2.mp3'], loop: false, volume: 0.6, spatial: false },
     enemy_death: { url: '/audio/enemy/death.mp3', loop: false, volume: 0.7, spatial: false },
     enemy_alert: { url: ['/audio/enemy/enemy-alert1.mp3', '/audio/enemy/enemy-alert2.mp3', '/audio/enemy/enemy-alert3.mp3', '/audio/enemy/enemy-alert4.mp3'], loop: false, volume: 0.5, spatial: false },
 

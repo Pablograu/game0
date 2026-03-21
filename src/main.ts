@@ -52,6 +52,10 @@ class Game {
 
   async init() {
     await this.initHavok();
+    // Inicializar EffectManager
+    EffectManager.init(this.scene);
+    // Inicializar AudioManager (async — preloads all sounds)
+    await AudioManager.init();
     this.createLighting();
     await this.loadEnvironment(); // Cargar oldtown.glb
     await this.preloadEnemyAssets(); // Precargar modelo del ladrón
@@ -75,13 +79,6 @@ class Game {
 
     // Habilitar colisiones en la escena
     this.scene.collisionsEnabled = true;
-
-    // Inicializar EffectManager
-    EffectManager.init(this.scene);
-
-    // Inicializar AudioManager (async — preloads all sounds)
-    await AudioManager.init();
-
     console.log('Física Havok inicializada');
   }
 

@@ -420,7 +420,7 @@ export class EnemyController {
         this.playAnimation('running', true);
         break;
 
-      case EnemyState.ATTACK:
+      case EnemyState.ATTACK: {
         this._hasHitPlayerThisAttack = false;
         this.isAttackAnimPlaying = true;
         this._attackStartTime = performance.now() / 1000; // Guardar tiempo inicial
@@ -429,6 +429,7 @@ export class EnemyController {
         AudioManager.play('enemy_attack');
 
         const attackAg = this.animations.get('attack');
+
         if (attackAg) {
           attackAg.onAnimationGroupEndObservable.clear();
           attackAg.onAnimationGroupEndObservable.addOnce(() => {
@@ -447,7 +448,7 @@ export class EnemyController {
           });
         }
         break;
-
+      }
       case EnemyState.HIT:
         this.stunTimer = this.config.stunDuration;
         this._stop();

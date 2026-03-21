@@ -87,10 +87,10 @@ export class HitboxSystem {
    */
   intersectsMesh(otherMesh: Mesh, precise: boolean = false): boolean {
 
-    if(this.mesh.intersectsMesh(otherMesh, precise)){
-      console.log('<<< hitboxsystem intersectsMesh',{ hitboxSystem: this.mesh.getAbsolutePosition(), otherMesh: otherMesh.getAbsolutePosition() });
+    if (this.mesh.intersectsMesh(otherMesh, precise)) {
+      console.log('<<< hitboxsystem intersectsMesh', { hitboxSystem: this.mesh.getAbsolutePosition(), otherMesh: otherMesh.getAbsolutePosition() });
     }
-    
+
     return this.mesh.intersectsMesh(otherMesh, precise);
   }
 
@@ -101,7 +101,7 @@ export class HitboxSystem {
     this.isActive = enabled;
     this.mesh.setEnabled(enabled);
     if (this.debugMode && this.material) {
-      this.mesh.visibility = enabled ? 0.3 : 0;
+      this.mesh.visibility = enabled ? 0.5 : 0;
     }
   }
 

@@ -86,14 +86,14 @@ export class PlayerController {
   private _airTime: number = 0;                            // Seconds airborne in current hop
   private readonly _minAirTime: number = 0.15;             // Guard against spawn-frame flash
   private readonly _fallingAnimDelay: number = 0.15;        // Seconds before 'falling' anim plays
-  private readonly _landingAnticipationDist: number = 1.0; // Units above ground to start landing anim early
+  private readonly _landingAnticipationDist: number = 1; // Units above ground to start landing anim early
 
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
   useLeftPunch: boolean = true; // Alternar entre puño izquierdo y derecho
   punchSpeed: number = 2; // Velocidad de reproducción de las animaciones de puño (más alto = más rápido)
   normalMoveSpeed: number = 8; // Guardar velocidad normal
   attackMoveSpeedMultiplier: number = 0.1; // Reducción de velocidad durante ataque (10%)
-  punchHitboxDelay: number = 0.15; // Porcentaje de la animación para activar hitbox (15% para puños rápidos)
+  punchHitboxDelay: number = 0.8; // Porcentaje de la animación para activar hitbox (15% para puños rápidos)
   animationGroups: Map<string, any> = new Map(); // Mapa de animation groups
   currentPlayingAnimation: string = 'idle'; // Animación actualmente en reproducción
   blendingSpeed: number = 0.1; // Velocidad de blending global (alta = rápida pero suave)
@@ -248,6 +248,7 @@ export class PlayerController {
       attackCooldown: 0,
       debug: true, // Cambiar a false para ocultar la hitbox
       cameraShaker: this.cameraShaker, // Pasar referencia al shake
+      hitboxOffset: 0.8,
     });
 
     console.log('WeaponSystem inicializado');
@@ -535,11 +536,6 @@ export class PlayerController {
         if (key === 'shift' && this.dashCooldownTimer <= 0) {
           this.startDash();
         }
-
-        // Ataque con tecla K
-        if (key === 'k') {
-          this.tryFastPunch();
-        }
         // KEYUP
       } else if (kbInfo.type === 2) {
         this.inputMap[key] = false;
@@ -724,7 +720,6 @@ export class PlayerController {
     } else if (this._jumpPhase === JumpPhase.FALLING) {
       if (this._airTime >= this._fallingAnimDelay) {
         // Extended airtime — switch to falling anim
-        console.log('<<< falling......', { airTime: this._airTime.toFixed(2), fallingAnimDelay: this._fallingAnimDelay });
         targetAnimation = 'falling';
         animSpeed = Math.min(1.0, Math.abs(velocity.y) / 10);
       } else {
@@ -758,6 +753,12 @@ export class PlayerController {
     }
   }
 
+  isSurface(node) {
+    // TODO. to be improved
+    console.log('<<< node name >>>', node.name);
+    return node.name.toLowerCase().includes('city')
+  }
+
   // ===== GROUND CHECK CON RAYCAST =====
   checkGrounded() {
     const playerPos = this.mesh.position.clone();
@@ -782,9 +783,14 @@ export class PlayerController {
       const hitBody = this.raycastResult.body;
 
       // Filtrar para que no detecte al propio jugador
-      if (hitBody && hitBody !== this.body) {
+      if (this.isSurface(hitBody.transformNode)) {
         this.isGrounded = true;
+        if (this._airTime) {
+          console.log('<<< is grounded it hit:', hitBody);
+        }
         return;
+      } else {
+        console.log('<<< ray cast hit something else than player body, ignoring', { hitBody });
       }
     }
 
@@ -847,7 +853,10 @@ export class PlayerController {
 
   handleJump(currentVelocity: Vector3) {
     const shouldJump = this.jumpBufferTimer > 0 && this.canJump();
-    if (!shouldJump) return;
+
+    if (!shouldJump) {
+      return
+    };
 
     const jumpVelocity = new Vector3(currentVelocity.x, this.jumpForce, currentVelocity.z);
     this.body.setLinearVelocity(jumpVelocity);
@@ -1078,11 +1087,17 @@ export class PlayerController {
 
     // Reuse existing result object — no extra allocation per frame
     this.physicsEngine.raycastToRef(rayStart, rayEnd, this.raycastResult);
-    if (!this.raycastResult.hasHit || this.raycastResult.body === this.body) return;
+
+    if (!this.raycastResult.hasHit || this.raycastResult.body === this.body) {
+      return
+    };
 
     this._jumpPhase = JumpPhase.PRE_LANDING;
     const landingAg = this.animationGroups.get('land');
-    if (!landingAg) return;
+
+    if (!landingAg) {
+      return
+    };
 
     // forceReset: false — smooth blend-in, prevents skeleton snap to frame 0
     this.playSmoothAnimation('land', false, false, 1.0);
