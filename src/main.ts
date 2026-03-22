@@ -67,7 +67,7 @@ class Game {
     // this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
-    // this.setupPhysicsVisualizer();
+    this.setupPhysicsVisualizer();
   }
 
   async initHavok() {
@@ -305,7 +305,7 @@ class Game {
     const punchRAnim = animationGroups.find(
       (ag) => ag.name === 'punch_R',
     );
-    const breakdanceAnim = animationGroups.find(
+    const dancingAnim = animationGroups.find(
       (ag) => ag.name.toLowerCase() === 'macarena',
     );
 
@@ -333,21 +333,16 @@ class Game {
       (ag) => ag.name.toLowerCase() === 'walk',
     );
 
-    if ([idleAnim, runAnim, jumpAnim, punchLAnim, punchRAnim, breakdanceAnim, dashAnim, deadAnim, fallingAnim, hitAnim, landingAnim, walkAnim].some((anim) => !anim)) {
-      console.error('No se encontraron todas las animaciones necesarias. Animaciones encontradas:', {
-        idleAnim: !!idleAnim,
-        runAnim: !!runAnim,
-        jumpAnim: !!jumpAnim,
-        punchLAnim: !!punchLAnim,
-        punchRAnim: !!punchRAnim,
-        breakdanceAnim: !!breakdanceAnim,
-        dashAnim: !!dashAnim,
-        deadAnim: !!deadAnim,
-        fallingAnim: !!fallingAnim,
-        hitAnim: !!hitAnim,
-        landingAnim: !!landingAnim,
-        walkAnim: !!walkAnim,
-      });
+    const flyingKick = animationGroups.find(
+      (ag) => ag.name.toLowerCase() === 'flying_kick',
+    );
+
+    const stumbleBack = animationGroups.find(
+      (ag) => ag.name.toLowerCase() === 'stumble_back',
+    );
+
+    if ([idleAnim, runAnim, jumpAnim, punchLAnim, punchRAnim, dancingAnim, dashAnim, deadAnim, fallingAnim, hitAnim, landingAnim, walkAnim, flyingKick, stumbleBack].some((anim) => !anim)) {
+      console.error('No se encontraron todas las animaciones necesarias. Animaciones encontradas:');
     }
 
     // Detener todas las animaciones inicialmente
@@ -382,7 +377,7 @@ class Game {
       punch_R: { root: rootMesh, animations: punchRAnim ? [punchRAnim] : [] },
       macarena: {
         root: rootMesh,
-        animations: breakdanceAnim ? [breakdanceAnim] : [],
+        animations: dancingAnim ? [dancingAnim] : [],
       },
       dash: { root: rootMesh, animations: dashAnim ? [dashAnim] : [] },
       dead: { root: rootMesh, animations: deadAnim ? [deadAnim] : [] },
@@ -390,6 +385,8 @@ class Game {
       hit: { root: rootMesh, animations: hitAnim ? [hitAnim] : [] },
       land: { root: rootMesh, animations: landingAnim ? [landingAnim] : [] },
       walk: { root: rootMesh, animations: walkAnim ? [walkAnim] : [] },
+      flying_kick: { root: rootMesh, animations: flyingKick ? [flyingKick] : [] },
+      stumble_back: { root: rootMesh, animations: stumbleBack ? [stumbleBack] : [] },
     };
 
     return physicsCapsule;
@@ -410,9 +407,9 @@ class Game {
     ];
 
     const enemyConfig = {
-      hp: 3,
+      hp: 300,
       mass: 2,
-      knockbackForce: 12,
+      knockbackForce: 5,
       contactDamage: 1,
       patrolSpeed: 2,
       chaseSpeed: 4,

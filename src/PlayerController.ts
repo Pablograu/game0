@@ -319,7 +319,7 @@ export class PlayerController {
    * Encola un puñetazo en el attack buffer (máx 4 slots).
    * Si no hay ataque activo, drena la cola inmediatamente.
    */
-  tryFastPunch() {
+  punch() {
     if (this.animationGroups.size === 0) {
       console.warn('AnimationGroups no configurados');
       return;
@@ -331,12 +331,19 @@ export class PlayerController {
       return;
     }
 
-    // Resolver el nombre de animación y alternar AHORA para preservar el orden correcto
-    const punchAnimation = this.useLeftPunch ? 'punch_L' : 'punch_R';
-    this.useLeftPunch = !this.useLeftPunch;
+    if (!this.isGrounded) {
+      this.attackQueue.push('flying_kick');
 
-    this.attackQueue.push(punchAnimation);
-    console.log(`📥 Queued: ${punchAnimation} (queue size: ${this.attackQueue.length})`);
+    } else {
+      // Resolver el nombre de animación y alternar AHORA para preservar el orden correcto
+      const punchAnimation = this.useLeftPunch ? 'punch_L' : 'punch_R';
+      this.useLeftPunch = !this.useLeftPunch;
+
+      this.attackQueue.push(punchAnimation);
+      console.log(`📥 Queued: ${punchAnimation} (queue size: ${this.attackQueue.length})`);
+
+    }
+
 
     // Iniciar ejecución solo si no hay ataque en curso
     if (!this.isAttacking) {
@@ -350,7 +357,7 @@ export class PlayerController {
    */
   private drainAttackQueue() {
     const next = this.attackQueue.shift();
-    if (next !== undefined) {
+    if (next) {
       console.log(`👊 Ejecutando: ${next} (remaining: ${this.attackQueue.length})`);
       this.executeFastPunch(next);
     } else {
@@ -438,6 +445,7 @@ export class PlayerController {
 
     // Liberar el bloqueo de ataque
     this.isAttacking = false;
+    this.isFlyingKick = false;
 
     // Ejecutar el siguiente ataque de la cola, o volver a idle/run
     this.drainAttackQueue();
@@ -560,7 +568,7 @@ export class PlayerController {
 
       // Tipo 1 = POINTERDOWN
       if (pointerInfo.type === 1 && pointerInfo.event.button === 0) {
-        this.tryFastPunch();
+        this.punch();
       }
     });
   }
@@ -637,6 +645,7 @@ export class PlayerController {
     // ===== DAMAGE KNOCKBACK WINDOW =====
     if (this.isKnockedBack) {
       this.knockbackDuration -= deltaTime;
+
       if (this.knockbackDuration <= 0) {
         this.isKnockedBack = false;
       }
@@ -644,6 +653,10 @@ export class PlayerController {
       // Only lock rotation and suppress player input this frame.
       this.body.setAngularVelocity(new Vector3(0, 0, 0));
       return; // Skip normal movement this frame
+    }
+
+    if (this.isAttacking && !this.isGrounded && moveDirection.length() > 0.1) {
+      return
     }
 
     // Decaer el recoil con el tiempo (weapon recoil, not damage knockback)
@@ -958,6 +971,7 @@ export class PlayerController {
     // Cancelar ataques pendientes al iniciar el dash
     this.attackQueue = [];
     this.isAttacking = false;
+    this.isAttacking = false;
 
     AudioManager.play('player_dash');
 
@@ -1256,8 +1270,10 @@ export class PlayerController {
       );
       this.recoilVelocity = Vector3.Zero(); // Don't let recoil fight the impulse
       this.isKnockedBack = true;
-      this.knockbackDuration = 0.3;
+      this.knockbackDuration = 0.5;
     }
+
+    this.playSmoothAnimation('stumble_back', false, true);
 
     // Ignorar daño si es invulnerable o está muerto
     if (this.isInvulnerable || this.currentHealth <= 0) {
@@ -1350,9 +1366,6 @@ export class PlayerController {
     this.isDashing = false;
     this.attackQueue = [];
     this.isAttacking = false;
-    // this.recoilVelocity = Vector3.Zero();
-
-    // Activate ragdoll on death
 
     // Notificar al GameManager
     if (this.gameManager && this.gameManager.gameOver) {
