@@ -262,8 +262,6 @@ class Game {
     const armatureNode = result.transformNodes.find(
       (node) => node.name === "Armature",
     );
-
-    console.log("result :>> ", result);
     const animationGroups = result.animationGroups;
 
     // ===== CREATE CAPSULE & SET UP HIERARCHY BEFORE RAGDOLL =====

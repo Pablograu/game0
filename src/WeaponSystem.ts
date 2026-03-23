@@ -5,9 +5,9 @@ import {
   Vector3,
   Matrix,
   Quaternion,
-} from '@babylonjs/core';
-import { HitboxSystem } from './HitboxSystem';
-import { AudioManager } from './AudioManager.ts';
+} from "@babylonjs/core";
+import { HitboxSystem } from "./HitboxSystem";
+import { AudioManager } from "./AudioManager.ts";
 
 export class WeaponSystem {
   player: any;
@@ -70,7 +70,7 @@ export class WeaponSystem {
 
   createHitbox() {
     this.hitboxSystem = new HitboxSystem(
-      'playerWeaponHitbox',
+      "playerWeaponHitbox",
       this.hitboxSize,
       this.scene,
       this.debugMode,
@@ -117,7 +117,10 @@ export class WeaponSystem {
     const playerPos = this.playerMesh.getAbsolutePosition();
 
     // Obtener la rotación actual del jugador (targetRotation es la que se usa para rotar)
-    const playerRotation = this.player?.targetRotation || this.playerMesh.rotationQuaternion || Quaternion.Identity();
+    const playerRotation =
+      this.player?.targetRotation ||
+      this.playerMesh.rotationQuaternion ||
+      Quaternion.Identity();
 
     // Obtener dirección forward usando la rotación del jugador
     const rotMatrix = new Matrix();
@@ -129,7 +132,7 @@ export class WeaponSystem {
 
     // Posicionar hitbox frente al jugador
     this.hitboxSystem?.setPosition(
-      playerPos,
+      new Vector3(playerPos.x, playerPos.y + 1, playerPos.z),
       this.hitboxOffset,
       forwardDirection,
     );
@@ -173,7 +176,7 @@ export class WeaponSystem {
 
     console.log(`💥 Hit enemy! Damage: ${this.damage}`);
 
-    AudioManager.play('player_punch');
+    AudioManager.play("player_punch");
 
     // Aplicar daño
     if (enemy.takeDamage) {
@@ -194,7 +197,7 @@ export class WeaponSystem {
     this.hitEnemiesThisSwing.clear();
     this.hitObjectsThisSwing.clear();
 
-    console.log('⚔️ Attack ended');
+    console.log("⚔️ Attack ended");
   }
 
   // ===== MÉTODOS DE ACTIVACIÓN =====
@@ -205,7 +208,7 @@ export class WeaponSystem {
     this.hitObjectsThisSwing.clear();
     this.hitboxSystem?.setEnabled(true);
 
-    console.log('¡Hitbox activada!');
+    console.log("¡Hitbox activada!");
   }
 
   deactivateHitbox() {

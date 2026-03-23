@@ -17,6 +17,7 @@ import {
 } from "@babylonjs/core";
 import { HitboxSystem } from "./HitboxSystem";
 import { AudioManager } from "./AudioManager.ts";
+import { EffectManager } from "./EffectManager.ts";
 import { Ragdoll } from "./ragdoll_copy.js";
 
 // ===== ESTADOS DE IA =====
@@ -984,6 +985,17 @@ export class EnemyController {
       kb.y = this.config.knockbackForce;
       this.body.applyImpulse(kb, enemyPos);
     }
+
+    // ===== BLOOD SPLASH =====
+    const bloodPos = this.physicsCapsule.getAbsolutePosition().clone();
+    bloodPos.y += 0.8; // aim at torso
+    EffectManager.showBloodSplash(bloodPos, {
+      intensity: this.hp <= 0 ? "death" : "hit",
+      direction:
+        this.lastKnockbackDir.length() > 0.01
+          ? this.lastKnockbackDir.clone()
+          : undefined,
+    });
 
     // Entrar en HIT (o DEAD si no queda vida)
     if (this.hp <= 0) {

@@ -6,12 +6,21 @@ import {
   Scene,
   Camera,
   Mesh,
+  KeyboardInfo,
+  PointerInfo,
+  Skeleton,
+  AnimationGroup,
+  PhysicsBody,
+  TransformNode,
+  HavokPlugin,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, TextBlock, Control } from "@babylonjs/gui";
 import { WeaponSystem } from "./WeaponSystem.ts";
 import { EffectManager } from "./EffectManager.ts";
 import { AudioManager } from "./AudioManager.ts";
 import { Ragdoll } from "./ragdoll_copy.js";
+import { GameManager } from "./GameManager.ts";
+import { CameraShaker } from "./CameraShaker.ts";
 
 // ===== JUMP PHASE STATE MACHINE =====
 enum JumpPhase {
@@ -22,10 +31,10 @@ enum JumpPhase {
 }
 
 export class PlayerController {
-  blinkInterval: any;
-  body: any;
+  blinkInterval?: number;
+  body: PhysicsBody;
   camera: Camera;
-  cameraShaker: any;
+  cameraShaker: CameraShaker | null = null;
   coyoteTime: number;
   coyoteTimer: number;
   currentHealth: number;
@@ -36,7 +45,7 @@ export class PlayerController {
   dashDuration: number;
   dashSpeed: number;
   dashTimer: number;
-  gameManager: any = null; // Referencia al GameManager
+  gameManager: GameManager | null = null;
   healthText: TextBlock | null;
   healthUI: AdvancedDynamicTexture | null;
   inputEnabled: boolean = true; // Flag para pausar input
@@ -44,6 +53,7 @@ export class PlayerController {
   invulnerabilityDuration: number;
   invulnerabilityTimer: number;
   isAttacking: boolean = false;
+  isDancing: boolean = false;
   isDashing: boolean;
   isGrounded: boolean;
   isInvulnerable: boolean;
@@ -57,11 +67,10 @@ export class PlayerController {
   jumpKeyReleased: boolean;
   lastFacingDirection: Vector3;
   maxHealth: number;
-  mesh: any;
+  mesh: Mesh;
   moveSpeed: number;
   originalScale: Vector3;
-  physicsEngine: any;
-  º;
+  physicsEngine: HavokPlugin;
   playerHeight: number;
   playerRadius: number;
   pogoForce: number;
@@ -100,7 +109,7 @@ export class PlayerController {
   normalMoveSpeed: number = 8; // Guardar velocidad normal
   attackMoveSpeedMultiplier: number = 0.1; // Reducción de velocidad durante ataque (10%)
   punchHitboxDelay: number = 0.8; // Porcentaje de la animación para activar hitbox (15% para puños rápidos)
-  animationGroups: Map<string, any> = new Map(); // Mapa de animation groups
+  animationGroups: Map<string, AnimationGroup> = new Map(); // Mapa de animation groups
   currentPlayingAnimation: string = "idle"; // Animación actualmente en reproducción
   blendingSpeed: number = 0.1; // Velocidad de blending global (alta = rápida pero suave)
 
@@ -112,7 +121,7 @@ export class PlayerController {
     mesh: Mesh,
     camera: Camera,
     scene: Scene,
-    cameraShaker: any = null,
+    cameraShaker: CameraShaker = null,
   ) {
     this.mesh = mesh;
     this.camera = camera;
@@ -521,7 +530,7 @@ export class PlayerController {
 
   setupInput() {
     // Capturar input del teclado
-    this.scene.onKeyboardObservable.add((kbInfo: any) => {
+    this.scene.onKeyboardObservable.add((kbInfo: KeyboardInfo) => {
       if (!this.inputEnabled) {
         return; // Ignorar input si está pausado
       }
@@ -542,6 +551,10 @@ export class PlayerController {
         if (key === "shift" && this.dashCooldownTimer <= 0) {
           this.startDash();
         }
+
+        if (key === "k") {
+          this.isDancing = !this.isDancing;
+        }
         // KEYUP
       } else if (kbInfo.type === 2) {
         this.inputMap[key] = false;
@@ -554,7 +567,7 @@ export class PlayerController {
     });
 
     // Click izquierdo para atacar (spam permitido)
-    this.scene.onPointerObservable.add((pointerInfo: any) => {
+    this.scene.onPointerObservable.add((pointerInfo: PointerInfo) => {
       if (!this.inputEnabled) {
         return; // Ignorar input si está pausado
       }
@@ -699,7 +712,7 @@ export class PlayerController {
    * Sistema de animaciones con blending
    * Actualiza la animación según el estado del jugador
    */
-  updateAnimation(moveDirection: any, velocity: any) {
+  updateAnimation(moveDirection: Vector3, velocity: Vector3) {
     if (this.animationGroups.size === 0) {
       return;
     }
@@ -747,6 +760,9 @@ export class PlayerController {
     } else if (moveDirection.length() > 0.1) {
       targetAnimation = "run";
       animSpeed = 1.0;
+    } else if (this.isDancing) {
+      targetAnimation = "macarena";
+      animSpeed = 1.0;
     } else {
       targetAnimation = "idle";
       animSpeed = 1.0;
@@ -770,7 +786,7 @@ export class PlayerController {
     }
   }
 
-  isSurface(node: any): boolean {
+  isSurface(node: TransformNode): boolean {
     const body = node?.physicsBody;
     if (!body) return false;
     const shape = body.shape;
@@ -918,7 +934,7 @@ export class PlayerController {
   }
 
   // ===== ROTACIÓN VISUAL SUAVE =====
-  updateRotation(moveDirection: any, deltaTime: number) {
+  updateRotation(moveDirection: Vector3, deltaTime: number) {
     if (moveDirection.length() <= 0.1) return;
 
     const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
@@ -1029,6 +1045,7 @@ export class PlayerController {
       duration: 0.5,
       direction: "radial",
     });
+
     if (this.cameraShaker) this.cameraShaker.shakeSoft();
 
     if (this._jumpPhase === JumpPhase.PRE_LANDING) {
@@ -1108,17 +1125,6 @@ export class PlayerController {
    * Tune _landingAnticipationDist to adjust lead time.
    */
   private _checkLandingAnticipation() {
-    const playerPos = this.mesh.position;
-    const rayStart = new Vector3(playerPos.x, playerPos.y, playerPos.z);
-    const rayEnd = new Vector3(
-      playerPos.x,
-      playerPos.y - (this.playerHeight / 2 + this._landingAnticipationDist),
-      playerPos.z,
-    );
-
-    // Reuse existing result object — no extra allocation per frame
-    this.physicsEngine.raycastToRef(rayStart, rayEnd, this.raycastResult);
-
     if (!this.raycastResult.hasHit || this.raycastResult.body === this.body) {
       return;
     }
@@ -1185,7 +1191,7 @@ export class PlayerController {
    * @param {Vector3} hitDirection - Dirección hacia el enemigo
    * @param {Vector3} enemyPosition - Posición del enemigo golpeado
    */
-  applyRecoil(hitDirection: any, enemyPosition: any) {
+  applyRecoil(hitDirection: Vector3, enemyPosition: Vector3) {
     if (!this.body) return;
 
     const currentVelocity = this.body.getLinearVelocity();
@@ -1260,7 +1266,7 @@ export class PlayerController {
    * @param {number} amount - Cantidad de daño
    * @param {Vector3} damageSourcePosition - Posición de la fuente de daño (para knockback)
    */
-  takeDamage(amount: number, damageSourcePosition: any = null) {
+  takeDamage(amount: number, damageSourcePosition: Vector3 | null = null) {
     const playerPos = this.mesh.getAbsolutePosition();
     const knockbackDir = damageSourcePosition
       ? playerPos.subtract(damageSourcePosition).normalize()
@@ -1277,6 +1283,14 @@ export class PlayerController {
       this.isKnockedBack = true;
       this.knockbackDuration = 0.5;
     }
+
+    // ===== BLOOD SPLASH =====
+    const torsoPos = playerPos.clone();
+    torsoPos.y += 1.0; // aim at chest
+    EffectManager.showBloodSplash(torsoPos, {
+      intensity: "hit",
+      direction: knockbackDir.length() > 0.01 ? knockbackDir : undefined,
+    });
 
     this.playSmoothAnimation("stumble_back", false, true);
 
@@ -1409,7 +1423,7 @@ export class PlayerController {
     console.log("Player respawned!");
   }
 
-  initRagdoll(skeleton: any, armatureNode: any) {
+  initRagdoll(skeleton: Skeleton, armatureNode: Mesh) {
     if (!skeleton || !armatureNode) {
       console.error("Ragdoll setup failed: skeleton or armatureNode not found");
       return;
@@ -1523,10 +1537,6 @@ export class PlayerController {
         agg.shape.filterCollideMask = COL_ENVIRONMENT;
       }
     }
-
-    // Expose for debugging
-    (window as any).ragdoll = () => this.ragdoll.ragdoll();
-
     console.log("Ragdoll initialized");
   }
 
@@ -1534,7 +1544,7 @@ export class PlayerController {
    * ===== GAME STATE CONTROL =====
    * Métodos para pausar/reanudar el input y movimiento del jugador
    */
-  public setGameManager(gameManager: any) {
+  public setGameManager(gameManager: GameManager) {
     this.gameManager = gameManager;
   }
 
