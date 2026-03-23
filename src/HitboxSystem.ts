@@ -3,10 +3,9 @@ import {
   StandardMaterial,
   Color3,
   Vector3,
-  Matrix,
   Mesh,
   Scene,
-} from '@babylonjs/core';
+} from "@babylonjs/core";
 
 /**
  * Sistema de hitbox reutilizable para cualquier entidad
@@ -86,11 +85,6 @@ export class HitboxSystem {
    * Detecta si intersecta con otro mesh
    */
   intersectsMesh(otherMesh: Mesh, precise: boolean = false): boolean {
-
-    if (this.mesh.intersectsMesh(otherMesh, precise)) {
-      console.log('<<< hitboxsystem intersectsMesh', { hitboxSystem: this.mesh.getAbsolutePosition(), otherMesh: otherMesh.getAbsolutePosition() });
-    }
-
     return this.mesh.intersectsMesh(otherMesh, precise);
   }
 

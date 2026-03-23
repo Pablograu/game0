@@ -6,19 +6,19 @@ import {
   Scene,
   Camera,
   Mesh,
-} from '@babylonjs/core';
-import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
-import { WeaponSystem } from './WeaponSystem.ts';
-import { EffectManager } from './EffectManager.ts';
-import { AudioManager } from './AudioManager.ts';
-import { Ragdoll } from './ragdoll_copy.js';
+} from "@babylonjs/core";
+import { AdvancedDynamicTexture, TextBlock, Control } from "@babylonjs/gui";
+import { WeaponSystem } from "./WeaponSystem.ts";
+import { EffectManager } from "./EffectManager.ts";
+import { AudioManager } from "./AudioManager.ts";
+import { Ragdoll } from "./ragdoll_copy.js";
 
 // ===== JUMP PHASE STATE MACHINE =====
 enum JumpPhase {
-  GROUNDED = 'GROUNDED',
-  RISING = 'RISING',
-  FALLING = 'FALLING',
-  PRE_LANDING = 'PRE_LANDING', // Landing anim playing, awaiting physics contact
+  GROUNDED = "GROUNDED",
+  RISING = "RISING",
+  FALLING = "FALLING",
+  PRE_LANDING = "PRE_LANDING", // Landing anim playing, awaiting physics contact
 }
 
 export class PlayerController {
@@ -60,7 +60,8 @@ export class PlayerController {
   mesh: any;
   moveSpeed: number;
   originalScale: Vector3;
-  physicsEngine: any; º
+  physicsEngine: any;
+  º;
   playerHeight: number;
   playerRadius: number;
   pogoForce: number;
@@ -83,15 +84,15 @@ export class PlayerController {
   // ===== JUMP PHASE STATE MACHINE =====
   // Single source of truth — replaces isLanding, _landingAnticipated, stale _airTime checks.
   private _jumpPhase: JumpPhase = JumpPhase.GROUNDED;
-  private _airTime: number = 0;                            // Seconds airborne in current hop
-  private readonly _minAirTime: number = 0.15;             // Guard against spawn-frame flash
-  private readonly _fallingAnimDelay: number = 0.15;        // Seconds before 'falling' anim plays
+  private _airTime: number = 0; // Seconds airborne in current hop
+  private readonly _minAirTime: number = 0.15; // Guard against spawn-frame flash
+  private readonly _fallingAnimDelay: number = 0.15; // Seconds before 'falling' anim plays
   private readonly _landingAnticipationDist: number = 1; // Units above ground to start landing anim early
 
   // ===== GROUND DETECTION DEBOUNCE =====
-  private _groundLostTimer: number = 0;                    // Time since last valid ground contact
-  private readonly _groundLostGrace: number = 0.08;        // 80ms grace before marking airborne
-  private readonly COL_ENVIRONMENT: number = 0x0001;       // Must match main.ts collision mask
+  private _groundLostTimer: number = 0; // Time since last valid ground contact
+  private readonly _groundLostGrace: number = 0.08; // 80ms grace before marking airborne
+  private readonly COL_ENVIRONMENT: number = 0x0001; // Must match main.ts collision mask
 
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
   useLeftPunch: boolean = true; // Alternar entre puño izquierdo y derecho
@@ -100,14 +101,19 @@ export class PlayerController {
   attackMoveSpeedMultiplier: number = 0.1; // Reducción de velocidad durante ataque (10%)
   punchHitboxDelay: number = 0.8; // Porcentaje de la animación para activar hitbox (15% para puños rápidos)
   animationGroups: Map<string, any> = new Map(); // Mapa de animation groups
-  currentPlayingAnimation: string = 'idle'; // Animación actualmente en reproducción
+  currentPlayingAnimation: string = "idle"; // Animación actualmente en reproducción
   blendingSpeed: number = 0.1; // Velocidad de blending global (alta = rápida pero suave)
 
   // ===== ATTACK INPUT BUFFER =====
   private readonly MAX_ATTACK_QUEUE = 1;
   private attackQueue: string[] = [];
 
-  constructor(mesh: Mesh, camera: Camera, scene: Scene, cameraShaker: any = null) {
+  constructor(
+    mesh: Mesh,
+    camera: Camera,
+    scene: Scene,
+    cameraShaker: any = null,
+  ) {
     this.mesh = mesh;
     this.camera = camera;
     this.scene = scene;
@@ -194,40 +200,38 @@ export class PlayerController {
     this.useLeftPunch = true;
     this.normalMoveSpeed = this.moveSpeed;
 
-
     this.setupInput();
     this.setupPhysics();
     this.setupWeaponSystem();
     this.setupHealthUI();
     this.setupAnimationHandler();
     this.setupUpdate();
-
   }
 
   setupHealthUI() {
     // Crear textura de UI en pantalla completa
     this.healthUI = AdvancedDynamicTexture.CreateFullscreenUI(
-      'healthUI',
+      "healthUI",
       true,
       this.scene,
     );
 
     // Crear texto de vidas
-    this.healthText = new TextBlock('healthText');
+    this.healthText = new TextBlock("healthText");
     this.healthText.text = `Vidas: ${this.currentHealth}`;
-    this.healthText.color = 'white';
+    this.healthText.color = "white";
     this.healthText.fontSize = 32;
-    this.healthText.fontFamily = 'Arial';
+    this.healthText.fontFamily = "Arial";
     this.healthText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
     this.healthText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-    this.healthText.left = '20px';
-    this.healthText.top = '20px';
+    this.healthText.left = "20px";
+    this.healthText.top = "20px";
     this.healthText.outlineWidth = 2;
-    this.healthText.outlineColor = 'black';
+    this.healthText.outlineColor = "black";
 
     this.healthUI.addControl(this.healthText);
 
-    console.log('Health UI inicializada');
+    console.log("Health UI inicializada");
   }
 
   updateHealthUI() {
@@ -236,11 +240,11 @@ export class PlayerController {
 
       // Cambiar color según salud
       if (this.currentHealth <= 1) {
-        this.healthText.color = 'red';
+        this.healthText.color = "red";
       } else if (this.currentHealth <= 2) {
-        this.healthText.color = 'orange';
+        this.healthText.color = "orange";
       } else {
-        this.healthText.color = 'white';
+        this.healthText.color = "white";
       }
     }
   }
@@ -256,7 +260,7 @@ export class PlayerController {
       hitboxOffset: 0.8,
     });
 
-    console.log('WeaponSystem inicializado');
+    console.log("WeaponSystem inicializado");
   }
 
   /**
@@ -316,34 +320,35 @@ export class PlayerController {
   }
 
   /**
-   * Encola un puñetazo en el attack buffer (máx 4 slots).
+   * Encola un puñetazo en el attack buffer.
    * Si no hay ataque activo, drena la cola inmediatamente.
    */
   punch() {
     if (this.animationGroups.size === 0) {
-      console.warn('AnimationGroups no configurados');
+      console.warn("AnimationGroups no configurados");
       return;
     }
 
     // Descartar input si la cola está llena
     if (this.attackQueue.length >= this.MAX_ATTACK_QUEUE) {
-      console.log(`🚫 Attack queue full (${this.MAX_ATTACK_QUEUE}), input discarded`);
+      console.log(
+        `🚫 Attack queue full (${this.MAX_ATTACK_QUEUE}), input discarded`,
+      );
       return;
     }
 
     if (!this.isGrounded) {
-      this.attackQueue.push('flying_kick');
-
+      this.attackQueue.push("flying_kick");
     } else {
       // Resolver el nombre de animación y alternar AHORA para preservar el orden correcto
-      const punchAnimation = this.useLeftPunch ? 'punch_L' : 'punch_R';
+      const punchAnimation = this.useLeftPunch ? "punch_L" : "punch_R";
       this.useLeftPunch = !this.useLeftPunch;
 
       this.attackQueue.push(punchAnimation);
-      console.log(`📥 Queued: ${punchAnimation} (queue size: ${this.attackQueue.length})`);
-
+      console.log(
+        `📥 Queued: ${punchAnimation} (queue size: ${this.attackQueue.length})`,
+      );
     }
-
 
     // Iniciar ejecución solo si no hay ataque en curso
     if (!this.isAttacking) {
@@ -358,7 +363,9 @@ export class PlayerController {
   private drainAttackQueue() {
     const next = this.attackQueue.shift();
     if (next) {
-      console.log(`👊 Ejecutando: ${next} (remaining: ${this.attackQueue.length})`);
+      console.log(
+        `👊 Ejecutando: ${next} (remaining: ${this.attackQueue.length})`,
+      );
       this.executeFastPunch(next);
     } else {
       this.returnToIdleOrRun();
@@ -373,7 +380,7 @@ export class PlayerController {
   executeFastPunch(animationName: string) {
     // Guardia: nunca interrumpir un ataque en curso
     if (this.isAttacking) {
-      console.warn('executeFastPunch called while already attacking — skipped');
+      console.warn("executeFastPunch called while already attacking — skipped");
       return;
     }
 
@@ -393,7 +400,7 @@ export class PlayerController {
     // ===== REPRODUCIR CON VELOCIDAD RÁPIDA =====
     // forceReset = true para que el golpe empiece desde el frame 0
     // punchSpeed hace que la animación sea más rápida
-    AudioManager.play('player_punch');
+    AudioManager.play("player_punch");
     this.playSmoothAnimation(animationName, false, true, this.punchSpeed);
 
     // Calcular duración de la animación para sincronizar el daño
@@ -445,7 +452,6 @@ export class PlayerController {
 
     // Liberar el bloqueo de ataque
     this.isAttacking = false;
-    this.isFlyingKick = false;
 
     // Ejecutar el siguiente ataque de la cola, o volver a idle/run
     this.drainAttackQueue();
@@ -459,7 +465,7 @@ export class PlayerController {
     if (this.animationGroups.size === 0) return;
 
     const moveDirection = this.getMoveDirection();
-    const targetAnim = moveDirection.length() > 0.1 ? 'run' : 'idle';
+    const targetAnim = moveDirection.length() > 0.1 ? "run" : "idle";
 
     console.log(`🔄 Volviendo a: ${targetAnim}`);
 
@@ -474,9 +480,9 @@ export class PlayerController {
   setupAnimationHandler() {
     if (this.mesh.animationModels) {
       this.setupAnimations();
-      console.log('Sistema de animaciones inicializado');
+      console.log("Sistema de animaciones inicializado");
     } else {
-      console.warn('AnimationModels no disponibles');
+      console.warn("AnimationModels no disponibles");
     }
   }
 
@@ -484,12 +490,7 @@ export class PlayerController {
    * Configura blending en todos los AnimationGroups para transiciones suaves
    */
   setupAnimations() {
-    if (!this.mesh.animationModels) {
-      console.warn('No hay animationModels disponibles para configurar');
-      return;
-    }
-
-    console.log('🎬 Configurando blending en todas las animaciones...');
+    console.log("🎬 Configurando blending en todas las animaciones...");
 
     // Iterar sobre todos los modelos de animación
     Object.keys(this.mesh.animationModels).forEach((animName) => {
@@ -506,23 +507,15 @@ export class PlayerController {
 
         // Guardar referencia para acceso rápido
         this.animationGroups.set(animName, animGroup);
-
-        console.log(
-          `  ✓ ${animName}: blending=${animGroup.enableBlending}, speed=${animGroup.blendingSpeed}`,
-        );
       }
     });
 
-    console.log(
-      `🎬 Blending configurado en ${this.animationGroups.size} animaciones`,
-    );
-
     // ===== PREVENT T-POSE ON FIRST FRAME =====
     // Start idle immediately so bones are driven by an animation from frame 1.
-    const idleAg = this.animationGroups.get('idle');
+    const idleAg = this.animationGroups.get("idle");
     if (idleAg) {
       idleAg.start(true, 1.0, idleAg.from, idleAg.to, false);
-      this.currentPlayingAnimation = 'idle';
+      this.currentPlayingAnimation = "idle";
     }
   }
 
@@ -540,13 +533,13 @@ export class PlayerController {
         this.inputMap[key] = true;
 
         // Jump Buffer: al presionar salto, iniciar el timer
-        if (key === ' ') {
+        if (key === " ") {
           this.jumpBufferTimer = this.jumpBufferTime;
           this.jumpKeyReleased = false;
         }
 
         // Dash input (Shift)
-        if (key === 'shift' && this.dashCooldownTimer <= 0) {
+        if (key === "shift" && this.dashCooldownTimer <= 0) {
           this.startDash();
         }
         // KEYUP
@@ -554,7 +547,7 @@ export class PlayerController {
         this.inputMap[key] = false;
 
         // Variable Jump: detectar cuando suelta la tecla
-        if (key === ' ') {
+        if (key === " ") {
           this.jumpKeyReleased = true;
         }
       }
@@ -575,7 +568,7 @@ export class PlayerController {
 
   setupPhysics() {
     if (!this.body) {
-      console.error('El mesh del jugador necesita un PhysicsBody');
+      console.error("El mesh del jugador necesita un PhysicsBody");
       return;
     }
 
@@ -656,7 +649,7 @@ export class PlayerController {
     }
 
     if (this.isAttacking && !this.isGrounded && moveDirection.length() > 0.1) {
-      return
+      return;
     }
 
     // Decaer el recoil con el tiempo (weapon recoil, not damage knockback)
@@ -707,23 +700,22 @@ export class PlayerController {
    * Actualiza la animación según el estado del jugador
    */
   updateAnimation(moveDirection: any, velocity: any) {
-
     if (this.animationGroups.size === 0) {
-      return
-    };
+      return;
+    }
 
     if (this.isAttacking) {
-      return
-    };
+      return;
+    }
     // PRE_LANDING: landing anim is running — allow movement to cancel it early
     if (this._jumpPhase === JumpPhase.PRE_LANDING) {
       if (this.isGrounded && moveDirection.length() > 0.1) {
         // Player started running — skip the rest of the landing clip
         this._jumpPhase = JumpPhase.GROUNDED;
-        const landingAg = this.animationGroups.get('land');
+        const landingAg = this.animationGroups.get("land");
         if (landingAg) {
-          landingAg.onAnimationGroupEndObservable.clear()
-        };
+          landingAg.onAnimationGroupEndObservable.clear();
+        }
       } else {
         return;
       }
@@ -733,39 +725,39 @@ export class PlayerController {
     let animSpeed: number;
 
     if (this.isDashing) {
-      targetAnimation = 'dash';
+      targetAnimation = "dash";
       animSpeed = 1.5;
     } else if (this.currentHealth <= 0) {
-      targetAnimation = 'dead';
+      targetAnimation = "dead";
       animSpeed = 1.0;
     } else if (this._jumpPhase === JumpPhase.RISING) {
       // Ascending — scale anim speed to vertical velocity
-      targetAnimation = 'jump';
+      targetAnimation = "jump";
       animSpeed = Math.max(0.5, (velocity.y / this.jumpForce) * 1.2);
     } else if (this._jumpPhase === JumpPhase.FALLING) {
       if (this._airTime >= this._fallingAnimDelay) {
         // Extended airtime — switch to falling anim
-        targetAnimation = 'falling';
+        targetAnimation = "falling";
         animSpeed = Math.min(1.0, Math.abs(velocity.y) / 10);
       } else {
         // Near apex — keep jump anim playing slowly
-        targetAnimation = 'jump';
+        targetAnimation = "jump";
         animSpeed = 0.3;
       }
     } else if (moveDirection.length() > 0.1) {
-      targetAnimation = 'run';
+      targetAnimation = "run";
       animSpeed = 1.0;
     } else {
-      targetAnimation = 'idle';
+      targetAnimation = "idle";
       animSpeed = 1.0;
     }
 
     // ===== WALKING SOUND =====
-    const shouldWalk = targetAnimation === 'run' && this.isGrounded;
+    const shouldWalk = targetAnimation === "run" && this.isGrounded;
     if (shouldWalk) {
-      AudioManager.playLoop('player_walk');
+      AudioManager.playLoop("player_walk");
     } else {
-      AudioManager.stopLoop('player_walk');
+      AudioManager.stopLoop("player_walk");
     }
 
     if (this.currentPlayingAnimation !== targetAnimation) {
@@ -857,16 +849,16 @@ export class PlayerController {
     // Calcular dirección basada en input
     const direction = Vector3.Zero();
 
-    if (this.inputMap['w']) {
+    if (this.inputMap["w"]) {
       direction.addInPlace(forward);
     }
-    if (this.inputMap['s']) {
+    if (this.inputMap["s"]) {
       direction.addInPlace(forward.scale(-1));
     }
-    if (this.inputMap['d']) {
+    if (this.inputMap["d"]) {
       direction.addInPlace(right);
     }
-    if (this.inputMap['a']) {
+    if (this.inputMap["a"]) {
       direction.addInPlace(right.scale(-1));
     }
 
@@ -882,10 +874,14 @@ export class PlayerController {
     const shouldJump = this.jumpBufferTimer > 0 && this.canJump();
 
     if (!shouldJump) {
-      return
-    };
+      return;
+    }
 
-    const jumpVelocity = new Vector3(currentVelocity.x, this.jumpForce, currentVelocity.z);
+    const jumpVelocity = new Vector3(
+      currentVelocity.x,
+      this.jumpForce,
+      currentVelocity.z,
+    );
     this.body.setLinearVelocity(jumpVelocity);
 
     this.jumpBufferTimer = 0;
@@ -893,11 +889,15 @@ export class PlayerController {
     this._jumpPhase = JumpPhase.RISING;
     this._airTime = 0;
 
-    AudioManager.play('player_jump');
+    AudioManager.play("player_jump");
 
     const dustPos = this.mesh.getAbsolutePosition().clone();
     dustPos.y -= this.playerHeight / 2;
-    EffectManager.showDust(dustPos, { count: 12, duration: 0.35, direction: 'up' });
+    EffectManager.showDust(dustPos, {
+      count: 12,
+      duration: 0.35,
+      direction: "up",
+    });
   }
 
   // ===== VARIABLE JUMP (cortar altura al soltar) =====
@@ -954,7 +954,7 @@ export class PlayerController {
 
   // ===== DASH =====
   startDash() {
-    const animationName = 'dash';
+    const animationName = "dash";
     const animGroup = this.animationGroups.get(animationName);
 
     if (animGroup) {
@@ -973,7 +973,7 @@ export class PlayerController {
     this.isAttacking = false;
     this.isAttacking = false;
 
-    AudioManager.play('player_dash');
+    AudioManager.play("player_dash");
 
     const moveDir = this.getMoveDirection();
     this.dashDirection =
@@ -988,9 +988,8 @@ export class PlayerController {
     EffectManager.showDust(dashPos, {
       count: 30,
       duration: 0.3,
-      direction: 'radial',
+      direction: "radial",
     });
-
   }
 
   updateDash(deltaTime: number) {
@@ -1025,7 +1024,11 @@ export class PlayerController {
     // Particles + camera shake
     const dustPos = this.mesh.getAbsolutePosition().clone();
     dustPos.y -= this.playerHeight / 2;
-    EffectManager.showDust(dustPos, { count: 20, duration: 0.5, direction: 'radial' });
+    EffectManager.showDust(dustPos, {
+      count: 20,
+      duration: 0.5,
+      direction: "radial",
+    });
     if (this.cameraShaker) this.cameraShaker.shakeSoft();
 
     if (this._jumpPhase === JumpPhase.PRE_LANDING) {
@@ -1035,10 +1038,10 @@ export class PlayerController {
 
     // Short hop: anticipation never fired — play landing now as fallback
     this._jumpPhase = JumpPhase.PRE_LANDING;
-    const landingAg = this.animationGroups.get('land');
+    const landingAg = this.animationGroups.get("land");
     if (landingAg) {
       // forceReset: false — let blending smooth the entry, no skeleton snap
-      this.playSmoothAnimation('land', false, false, 1.0);
+      this.playSmoothAnimation("land", false, false, 1.0);
       landingAg.onAnimationGroupEndObservable.clear();
       landingAg.onAnimationGroupEndObservable.addOnce(() => {
         this._jumpPhase = JumpPhase.GROUNDED;
@@ -1126,19 +1129,21 @@ export class PlayerController {
     }
 
     this._jumpPhase = JumpPhase.PRE_LANDING;
-    const landingAg = this.animationGroups.get('land');
+    const landingAg = this.animationGroups.get("land");
 
     if (!landingAg) {
-      return
-    };
+      return;
+    }
 
     // forceReset: false — smooth blend-in, prevents skeleton snap to frame 0
-    this.playSmoothAnimation('land', false, false, 1.0);
+    this.playSmoothAnimation("land", false, false, 1.0);
     landingAg.onAnimationGroupEndObservable.clear();
     landingAg.onAnimationGroupEndObservable.addOnce(() => {
       // Anim ended: go to GROUNDED if on ground, back to FALLING if still airborne
       if (this._jumpPhase === JumpPhase.PRE_LANDING) {
-        this._jumpPhase = this.isGrounded ? JumpPhase.GROUNDED : JumpPhase.FALLING;
+        this._jumpPhase = this.isGrounded
+          ? JumpPhase.GROUNDED
+          : JumpPhase.FALLING;
       }
     });
   }
@@ -1165,7 +1170,7 @@ export class PlayerController {
   }
 
   setRecoilForce(force: number) {
-    console.log('Recoil force set to:', force);
+    console.log("Recoil force set to:", force);
     this.recoilForce = force;
   }
 
@@ -1192,7 +1197,7 @@ export class PlayerController {
 
     if (isPogoHit) {
       // ===== POGO: Rebote hacia arriba =====
-      console.log('¡POGO!');
+      console.log("¡POGO!");
 
       // Aplicar fuerza hacia arriba, cancelando velocidad negativa
       const pogoVelocity = new Vector3(
@@ -1210,7 +1215,7 @@ export class PlayerController {
       }, 80);
     } else {
       // ===== RECOIL HORIZONTAL: Retroceso normal =====
-      console.log('Recoil! force:', this.recoilForce);
+      console.log("Recoil! force:", this.recoilForce);
 
       // Dirección opuesta al golpe (alejarse del enemigo)
       const recoilDirection = hitDirection.scale(-1);
@@ -1266,22 +1271,22 @@ export class PlayerController {
       this.lastKnockbackDir = knockbackDir.clone();
       this.body.applyImpulse(
         knockbackDir.scale(this.damageKnockbackForce),
-        playerPos
+        playerPos,
       );
       this.recoilVelocity = Vector3.Zero(); // Don't let recoil fight the impulse
       this.isKnockedBack = true;
       this.knockbackDuration = 0.5;
     }
 
-    this.playSmoothAnimation('stumble_back', false, true);
+    this.playSmoothAnimation("stumble_back", false, true);
 
     // Ignorar daño si es invulnerable o está muerto
     if (this.isInvulnerable || this.currentHealth <= 0) {
-      console.log('Damage ignored (invulnerable or dead)');
+      console.log("Damage ignored (invulnerable or dead)");
       return;
     }
 
-    AudioManager.play('player_take_damage');
+    AudioManager.play("player_take_damage");
 
     // Restar salud
     this.currentHealth -= amount;
@@ -1313,7 +1318,7 @@ export class PlayerController {
     // Iniciar parpadeo visual
     this.startBlinking();
 
-    console.log('Invulnerability started!');
+    console.log("Invulnerability started!");
   }
 
   startBlinking() {
@@ -1342,17 +1347,19 @@ export class PlayerController {
     if (this.invulnerabilityTimer <= 0) {
       this.isInvulnerable = false;
       this.stopBlinking();
-      console.log('Invulnerability ended!');
+      console.log("Invulnerability ended!");
     }
   }
 
   die() {
-    console.log('Player died!');
+    console.log("Player died!");
 
     if (this.ragdoll) {
       this.ragdoll.ragdoll();
       // Use setTimeout(0) so Havok has one tick to register the DYNAMIC motion type.
-      const impulse = this.lastKnockbackDir.scale(this.damageKnockbackForce * 5);
+      const impulse = this.lastKnockbackDir.scale(
+        this.damageKnockbackForce * 5,
+      );
       const appPoint = this.mesh.getAbsolutePosition();
       setTimeout(() => {
         for (const agg of this.ragdoll.getAggregates()) {
@@ -1381,7 +1388,7 @@ export class PlayerController {
   }
 
   respawn() {
-    console.log('Respawning...');
+    console.log("Respawning...");
 
     // Restaurar salud
     this.currentHealth = this.maxHealth;
@@ -1399,23 +1406,23 @@ export class PlayerController {
     // Pequeña invulnerabilidad post-respawn
     this.startInvulnerability();
 
-    console.log('Player respawned!');
+    console.log("Player respawned!");
   }
 
   initRagdoll(skeleton: any, armatureNode: any) {
     if (!skeleton || !armatureNode) {
-      console.error('Ragdoll setup failed: skeleton or armatureNode not found');
+      console.error("Ragdoll setup failed: skeleton or armatureNode not found");
       return;
     }
 
-    // Por alguna razon el scaling del Armature es 0.09 
+    // Por alguna razon el scaling del Armature es 0.09
     // y se hace enorme si lo escalo a 1.7 (raro)
     armatureNode.scaling = new Vector3(0.017, 0.017, 0.017);
 
     const config = [
-      { bones: ['mixamorig:Hips'], size: 0.45, boxOffset: 0.01 },
+      { bones: ["mixamorig:Hips"], size: 0.45, boxOffset: 0.01 },
       {
-        bones: ['mixamorig:Spine2'],
+        bones: ["mixamorig:Spine2"],
         size: 0.4,
         height: 0.6,
         boxOffset: 0.05,
@@ -1426,16 +1433,16 @@ export class PlayerController {
       },
       // Arms
       {
-        bones: ['mixamorig:LeftArm', 'mixamorig:RightArm'],
+        bones: ["mixamorig:LeftArm", "mixamorig:RightArm"],
         depth: 0.1,
         size: 0.1,
         width: 0.5,
         rotationAxis: Axis.Y,
-        boxOffset: 0.10,
+        boxOffset: 0.1,
         boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ['mixamorig:LeftForeArm', 'mixamorig:RightForeArm'],
+        bones: ["mixamorig:LeftForeArm", "mixamorig:RightForeArm"],
         depth: 0.1,
         size: 0.1,
         width: 0.5,
@@ -1447,7 +1454,7 @@ export class PlayerController {
       },
       // Legs
       {
-        bones: ['mixamorig:LeftUpLeg', 'mixamorig:RightUpLeg'],
+        bones: ["mixamorig:LeftUpLeg", "mixamorig:RightUpLeg"],
         depth: 0.1,
         size: 0.2,
         width: 0.08,
@@ -1459,7 +1466,7 @@ export class PlayerController {
         boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ['mixamorig:LeftLeg', 'mixamorig:RightLeg'],
+        bones: ["mixamorig:LeftLeg", "mixamorig:RightLeg"],
         depth: 0.08,
         size: 0.3,
         width: 0.1,
@@ -1471,7 +1478,7 @@ export class PlayerController {
         boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ['mixamorig:LeftHand', 'mixamorig:RightHand'],
+        bones: ["mixamorig:LeftHand", "mixamorig:RightHand"],
         depth: 0.2,
         size: 0.2,
         width: 0.2,
@@ -1483,7 +1490,7 @@ export class PlayerController {
       },
       // Head
       {
-        bones: ['mixamorig:Head'],
+        bones: ["mixamorig:Head"],
         size: 0.4,
         boxOffset: 0,
         boneOffsetAxis: Axis.Y,
@@ -1493,7 +1500,7 @@ export class PlayerController {
       },
       // Feet
       {
-        bones: ['mixamorig:LeftFoot', 'mixamorig:RightFoot'],
+        bones: ["mixamorig:LeftFoot", "mixamorig:RightFoot"],
         depth: 0.1,
         size: 0.1,
         width: 0.2,
@@ -1520,7 +1527,7 @@ export class PlayerController {
     // Expose for debugging
     (window as any).ragdoll = () => this.ragdoll.ragdoll();
 
-    console.log('Ragdoll initialized');
+    console.log("Ragdoll initialized");
   }
 
   /**

@@ -1,4 +1,4 @@
-import './style.css';
+import "./style.css";
 import {
   ArcRotateCamera,
   Engine,
@@ -12,18 +12,19 @@ import {
   Scene,
   Vector3,
   PhysicsViewer,
-} from '@babylonjs/core';
-import { ImportMeshAsync } from '@babylonjs/core/Loading';
-import '@babylonjs/core/Cameras/Inputs';
-import '@babylonjs/loaders/glTF';
-import HavokPhysics from '@babylonjs/havok';
-import { PlayerController } from './PlayerController.ts';
-import { EnemyFactory } from './EnemyFactory.ts';
-import { EffectManager } from './EffectManager.ts';
-import { CameraShaker } from './CameraShaker.ts';
-import { GameManager } from './GameManager.ts';
-import { DebugGUI } from './DebugGUI.ts';
-import { AudioManager } from './AudioManager.ts';
+  Mesh,
+} from "@babylonjs/core";
+import { ImportMeshAsync } from "@babylonjs/core/Loading";
+import "@babylonjs/core/Cameras/Inputs";
+import "@babylonjs/loaders/glTF";
+import HavokPhysics from "@babylonjs/havok";
+import { PlayerController } from "./PlayerController.ts";
+import { EnemyFactory } from "./EnemyFactory.ts";
+import { EffectManager } from "./EffectManager.ts";
+import { CameraShaker } from "./CameraShaker.ts";
+import { GameManager } from "./GameManager.ts";
+import { DebugGUI } from "./DebugGUI.ts";
+import { AudioManager } from "./AudioManager.ts";
 
 // Collision filter bitmasks
 const COL_ENVIRONMENT = 0x0001;
@@ -44,7 +45,7 @@ class Game {
   gameManager: GameManager | null = null;
 
   constructor() {
-    this.canvas = document.getElementById('renderCanvas') as HTMLCanvasElement;
+    this.canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
     this.engine = new Engine(this.canvas, true);
 
     this.init();
@@ -67,7 +68,7 @@ class Game {
     // this.setupDebugGUI();
     this.startRenderLoop();
     this.setupResize();
-    this.setupPhysicsVisualizer();
+    // this.setupPhysicsVisualizer();
   }
 
   async initHavok() {
@@ -79,7 +80,7 @@ class Game {
 
     // Habilitar colisiones en la escena
     this.scene.collisionsEnabled = true;
-    console.log('Física Havok inicializada');
+    console.log("Física Havok inicializada");
   }
 
   setupPhysicsVisualizer() {
@@ -103,7 +104,7 @@ class Game {
   createCamera() {
     // Crear cámara de tercera persona (ArcRotate)
     const camera = new ArcRotateCamera(
-      'camera',
+      "camera",
       -Math.PI / 2, // Alpha (rotación horizontal inicial)
       Math.PI / 3, // Beta (ángulo vertical)
       10, // Radio (distancia inicial)
@@ -125,7 +126,7 @@ class Game {
     camera.checkCollisions = true;
     camera.collisionRadius = new Vector3(0.5, 0.5, 0.5); // Elipsoide de colisión
 
-    console.log('Cámara de tercera persona creada con colisiones');
+    console.log("Cámara de tercera persona creada con colisiones");
     return camera;
   }
 
@@ -144,7 +145,6 @@ class Game {
       this.scene,
       this.cameraShaker,
     );
-    console.log('<<< this.player', this.player);
 
     // Tunear valores
     this.playerController.setMoveSpeed(8);
@@ -152,9 +152,12 @@ class Game {
 
     // Inicializar AnimationHandler ahora que los modelos están cargados
     this.playerController.setupAnimationHandler();
-    this.playerController.initRagdoll(this.player.skeleton, this.player.armatureNode);
+    this.playerController.initRagdoll(
+      this.player.skeleton,
+      this.player.armatureNode,
+    );
 
-    console.log('PlayerController inicializado');
+    console.log("PlayerController inicializado");
   }
 
   setupGameManager() {
@@ -169,13 +172,13 @@ class Game {
     // Asignar GameManager al PlayerController para que pueda notificarlo de muerte
     this.playerController.setGameManager(this.gameManager);
 
-    console.log('GameManager inicializado');
+    console.log("GameManager inicializado");
   }
 
   createLighting() {
     // ===== HDR ENVIRONMENT (iluminación + skybox) =====
     const hdrTexture = new HDRCubeTexture(
-      '/hdr/skybox.hdr',
+      "/hdr/skybox.hdr",
       this.scene,
       512, // resolución (128, 256, 512, 1024)
     );
@@ -194,22 +197,22 @@ class Game {
 
     // Luz hemisférica de respaldo (por si el HDR es muy oscuro)
     const light = new HemisphericLight(
-      'light',
+      "light",
       new Vector3(0, 1, 0),
       this.scene,
     );
     light.intensity = 0.3;
 
-    console.log('HDR skybox cargado: /hdr/skybox.hdr');
+    console.log("HDR skybox cargado: /hdr/skybox.hdr");
   }
 
   async loadEnvironment() {
     // Cargar el modelo oldtown.glb como entorno
-    console.log('Cargando entorno oldtown.glb...');
+    console.log("Cargando entorno oldtown.glb...");
 
-    const result = await ImportMeshAsync('/models/oldtown.glb', this.scene);
+    const result = await ImportMeshAsync("/models/oldtown.glb", this.scene);
 
-    console.log('Entorno cargado:', result.meshes.length, 'meshes');
+    console.log("Entorno cargado:", result.meshes.length, "meshes");
 
     // Obtener el root del modelo
     const root = result.meshes[0];
@@ -221,7 +224,7 @@ class Game {
 
     // Configurar colisiones para todos los meshes del entorno
     result.meshes.forEach((mesh) => {
-      if (mesh.name !== '__root__') {
+      if (mesh.name !== "__root__") {
         mesh.checkCollisions = true;
 
         // Añadir física estática a los meshes sólidos
@@ -239,30 +242,33 @@ class Game {
           // Environment collides with everything
           if (envAggregate.shape) {
             envAggregate.shape.filterMembershipMask = COL_ENVIRONMENT;
-            envAggregate.shape.filterCollideMask = COL_PLAYER | COL_RAGDOLL | COL_ENEMY;
+            envAggregate.shape.filterCollideMask =
+              COL_PLAYER | COL_RAGDOLL | COL_ENEMY;
           }
         }
       }
     });
 
-    console.log('Entorno oldtown.glb configurado con física');
+    console.log("Entorno oldtown.glb configurado con física");
   }
 
   async createPlayer() {
     // ===== CARGAR MODELO CON TODAS LAS ANIMACIONES =====
-    console.log('Loading animated character...');
+    console.log("Loading animated character...");
 
-    const result = await ImportMeshAsync(
-      '/models/player.glb',
-      this.scene,
-    );
+    const result = await ImportMeshAsync("/models/player.glb", this.scene);
     const rootMesh = result.meshes[0];
     const skeleton = result.skeletons[0];
-    const armatureNode = result.transformNodes.find((node) => node.name === 'Armature');
+    const armatureNode = result.transformNodes.find(
+      (node) => node.name === "Armature",
+    );
+
+    console.log("result :>> ", result);
+    const animationGroups = result.animationGroups;
 
     // ===== CREATE CAPSULE & SET UP HIERARCHY BEFORE RAGDOLL =====
     const physicsCapsule = MeshBuilder.CreateCapsule(
-      'player',
+      "player",
       {
         height: 2.2,
         radius: 0.5,
@@ -274,7 +280,11 @@ class Game {
     physicsCapsule.isVisible = false;
     physicsCapsule.checkCollisions = true;
     physicsCapsule.scaling = new Vector3(1, 1, 1);
-    physicsCapsule.rotationQuaternion = Quaternion.FromEulerAngles(0, Math.PI, 0);
+    physicsCapsule.rotationQuaternion = Quaternion.FromEulerAngles(
+      0,
+      Math.PI,
+      0,
+    );
 
     rootMesh.parent = physicsCapsule;
     rootMesh.position = new Vector3(0, -1.1, 0);
@@ -284,65 +294,79 @@ class Game {
     (physicsCapsule as any).armatureNode = armatureNode;
 
     // Encontrar animaciones por nombre
-    const animationGroups = result.animationGroups;
     console.log(
-      'Animation groups found:',
+      "Animation groups found:",
       animationGroups.map((ag) => ag.name),
     );
 
     const idleAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'idle',
+      (ag) => ag.name.toLowerCase() === "idle",
     );
     const runAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'run',
+      (ag) => ag.name.toLowerCase() === "run",
     );
     const jumpAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'jump',
+      (ag) => ag.name.toLowerCase() === "jump",
     );
-    const punchLAnim = animationGroups.find(
-      (ag) => ag.name === 'punch_L',
-    );
-    const punchRAnim = animationGroups.find(
-      (ag) => ag.name === 'punch_R',
-    );
+    const punchLAnim = animationGroups.find((ag) => ag.name === "punch_L");
+    const punchRAnim = animationGroups.find((ag) => ag.name === "punch_R");
     const dancingAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'macarena',
+      (ag) => ag.name.toLowerCase() === "macarena",
     );
 
     const dashAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'dash',
+      (ag) => ag.name.toLowerCase() === "dash",
     );
 
     const deadAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'dead',
+      (ag) => ag.name.toLowerCase() === "dead",
     );
 
     const fallingAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'falling',
+      (ag) => ag.name.toLowerCase() === "falling",
     );
 
     const hitAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'hit',
+      (ag) => ag.name.toLowerCase() === "hit",
     );
 
     const landingAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'land',
+      (ag) => ag.name.toLowerCase() === "land",
     );
 
     const walkAnim = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'walk',
+      (ag) => ag.name.toLowerCase() === "walk",
     );
 
     const flyingKick = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'flying_kick',
+      (ag) => ag.name.toLowerCase() === "flying_kick",
     );
 
     const stumbleBack = animationGroups.find(
-      (ag) => ag.name.toLowerCase() === 'stumble_back',
+      (ag) => ag.name.toLowerCase() === "stumble_back",
     );
 
-    if ([idleAnim, runAnim, jumpAnim, punchLAnim, punchRAnim, dancingAnim, dashAnim, deadAnim, fallingAnim, hitAnim, landingAnim, walkAnim, flyingKick, stumbleBack].some((anim) => !anim)) {
-      console.error('No se encontraron todas las animaciones necesarias. Animaciones encontradas:');
+    if (
+      [
+        idleAnim,
+        runAnim,
+        jumpAnim,
+        punchLAnim,
+        punchRAnim,
+        dancingAnim,
+        dashAnim,
+        deadAnim,
+        fallingAnim,
+        hitAnim,
+        landingAnim,
+        walkAnim,
+        flyingKick,
+        stumbleBack,
+      ].some((anim) => !anim)
+    ) {
+      console.error(
+        "No se encontraron todas las animaciones necesarias. Animaciones encontradas:",
+      );
     }
 
     // Detener todas las animaciones inicialmente
@@ -369,7 +393,7 @@ class Game {
     }
 
     // Guardar referencias de animaciones en la cápsula
-    (physicsCapsule as any).animationModels = {
+    physicsCapsule.animationModels = {
       idle: { root: rootMesh, animations: idleAnim ? [idleAnim] : [] },
       run: { root: rootMesh, animations: runAnim ? [runAnim] : [] },
       jump: { root: rootMesh, animations: jumpAnim ? [jumpAnim] : [] },
@@ -385,20 +409,26 @@ class Game {
       hit: { root: rootMesh, animations: hitAnim ? [hitAnim] : [] },
       land: { root: rootMesh, animations: landingAnim ? [landingAnim] : [] },
       walk: { root: rootMesh, animations: walkAnim ? [walkAnim] : [] },
-      flying_kick: { root: rootMesh, animations: flyingKick ? [flyingKick] : [] },
-      stumble_back: { root: rootMesh, animations: stumbleBack ? [stumbleBack] : [] },
+      flying_kick: {
+        root: rootMesh,
+        animations: flyingKick ? [flyingKick] : [],
+      },
+      stumble_back: {
+        root: rootMesh,
+        animations: stumbleBack ? [stumbleBack] : [],
+      },
     };
 
     return physicsCapsule;
   }
 
   async preloadEnemyAssets() {
-    await EnemyFactory.preload('/models/ladron.glb', this.scene);
-    console.log('Enemy assets precargados');
+    await EnemyFactory.preload("/models/ladron.glb", this.scene);
+    console.log("Enemy assets precargados");
   }
 
   async createEnemies() {
-    const LADRON_PATH = '/models/ladron.glb';
+    const LADRON_PATH = "/models/ladron.glb";
 
     const enemyPositions = [
       new Vector3(3, 5, 13),
@@ -407,7 +437,7 @@ class Game {
     ];
 
     const enemyConfig = {
-      hp: 300,
+      hp: 3,
       mass: 2,
       knockbackForce: 5,
       contactDamage: 1,
@@ -443,7 +473,7 @@ class Game {
     this.debugGUI.setupEnemyControls(this.enemies);
     this.debugGUI.setupCameraControls(this.camera);
     this.debugGUI.addLogButton(this.playerController);
-    console.log('Debug GUI initialized');
+    console.log("Debug GUI initialized");
   }
 
   startRenderLoop() {
@@ -453,7 +483,7 @@ class Game {
   }
 
   setupResize() {
-    window.addEventListener('resize', () => {
+    window.addEventListener("resize", () => {
       this.engine.resize();
     });
   }

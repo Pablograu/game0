@@ -14,18 +14,18 @@ import {
   TransformNode,
   Matrix,
   Axis,
-} from '@babylonjs/core';
-import { HitboxSystem } from './HitboxSystem';
-import { AudioManager } from './AudioManager.ts';
-import { Ragdoll } from './ragdoll_copy.js';
+} from "@babylonjs/core";
+import { HitboxSystem } from "./HitboxSystem";
+import { AudioManager } from "./AudioManager.ts";
+import { Ragdoll } from "./ragdoll_copy.js";
 
 // ===== ESTADOS DE IA =====
 export enum EnemyState {
-  PATROL = 'PATROL',
-  CHASE = 'CHASE',
-  ATTACK = 'ATTACK',
-  HIT = 'HIT',
-  DEAD = 'DEAD',
+  PATROL = "PATROL",
+  CHASE = "CHASE",
+  ATTACK = "ATTACK",
+  HIT = "HIT",
+  DEAD = "DEAD",
 }
 
 // ===== CONFIGURACIÓN =====
@@ -76,7 +76,7 @@ export class EnemyController {
 
   // ===== ANIMATION GROUPS =====
   animations: Map<string, AnimationGroup> = new Map();
-  currentAnimName: string = '';
+  currentAnimName: string = "";
 
   // ===== STATE MACHINE =====
   currentState: EnemyState = EnemyState.PATROL;
@@ -168,7 +168,7 @@ export class EnemyController {
       this.animations.set(name, ag);
       ag.stop();
     }
-    console.log('[EnemyController] Animaciones mapeadas:', [
+    console.log("[EnemyController] Animaciones mapeadas:", [
       ...this.animations.keys(),
     ]);
 
@@ -197,7 +197,7 @@ export class EnemyController {
     }
 
     // Empezar animación
-    this.playAnimation('walking', true);
+    this.playAnimation("walking", true);
 
     // Update loop
     this._updateObserver = this.scene.onBeforeRenderObservable.add(() => {
@@ -205,15 +205,15 @@ export class EnemyController {
     });
 
     // Metadata para detección de golpes
-    this.physicsCapsule.metadata = { type: 'enemy', instance: this };
+    this.physicsCapsule.metadata = { type: "enemy", instance: this };
     for (const m of this.meshes) {
-      m.metadata = { type: 'enemy', instance: this };
+      m.metadata = { type: "enemy", instance: this };
     }
 
     // Crear hitbox de ataque
     this._createAttackHitbox();
 
-    console.log('[EnemyController] Creado con estado PATROL');
+    console.log("[EnemyController] Creado con estado PATROL");
   }
 
   // ==========================================================
@@ -221,7 +221,7 @@ export class EnemyController {
   // ==========================================================
   private _createPhysicsCapsule(): Mesh {
     const capsule = MeshBuilder.CreateCapsule(
-      'enemyCapsule',
+      "enemyCapsule",
       { height: 2.5, radius: 0.5 },
       this.scene,
     );
@@ -297,7 +297,7 @@ export class EnemyController {
 
     if (!ag) {
       console.warn(
-        `[EnemyController] Animación '${name}' no encontrada. Disponibles: [${[...this.animations.keys()].join(', ')}]`,
+        `[EnemyController] Animación '${name}' no encontrada. Disponibles: [${[...this.animations.keys()].join(", ")}]`,
       );
       return;
     }
@@ -371,7 +371,7 @@ export class EnemyController {
     // ===== STATE MACHINE =====
     switch (this.currentState) {
       case EnemyState.PATROL:
-        this._statePatrol(dt);
+        this._statePatrol();
         break;
       case EnemyState.CHASE:
         this._stateChase();
@@ -409,26 +409,26 @@ export class EnemyController {
     switch (state) {
       case EnemyState.PATROL:
         this.pickNewPatrolTarget();
-        this.playAnimation('walking', true);
+        this.playAnimation("walking", true);
         break;
 
       case EnemyState.CHASE:
         // Alert sound only on first detection (coming from PATROL)
         if (this.previousState === EnemyState.PATROL) {
-          AudioManager.play('enemy_alert');
+          AudioManager.play("enemy_alert");
         }
-        this.playAnimation('running', true);
+        this.playAnimation("running", true);
         break;
 
       case EnemyState.ATTACK: {
         this._hasHitPlayerThisAttack = false;
         this.isAttackAnimPlaying = true;
         this._attackStartTime = performance.now() / 1000; // Guardar tiempo inicial
-        this._stop();
-        this.playAnimation('attack', false, 1.2);
-        AudioManager.play('enemy_attack');
+        // this._stopMovement();
+        this.playAnimation("attack", false, 1.2);
+        AudioManager.play("enemy_attack");
 
-        const attackAg = this.animations.get('attack');
+        const attackAg = this.animations.get("attack");
 
         if (attackAg) {
           attackAg.onAnimationGroupEndObservable.clear();
@@ -451,13 +451,13 @@ export class EnemyController {
       }
       case EnemyState.HIT:
         this.stunTimer = this.config.stunDuration;
-        this._stop();
-        this.playAnimation('hit', false);
-        AudioManager.play('enemy_hit');
+        // this._stopMovement();
+        this.playAnimation("hit", false);
+        AudioManager.play("enemy_hit");
         break;
 
       case EnemyState.DEAD:
-        AudioManager.play('enemy_death');
+        AudioManager.play("enemy_death");
         this._onDead();
         break;
     }
@@ -466,7 +466,7 @@ export class EnemyController {
   // ==========================================================
   //  STATE: PATROL
   // ==========================================================
-  private _statePatrol(dt: number) {
+  private _statePatrol() {
     // Detectar jugador → CHASE
     if (this.distanceToPlayer < this.config.visionRange) {
       this.changeState(EnemyState.CHASE);
@@ -521,7 +521,9 @@ export class EnemyController {
     }
 
     // Perseguir al jugador
-    if (!this.playerRef?.mesh) return;
+    if (!this.playerRef?.mesh) {
+      return;
+    }
     const playerPos = this.playerRef.mesh.getAbsolutePosition();
     const pos = this.physicsCapsule.position;
     const dir = new Vector3(playerPos.x - pos.x, 0, playerPos.z - pos.z);
@@ -538,7 +540,7 @@ export class EnemyController {
   // ==========================================================
   private _stateAttack() {
     // Mantenerse quieto mientras ataca, la animación callback resuelve
-    this._stop();
+    this._stopMovement();
   }
 
   // ==========================================================
@@ -611,7 +613,7 @@ export class EnemyController {
   // ==========================================================
   private _stateHit(dt: number) {
     this.stunTimer -= dt;
-    this._stop();
+    // this._stopMovement();
     if (this.stunTimer <= 0) {
       // Salir de stun
       if (this.hp <= 0) {
@@ -640,7 +642,9 @@ export class EnemyController {
 
       // Apply the knockback impulse to every bone body.
       // setTimeout(0) gives Havok one tick to register DYNAMIC motion type.
-      const impulse = this.lastKnockbackDir.scale(this.config.knockbackForce * 1.5);
+      const impulse = this.lastKnockbackDir.scale(
+        this.config.knockbackForce * 15,
+      );
       const appPoint = this.physicsCapsule.getAbsolutePosition();
       setTimeout(() => {
         for (const agg of this.ragdoll.getAggregates()) {
@@ -657,9 +661,15 @@ export class EnemyController {
         });
         const toppleAxis = new Vector3(-currentVel.z, 0, currentVel.x);
         if (toppleAxis.length() > 0.01) toppleAxis.normalize();
-        else toppleAxis.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+        else
+          toppleAxis
+            .set(Math.random() - 0.5, 0, Math.random() - 0.5)
+            .normalize();
         this.body.setAngularVelocity(toppleAxis.scale(6));
-        this.body.applyImpulse(new Vector3(0, 20, 0), this.physicsCapsule.getAbsolutePosition());
+        this.body.applyImpulse(
+          new Vector3(0, 20, 0),
+          this.physicsCapsule.getAbsolutePosition(),
+        );
       }
     }
 
@@ -684,7 +694,7 @@ export class EnemyController {
     // 6. After settling, schedule visual dispose
     this._scheduleDispose(4.0);
 
-    console.log('[EnemyController] DEAD — ragdoll activated');
+    console.log("[EnemyController] DEAD — ragdoll activated");
   }
 
   // ==========================================================
@@ -698,51 +708,98 @@ export class EnemyController {
    */
   initRagdoll(skeleton: any, armatureNode: any) {
     if (!skeleton || !armatureNode) {
-      console.warn('[EnemyController] Ragdoll skipped: skeleton or armatureNode missing');
+      console.warn(
+        "[EnemyController] Ragdoll skipped: skeleton or armatureNode missing",
+      );
       return;
     }
 
     const config = [
-      { bones: ['mixamorig7:Hips'], size: 0.45, boxOffset: 0.01 },
+      { bones: ["mixamorig7:Hips"], size: 0.45, boxOffset: 0.01 },
       {
-        bones: ['mixamorig7:Spine2'],
-        size: 0.4, height: 0.6, boxOffset: 0.05,
-        boneOffsetAxis: Axis.Z, min: -1, max: 1, rotationAxis: Axis.Z,
+        bones: ["mixamorig7:Spine2"],
+        size: 0.4,
+        height: 0.6,
+        boxOffset: 0.05,
+        boneOffsetAxis: Axis.Z,
+        min: -1,
+        max: 1,
+        // rotationAxis: Axis.Z,
       },
       {
-        bones: ['mixamorig7:LeftArm', 'mixamorig7:RightArm'],
-        depth: 0.1, size: 0.1, width: 0.5,
-        rotationAxis: Axis.Y, boxOffset: 0.10, boneOffsetAxis: Axis.Y,
+        bones: ["mixamorig7:LeftArm", "mixamorig7:RightArm"],
+        depth: 0.1,
+        size: 0.1,
+        width: 0.5,
+        // rotationAxis: Axis.Y,
+        boxOffset: 0.1,
+        boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ['mixamorig7:LeftForeArm', 'mixamorig7:RightForeArm'],
-        depth: 0.1, size: 0.1, width: 0.5,
-        rotationAxis: Axis.Y, min: -1, max: 1, boxOffset: 0.12, boneOffsetAxis: Axis.Y,
+        bones: ["mixamorig7:LeftForeArm", "mixamorig7:RightForeArm"],
+        depth: 0.1,
+        size: 0.1,
+        width: 0.5,
+        // rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.12,
+        boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ['mixamorig7:LeftUpLeg', 'mixamorig7:RightUpLeg'],
-        depth: 0.1, size: 0.2, width: 0.08, height: 0.7,
-        rotationAxis: Axis.Y, min: -1, max: 1, boxOffset: 0.2, boneOffsetAxis: Axis.Y,
+        bones: ["mixamorig7:LeftUpLeg", "mixamorig7:RightUpLeg"],
+        depth: 0.1,
+        size: 0.2,
+        width: 0.08,
+        height: 0.7,
+        // rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.2,
+        // boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ['mixamorig7:LeftLeg', 'mixamorig7:RightLeg'],
-        depth: 0.08, size: 0.3, width: 0.1, height: 0.4,
-        rotationAxis: Axis.Y, min: -1, max: 1, boxOffset: 0.2, boneOffsetAxis: Axis.Y,
+        bones: ["mixamorig7:LeftLeg", "mixamorig7:RightLeg"],
+        depth: 0.08,
+        size: 0.3,
+        width: 0.1,
+        height: 0.4,
+        // rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.2,
+        boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ['mixamorig7:LeftHand', 'mixamorig7:RightHand'],
-        depth: 0.2, size: 0.2, width: 0.2,
-        rotationAxis: Axis.Y, min: -1, max: 1, boxOffset: 0.1, boneOffsetAxis: Axis.Y,
+        bones: ["mixamorig7:LeftHand", "mixamorig7:RightHand"],
+        depth: 0.2,
+        size: 0.2,
+        width: 0.2,
+        // rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.1,
+        boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ['mixamorig7:Head'],
-        size: 0.4, boxOffset: 0, boneOffsetAxis: Axis.Y,
-        min: -1, max: 1, rotationAxis: Axis.Z,
+        bones: ["mixamorig7:Head"],
+        size: 0.4,
+        boxOffset: 0,
+        boneOffsetAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        // rotationAxis: Axis.Z,
       },
       {
-        bones: ['mixamorig7:LeftFoot', 'mixamorig7:RightFoot'],
-        depth: 0.1, size: 0.1, width: 0.2,
-        rotationAxis: Axis.Y, min: -1, max: 1, boxOffset: 0.05, boneOffsetAxis: Axis.Y,
+        bones: ["mixamorig7:LeftFoot", "mixamorig7:RightFoot"],
+        depth: 0.1,
+        size: 0.1,
+        width: 0.2,
+        // rotationAxis: Axis.Y,
+        min: -1,
+        max: 1,
+        boxOffset: 0.05,
+        // boneOffsetAxis: Axis.Y,
       },
     ];
 
@@ -758,7 +815,7 @@ export class EnemyController {
       }
     }
 
-    console.log('[EnemyController] Ragdoll initialised');
+    console.log("[EnemyController] Ragdoll initialised");
   }
 
   /**
@@ -791,7 +848,7 @@ export class EnemyController {
     );
   }
 
-  private _stop() {
+  private _stopMovement() {
     const currentVel = this.body.getLinearVelocity();
     this.body.setLinearVelocity(new Vector3(0, currentVel.y, 0));
   }
@@ -901,18 +958,31 @@ export class EnemyController {
    */
   takeDamage(amount: number, knockbackDirection?: Vector3): boolean {
     if (!this._alive || this.currentState === EnemyState.DEAD) {
-      return false
-    };
+      return false;
+    }
 
     this.hp -= amount;
     console.log(`[EnemyController] Hit! HP: ${this.hp}/${this.maxHP}`);
 
-    // Knockback
+    // Knockback — knockbackDirection is the attacker's world position.
+    // Compute the direction away from the attacker so the enemy is pushed correctly.
     if (knockbackDirection && this.body) {
-      this.lastKnockbackDir = knockbackDirection.normalize().clone();
-      const kb = this.lastKnockbackDir.scale(this.config.knockbackForce);
-      kb.y = this.config.knockbackForce * 0.6;
-      this.body.applyImpulse(kb, this.physicsCapsule.getAbsolutePosition());
+      const enemyPos = this.physicsCapsule.getAbsolutePosition();
+      const dir = new Vector3(
+        enemyPos.x - knockbackDirection.x,
+        0,
+        enemyPos.z - knockbackDirection.z,
+      );
+
+      if (dir.length() < 0.01) {
+        dir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+      }
+
+      dir.normalize();
+      this.lastKnockbackDir = dir.clone();
+      const kb = dir.scale(this.config.knockbackForce);
+      kb.y = this.config.knockbackForce;
+      this.body.applyImpulse(kb, enemyPos);
     }
 
     // Entrar en HIT (o DEAD si no queda vida)
@@ -968,12 +1038,12 @@ export class EnemyController {
   // ==========================================================
   private _setupDebugVisuals() {
     this.visionCircle = MeshBuilder.CreateDisc(
-      'visionRange',
+      "visionRange",
       { radius: this.config.visionRange, tessellation: 32 },
       this.scene,
     );
 
-    const mat = new StandardMaterial('visionMat', this.scene);
+    const mat = new StandardMaterial("visionMat", this.scene);
     mat.diffuseColor = new Color3(1, 1, 0);
     mat.alpha = 0.15;
     mat.backFaceCulling = false;
@@ -1044,7 +1114,7 @@ export class EnemyController {
     this.physicsCapsule.dispose();
     this.root.dispose();
 
-    console.log('[EnemyController] Disposed');
+    console.log("[EnemyController] Disposed");
   }
 
   /**
