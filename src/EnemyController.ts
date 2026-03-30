@@ -14,19 +14,20 @@ import {
   TransformNode,
   Matrix,
   Axis,
-} from "@babylonjs/core";
-import { HitboxSystem } from "./HitboxSystem";
-import { AudioManager } from "./AudioManager.ts";
-import { EffectManager } from "./EffectManager.ts";
-import { Ragdoll } from "./ragdoll_copy.js";
+} from '@babylonjs/core';
+import { HitboxSystem } from './HitboxSystem';
+import { AudioManager } from './AudioManager.ts';
+import { EffectManager } from './EffectManager.ts';
+import { Ragdoll } from './ragdoll_copy.js';
+import LootManager from './LootManager.ts';
 
 // ===== ESTADOS DE IA =====
 export enum EnemyState {
-  PATROL = "PATROL",
-  CHASE = "CHASE",
-  ATTACK = "ATTACK",
-  HIT = "HIT",
-  DEAD = "DEAD",
+  PATROL = 'PATROL',
+  CHASE = 'CHASE',
+  ATTACK = 'ATTACK',
+  HIT = 'HIT',
+  DEAD = 'DEAD',
 }
 
 // ===== CONFIGURACIÓN =====
@@ -57,7 +58,7 @@ const DEFAULT_CONFIG: Required<EnemyConfig> = {
   hp: 3,
   knockbackForce: 15,
   mass: 2,
-  modelOffsetY: -1,
+  modelOffsetY: -1.25,
   modelScale: 1.6,
   patrolSpeed: 2,
   stunDuration: 0.5,
@@ -77,7 +78,7 @@ export class EnemyController {
 
   // ===== ANIMATION GROUPS =====
   animations: Map<string, AnimationGroup> = new Map();
-  currentAnimName: string = "";
+  currentAnimName: string = '';
 
   // ===== STATE MACHINE =====
   currentState: EnemyState = EnemyState.PATROL;
@@ -146,6 +147,8 @@ export class EnemyController {
   ragdoll: any = null;
   lastKnockbackDir: Vector3 = Vector3.Zero();
 
+  lootManager: LootManager = new LootManager();
+
   constructor(
     animationGroups: AnimationGroup[],
     config: EnemyConfig = {},
@@ -157,11 +160,15 @@ export class EnemyController {
     this.physicsEngine = scene.getPhysicsEngine();
     this.root = root;
     this.meshes = meshes;
+    this.lootManager = new LootManager();
 
     // Merge config con defaults
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.maxHP = this.config.hp;
     this.hp = this.maxHP;
+
+    // Initialize loot manager
+    this.lootManager.init(scene);
 
     // Mapear animation groups por nombre (lowercase)
     for (const ag of animationGroups) {
@@ -169,7 +176,7 @@ export class EnemyController {
       this.animations.set(name, ag);
       ag.stop();
     }
-    console.log("[EnemyController] Animaciones mapeadas:", [
+    console.log('[EnemyController] Animaciones mapeadas:', [
       ...this.animations.keys(),
     ]);
 
@@ -198,7 +205,7 @@ export class EnemyController {
     }
 
     // Empezar animación
-    this.playAnimation("walking", true);
+    this.playAnimation('walking', true);
 
     // Update loop
     this._updateObserver = this.scene.onBeforeRenderObservable.add(() => {
@@ -206,15 +213,15 @@ export class EnemyController {
     });
 
     // Metadata para detección de golpes
-    this.physicsCapsule.metadata = { type: "enemy", instance: this };
+    this.physicsCapsule.metadata = { type: 'enemy', instance: this };
     for (const m of this.meshes) {
-      m.metadata = { type: "enemy", instance: this };
+      m.metadata = { type: 'enemy', instance: this };
     }
 
     // Crear hitbox de ataque
     this._createAttackHitbox();
 
-    console.log("[EnemyController] Creado con estado PATROL");
+    console.log('[EnemyController] Creado con estado PATROL');
   }
 
   // ==========================================================
@@ -222,7 +229,7 @@ export class EnemyController {
   // ==========================================================
   private _createPhysicsCapsule(): Mesh {
     const capsule = MeshBuilder.CreateCapsule(
-      "enemyCapsule",
+      'enemyCapsule',
       { height: 2.5, radius: 0.5 },
       this.scene,
     );
@@ -298,7 +305,7 @@ export class EnemyController {
 
     if (!ag) {
       console.warn(
-        `[EnemyController] Animación '${name}' no encontrada. Disponibles: [${[...this.animations.keys()].join(", ")}]`,
+        `[EnemyController] Animación '${name}' no encontrada. Disponibles: [${[...this.animations.keys()].join(', ')}]`,
       );
       return;
     }
@@ -410,15 +417,15 @@ export class EnemyController {
     switch (state) {
       case EnemyState.PATROL:
         this.pickNewPatrolTarget();
-        this.playAnimation("walking", true);
+        this.playAnimation('walking', true);
         break;
 
       case EnemyState.CHASE:
         // Alert sound only on first detection (coming from PATROL)
         if (this.previousState === EnemyState.PATROL) {
-          AudioManager.play("enemy_alert");
+          AudioManager.play('enemy_alert');
         }
-        this.playAnimation("running", true);
+        this.playAnimation('running', true);
         break;
 
       case EnemyState.ATTACK: {
@@ -426,10 +433,10 @@ export class EnemyController {
         this.isAttackAnimPlaying = true;
         this._attackStartTime = performance.now() / 1000; // Guardar tiempo inicial
         // this._stopMovement();
-        this.playAnimation("attack", false, 1.2);
-        AudioManager.play("enemy_attack");
+        this.playAnimation('attack', false, 1.2);
+        AudioManager.play('enemy_attack');
 
-        const attackAg = this.animations.get("attack");
+        const attackAg = this.animations.get('attack');
 
         if (attackAg) {
           attackAg.onAnimationGroupEndObservable.clear();
@@ -453,12 +460,12 @@ export class EnemyController {
       case EnemyState.HIT:
         this.stunTimer = this.config.stunDuration;
         // this._stopMovement();
-        this.playAnimation("hit", false);
-        AudioManager.play("enemy_hit");
+        this.playAnimation('hit', false);
+        AudioManager.play('enemy_hit');
         break;
 
       case EnemyState.DEAD:
-        AudioManager.play("enemy_death");
+        AudioManager.play('enemy_death');
         this._onDead();
         break;
     }
@@ -637,6 +644,8 @@ export class EnemyController {
       ag.stop();
     }
 
+    this.lootManager.spawnLoot(this.physicsCapsule.position);
+
     // 2. Activate ragdoll if initialised, otherwise fall back to capsule topple
     if (this.ragdoll) {
       this.ragdoll.ragdoll();
@@ -695,7 +704,7 @@ export class EnemyController {
     // 6. After settling, schedule visual dispose
     this._scheduleDispose(4.0);
 
-    console.log("[EnemyController] DEAD — ragdoll activated");
+    console.log('[EnemyController] DEAD — ragdoll activated');
   }
 
   // ==========================================================
@@ -710,15 +719,15 @@ export class EnemyController {
   initRagdoll(skeleton: any, armatureNode: any) {
     if (!skeleton || !armatureNode) {
       console.warn(
-        "[EnemyController] Ragdoll skipped: skeleton or armatureNode missing",
+        '[EnemyController] Ragdoll skipped: skeleton or armatureNode missing',
       );
       return;
     }
 
     const config = [
-      { bones: ["mixamorig7:Hips"], size: 0.45, boxOffset: 0.01 },
+      { bones: ['mixamorig7:Hips'], size: 0.45, boxOffset: 0.01 },
       {
-        bones: ["mixamorig7:Spine2"],
+        bones: ['mixamorig7:Spine2'],
         size: 0.4,
         height: 0.6,
         boxOffset: 0.05,
@@ -728,7 +737,7 @@ export class EnemyController {
         // rotationAxis: Axis.Z,
       },
       {
-        bones: ["mixamorig7:LeftArm", "mixamorig7:RightArm"],
+        bones: ['mixamorig7:LeftArm', 'mixamorig7:RightArm'],
         depth: 0.1,
         size: 0.1,
         width: 0.5,
@@ -737,7 +746,7 @@ export class EnemyController {
         boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ["mixamorig7:LeftForeArm", "mixamorig7:RightForeArm"],
+        bones: ['mixamorig7:LeftForeArm', 'mixamorig7:RightForeArm'],
         depth: 0.1,
         size: 0.1,
         width: 0.5,
@@ -748,7 +757,7 @@ export class EnemyController {
         boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ["mixamorig7:LeftUpLeg", "mixamorig7:RightUpLeg"],
+        bones: ['mixamorig7:LeftUpLeg', 'mixamorig7:RightUpLeg'],
         depth: 0.1,
         size: 0.2,
         width: 0.08,
@@ -760,7 +769,7 @@ export class EnemyController {
         // boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ["mixamorig7:LeftLeg", "mixamorig7:RightLeg"],
+        bones: ['mixamorig7:LeftLeg', 'mixamorig7:RightLeg'],
         depth: 0.08,
         size: 0.3,
         width: 0.1,
@@ -772,7 +781,7 @@ export class EnemyController {
         boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ["mixamorig7:LeftHand", "mixamorig7:RightHand"],
+        bones: ['mixamorig7:LeftHand', 'mixamorig7:RightHand'],
         depth: 0.2,
         size: 0.2,
         width: 0.2,
@@ -783,7 +792,7 @@ export class EnemyController {
         boneOffsetAxis: Axis.Y,
       },
       {
-        bones: ["mixamorig7:Head"],
+        bones: ['mixamorig7:Head'],
         size: 0.4,
         boxOffset: 0,
         boneOffsetAxis: Axis.Y,
@@ -792,7 +801,7 @@ export class EnemyController {
         // rotationAxis: Axis.Z,
       },
       {
-        bones: ["mixamorig7:LeftFoot", "mixamorig7:RightFoot"],
+        bones: ['mixamorig7:LeftFoot', 'mixamorig7:RightFoot'],
         depth: 0.1,
         size: 0.1,
         width: 0.2,
@@ -816,7 +825,7 @@ export class EnemyController {
       }
     }
 
-    console.log("[EnemyController] Ragdoll initialised");
+    console.log('[EnemyController] Ragdoll initialised');
   }
 
   /**
@@ -990,7 +999,7 @@ export class EnemyController {
     const bloodPos = this.physicsCapsule.getAbsolutePosition().clone();
     bloodPos.y += 0.8; // aim at torso
     EffectManager.showBloodSplash(bloodPos, {
-      intensity: this.hp <= 0 ? "death" : "hit",
+      intensity: this.hp <= 0 ? 'death' : 'hit',
       direction:
         this.lastKnockbackDir.length() > 0.01
           ? this.lastKnockbackDir.clone()
@@ -1050,12 +1059,12 @@ export class EnemyController {
   // ==========================================================
   private _setupDebugVisuals() {
     this.visionCircle = MeshBuilder.CreateDisc(
-      "visionRange",
+      'visionRange',
       { radius: this.config.visionRange, tessellation: 32 },
       this.scene,
     );
 
-    const mat = new StandardMaterial("visionMat", this.scene);
+    const mat = new StandardMaterial('visionMat', this.scene);
     mat.diffuseColor = new Color3(1, 1, 0);
     mat.alpha = 0.15;
     mat.backFaceCulling = false;
@@ -1126,7 +1135,7 @@ export class EnemyController {
     this.physicsCapsule.dispose();
     this.root.dispose();
 
-    console.log("[EnemyController] Disposed");
+    console.log('[EnemyController] Disposed');
   }
 
   /**
