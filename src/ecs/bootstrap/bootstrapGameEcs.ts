@@ -7,10 +7,13 @@ import {
   PlayerCombatSystem,
   PlayerControllerBridgeSystem,
   PlayerDashSystem,
+  PlayerDamageSystem,
+  PlayerGameOverSystem,
   PlayerGroundProbeSystem,
   PlayerInputSystem,
   PlayerJumpSystem,
   PlayerMovementSystem,
+  PlayerSurvivabilitySystem,
   PlayerWeaponHitSystem,
 } from '../player/index.ts';
 
@@ -45,7 +48,10 @@ export function bootstrapGameEcs(
     options.playerController.enableEcsLocomotionFacade();
 
     world.registerSystem(new PlayerInputSystem());
+    world.registerSystem(new PlayerDamageSystem());
     world.registerSystem(new PlayerGroundProbeSystem());
+    world.registerSystem(new PlayerSurvivabilitySystem());
+    world.registerSystem(new PlayerGameOverSystem());
     world.registerSystem(new PlayerCombatSystem());
     world.registerSystem(new PlayerDashSystem());
     world.registerSystem(new PlayerJumpSystem());

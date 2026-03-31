@@ -6,6 +6,7 @@ import { LegacyPlayerRefsComponent } from '../components/LegacyPlayerRefsCompone
 import { PlayerTagComponent } from '../components/PlayerTagComponent.ts';
 import type { EntityId } from '../core/Entity.ts';
 import type { World } from '../core/World.ts';
+import { PlayerSurvivabilityRequestComponent } from './components/PlayerSurvivabilityRequestComponent.ts';
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
@@ -190,6 +191,10 @@ export function createPlayerEntity(
     invulnerabilityDuration: playerController.invulnerabilityDuration,
     invulnerabilityTimer: playerController.invulnerabilityTimer,
     blinkActive: !!playerController.blinkInterval,
+    blinkTimer: 0,
+    blinkInterval: 0.1,
+    respawnDelay: 2,
+    respawnTimer: 0,
     healthUI: playerController.healthUI,
     healthText: playerController.healthText,
   });
@@ -209,7 +214,20 @@ export function createPlayerEntity(
     mode: resolveRagdollMode(playerController),
     ragdoll: playerController.ragdoll,
     lastKnockbackDir: playerController.lastKnockbackDir.clone(),
+    pendingImpulse: null,
+    pendingImpulseDelay: 0,
   });
+
+  world.addComponent(entityId, PlayerSurvivabilityRequestComponent, {
+    damageRequests: [],
+    deathRequested: false,
+    respawnRequested: false,
+    gameOverRequested: false,
+    gameOverReason: null,
+    autoSignalGameOver: false,
+  });
+
+  playerController.attachEcsSurvivabilityFacade(world, entityId);
 
   return entityId;
 }

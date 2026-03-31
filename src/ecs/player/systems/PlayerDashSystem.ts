@@ -8,11 +8,16 @@ import { PlayerLocomotionMode } from '../PlayerStateEnums.ts';
 import {
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
+  PlayerHealthStateComponent,
   PlayerLocomotionStateComponent,
   PlayerPhysicsViewRefsComponent,
   PlayerWeaponStateComponent,
 } from '../components/index.ts';
-import { PlayerCombatMode, PlayerWeaponPhase } from '../PlayerStateEnums.ts';
+import {
+  PlayerCombatMode,
+  PlayerLifeState,
+  PlayerWeaponPhase,
+} from '../PlayerStateEnums.ts';
 
 export class PlayerDashSystem implements EcsSystem {
   readonly name = 'PlayerDashSystem';
@@ -23,6 +28,7 @@ export class PlayerDashSystem implements EcsSystem {
       LegacyPlayerRefsComponent,
       PlayerControlStateComponent,
       PlayerCombatStateComponent,
+      PlayerHealthStateComponent,
       PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
       PlayerWeaponStateComponent,
@@ -32,6 +38,7 @@ export class PlayerDashSystem implements EcsSystem {
       const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
       const combat = world.getComponent(entityId, PlayerCombatStateComponent);
+      const health = world.getComponent(entityId, PlayerHealthStateComponent);
       const locomotion = world.getComponent(
         entityId,
         PlayerLocomotionStateComponent,
@@ -46,6 +53,7 @@ export class PlayerDashSystem implements EcsSystem {
         !refs ||
         !control ||
         !combat ||
+        !health ||
         !locomotion ||
         !physicsRefs.body ||
         !weapon
@@ -64,7 +72,7 @@ export class PlayerDashSystem implements EcsSystem {
         );
       }
 
-      if (refs.controller.currentHealth <= 0) {
+      if (health.lifeState !== PlayerLifeState.ALIVE) {
         locomotion.isDashing = false;
         control.dashRequested = false;
         this.cancelAttack(control, combat, weapon, refs);

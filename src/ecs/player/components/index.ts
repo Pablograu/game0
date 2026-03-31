@@ -7,4 +7,5 @@ export * from './PlayerLocomotionStateComponent.ts';
 export * from './PlayerPhysicsViewRefsComponent.ts';
 export * from './PlayerRagdollStateComponent.ts';
 export * from './PlayerSpawnStateComponent.ts';
+export * from './PlayerSurvivabilityRequestComponent.ts';
 export * from './PlayerWeaponStateComponent.ts';

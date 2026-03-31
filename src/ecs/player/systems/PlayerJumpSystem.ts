@@ -4,10 +4,11 @@ import { EffectManager } from '../../../EffectManager.ts';
 import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
-import { PlayerJumpPhaseState } from '../PlayerStateEnums.ts';
+import { PlayerJumpPhaseState, PlayerLifeState } from '../PlayerStateEnums.ts';
 import {
   PlayerControlStateComponent,
   PlayerGroundingStateComponent,
+  PlayerHealthStateComponent,
   PlayerLocomotionStateComponent,
   PlayerPhysicsViewRefsComponent,
 } from '../components/index.ts';
@@ -21,6 +22,7 @@ export class PlayerJumpSystem implements EcsSystem {
       LegacyPlayerRefsComponent,
       PlayerControlStateComponent,
       PlayerGroundingStateComponent,
+      PlayerHealthStateComponent,
       PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
     );
@@ -32,6 +34,7 @@ export class PlayerJumpSystem implements EcsSystem {
         entityId,
         PlayerGroundingStateComponent,
       );
+      const health = world.getComponent(entityId, PlayerHealthStateComponent);
       const locomotion = world.getComponent(
         entityId,
         PlayerLocomotionStateComponent,
@@ -41,7 +44,14 @@ export class PlayerJumpSystem implements EcsSystem {
         PlayerPhysicsViewRefsComponent,
       );
 
-      if (!refs || !control || !grounding || !locomotion || !physicsRefs.body) {
+      if (
+        !refs ||
+        !control ||
+        !grounding ||
+        !health ||
+        !locomotion ||
+        !physicsRefs.body
+      ) {
         continue;
       }
 
@@ -55,7 +65,7 @@ export class PlayerJumpSystem implements EcsSystem {
       control.jumpBufferTime = grounding.jumpBufferTime;
       control.jumpBufferTimer = grounding.jumpBufferTimer;
 
-      if (locomotion.isDashing || refs.controller.currentHealth <= 0) {
+      if (locomotion.isDashing || health.lifeState !== PlayerLifeState.ALIVE) {
         continue;
       }
 

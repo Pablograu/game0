@@ -2,11 +2,12 @@ import { Vector3 } from '@babylonjs/core';
 import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
-import { PlayerLocomotionMode } from '../PlayerStateEnums.ts';
+import { PlayerLifeState, PlayerLocomotionMode } from '../PlayerStateEnums.ts';
 import {
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
   PlayerGroundingStateComponent,
+  PlayerHealthStateComponent,
   PlayerLocomotionStateComponent,
   PlayerPhysicsViewRefsComponent,
 } from '../components/index.ts';
@@ -21,6 +22,7 @@ export class PlayerMovementSystem implements EcsSystem {
       PlayerControlStateComponent,
       PlayerCombatStateComponent,
       PlayerGroundingStateComponent,
+      PlayerHealthStateComponent,
       PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
     );
@@ -33,6 +35,7 @@ export class PlayerMovementSystem implements EcsSystem {
         entityId,
         PlayerGroundingStateComponent,
       );
+      const health = world.getComponent(entityId, PlayerHealthStateComponent);
       const locomotion = world.getComponent(
         entityId,
         PlayerLocomotionStateComponent,
@@ -47,6 +50,7 @@ export class PlayerMovementSystem implements EcsSystem {
         !control ||
         !combat ||
         !grounding ||
+        !health ||
         !locomotion ||
         !physicsRefs.body
       ) {
@@ -74,25 +78,20 @@ export class PlayerMovementSystem implements EcsSystem {
         locomotion.lastFacingDirection = moveDirection.clone();
       }
 
-      if (locomotion.isDashing || refs.controller.currentHealth <= 0) {
+      if (locomotion.isDashing || health.lifeState !== PlayerLifeState.ALIVE) {
         continue;
       }
 
-      locomotion.isKnockedBack = refs.controller.isKnockedBack;
-      locomotion.knockbackDuration = refs.controller.knockbackDuration;
-
-      if (refs.controller.isKnockedBack) {
-        refs.controller.knockbackDuration = Math.max(
+      if (locomotion.isKnockedBack) {
+        locomotion.knockbackDuration = Math.max(
           0,
-          refs.controller.knockbackDuration - deltaTime,
+          locomotion.knockbackDuration - deltaTime,
         );
 
-        if (refs.controller.knockbackDuration <= 0) {
-          refs.controller.isKnockedBack = false;
+        if (locomotion.knockbackDuration <= 0) {
+          locomotion.isKnockedBack = false;
         }
 
-        locomotion.isKnockedBack = refs.controller.isKnockedBack;
-        locomotion.knockbackDuration = refs.controller.knockbackDuration;
         locomotion.mode = PlayerLocomotionMode.KNOCKBACK;
         physicsRefs.body.setAngularVelocity(Vector3.Zero());
         continue;
@@ -106,8 +105,6 @@ export class PlayerMovementSystem implements EcsSystem {
         continue;
       }
 
-      locomotion.recoilVelocity.copyFrom(refs.controller.recoilVelocity);
-
       if (locomotion.recoilVelocity.length() > 0.1) {
         locomotion.recoilVelocity = locomotion.recoilVelocity.scale(
           1 - locomotion.recoilDecay * deltaTime,
@@ -115,8 +112,6 @@ export class PlayerMovementSystem implements EcsSystem {
       } else {
         locomotion.recoilVelocity = Vector3.Zero();
       }
-
-      refs.controller.recoilVelocity = locomotion.recoilVelocity.clone();
 
       const currentVelocity = physicsRefs.body.getLinearVelocity();
       const effectiveMoveSpeed = combat.isAttacking

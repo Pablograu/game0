@@ -10,6 +10,10 @@ export interface PlayerHealthStateComponent {
   invulnerabilityDuration: number;
   invulnerabilityTimer: number;
   blinkActive: boolean;
+  blinkTimer: number;
+  blinkInterval: number;
+  respawnDelay: number;
+  respawnTimer: number;
   healthUI: AdvancedDynamicTexture | null;
   healthText: TextBlock | null;
 }

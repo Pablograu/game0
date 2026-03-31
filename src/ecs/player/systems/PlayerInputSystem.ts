@@ -13,8 +13,9 @@ import {
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
   PlayerGroundingStateComponent,
+  PlayerHealthStateComponent,
 } from '../components/index.ts';
-import { PlayerCombatMode } from '../PlayerStateEnums.ts';
+import { PlayerCombatMode, PlayerLifeState } from '../PlayerStateEnums.ts';
 
 interface PlayerInputObserverHandles {
   keyboardObserver: Observer<KeyboardInfo>;
@@ -33,6 +34,7 @@ export class PlayerInputSystem implements EcsSystem {
       PlayerCombatStateComponent,
       PlayerControlStateComponent,
       PlayerGroundingStateComponent,
+      PlayerHealthStateComponent,
     );
 
     for (const entityId of entityIds) {
@@ -41,12 +43,15 @@ export class PlayerInputSystem implements EcsSystem {
       const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const combat = world.getComponent(entityId, PlayerCombatStateComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
+      const health = world.getComponent(entityId, PlayerHealthStateComponent);
 
-      if (!refs || !combat || !control) {
+      if (!refs || !combat || !control || !health) {
         continue;
       }
 
-      control.inputEnabled = refs.controller.inputEnabled;
+      control.inputEnabled =
+        refs.controller.inputEnabled &&
+        health.lifeState === PlayerLifeState.ALIVE;
 
       if (!control.inputEnabled) {
         control.inputMap = {};

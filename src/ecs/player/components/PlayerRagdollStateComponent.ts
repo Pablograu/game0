@@ -6,6 +6,8 @@ export interface PlayerRagdollStateComponent {
   mode: PlayerRagdollMode;
   ragdoll: unknown | null;
   lastKnockbackDir: Vector3;
+  pendingImpulse: Vector3 | null;
+  pendingImpulseDelay: number;
 }
 
 export const PlayerRagdollStateComponent =

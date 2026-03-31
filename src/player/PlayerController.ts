@@ -21,6 +21,13 @@ import { AudioManager } from '../AudioManager.ts';
 import { Ragdoll } from '../ragdoll_copy.js';
 import { GameManager } from '../GameManager.ts';
 import { CameraShaker } from '../CameraShaker.ts';
+import type { EntityId } from '../ecs/core/Entity.ts';
+import type { World } from '../ecs/core/World.ts';
+import {
+  PlayerHealthStateComponent,
+  PlayerRagdollStateComponent,
+  PlayerSurvivabilityRequestComponent,
+} from '../ecs/player/components/index.ts';
 import {
   PlayerAnimationEntry,
   PlayerAnimationName,
@@ -100,6 +107,10 @@ export class PlayerController {
   private updateObserver: Observer<Scene> | null = null;
   private afterAnimationsObserver: Observer<Scene> | null = null;
   private ecsLocomotionFacadeEnabled: boolean = false;
+  private ecsSurvivabilityWorld: World | null = null;
+  private ecsSurvivabilityEntityId: EntityId | null = null;
+  private ragdollSkeleton: Skeleton | null = null;
+  private ragdollArmatureNode: Mesh | null = null;
 
   // ===== JUMP PHASE STATE MACHINE =====
   // Single source of truth — replaces isLanding, landingAnticipated, stale _airTime checks.
@@ -654,11 +665,14 @@ export class PlayerController {
       return;
     }
 
-    this.updateInvulnerability(deltaTime);
-
     const currentVelocity = this.body.getLinearVelocity();
     this.updateJumpPhase(currentVelocity, deltaTime);
     this.updateAnimation(moveDirection, currentVelocity);
+  }
+
+  public attachEcsSurvivabilityFacade(world: World, entityId: EntityId) {
+    this.ecsSurvivabilityWorld = world;
+    this.ecsSurvivabilityEntityId = entityId;
   }
 
   public applyEcsBridgeSnapshot(snapshot: {
@@ -1368,6 +1382,17 @@ export class PlayerController {
    * @param {Vector3} damageSourcePosition - Posición de la fuente de daño (para knockback)
    */
   takeDamage(amount: number, damageSourcePosition: Vector3 | null = null) {
+    if (this.enqueueEcsDamageRequest(amount, damageSourcePosition)) {
+      return;
+    }
+
+    this.takeDamageLegacy(amount, damageSourcePosition);
+  }
+
+  private takeDamageLegacy(
+    amount: number,
+    damageSourcePosition: Vector3 | null = null,
+  ) {
     const playerPos = this.mesh.getAbsolutePosition();
     const knockbackDir = damageSourcePosition
       ? playerPos.subtract(damageSourcePosition).normalize()
@@ -1421,6 +1446,10 @@ export class PlayerController {
   }
 
   startInvulnerability() {
+    if (this.syncEcsInvulnerabilityState()) {
+      return;
+    }
+
     this.isInvulnerable = true;
     this.invulnerabilityTimer = this.invulnerabilityDuration;
     this.startBlinking();
@@ -1443,6 +1472,10 @@ export class PlayerController {
   }
 
   updateInvulnerability(deltaTime: number) {
+    if (this.ecsSurvivabilityWorld && this.ecsSurvivabilityEntityId !== null) {
+      return;
+    }
+
     if (!this.isInvulnerable) return;
 
     this.invulnerabilityTimer -= deltaTime;
@@ -1454,6 +1487,14 @@ export class PlayerController {
   }
 
   die() {
+    if (this.requestEcsDeath()) {
+      return;
+    }
+
+    this.dieLegacy();
+  }
+
+  private dieLegacy() {
     if (this.ragdoll) {
       this.ragdoll.ragdoll();
       // Use setTimeout(0) so Havok has one tick to register the DYNAMIC motion type.
@@ -1486,6 +1527,14 @@ export class PlayerController {
   }
 
   respawn() {
+    if (this.requestEcsRespawn()) {
+      return;
+    }
+
+    this.respawnLegacy();
+  }
+
+  private respawnLegacy() {
     console.log('Respawning...');
 
     this.currentHealth = this.maxHealth;
@@ -1508,6 +1557,9 @@ export class PlayerController {
       console.error('Ragdoll setup failed: skeleton or armatureNode not found');
       return;
     }
+
+    this.ragdollSkeleton = skeleton;
+    this.ragdollArmatureNode = armatureNode;
 
     // Por alguna razon el scaling del Armature es 0.09
     // y se hace enorme si lo escalo a 1.7 (raro)
@@ -1620,6 +1672,19 @@ export class PlayerController {
     console.log('Ragdoll initialized');
   }
 
+  public resetRagdollForRespawn() {
+    if (this.ragdoll) {
+      this.ragdoll.dispose();
+      this.ragdoll = null;
+    }
+
+    if (!this.ragdollSkeleton || !this.ragdollArmatureNode) {
+      return;
+    }
+
+    this.initRagdoll(this.ragdollSkeleton, this.ragdollArmatureNode);
+  }
+
   /**
    * ===== GAME STATE CONTROL =====
    * Métodos para pausar/reanudar el input y movimiento del jugador
@@ -1637,5 +1702,98 @@ export class PlayerController {
     // Limpiar inputs activos
     this.inputMap = {};
     this.isDashing = false;
+  }
+
+  private enqueueEcsDamageRequest(
+    amount: number,
+    damageSourcePosition: Vector3 | null,
+  ): boolean {
+    const requests = this.getEcsSurvivabilityRequests();
+
+    if (!requests) {
+      return false;
+    }
+
+    requests.damageRequests.push({
+      amount,
+      damageSourcePosition: damageSourcePosition?.clone() ?? null,
+    });
+
+    return true;
+  }
+
+  private requestEcsDeath(): boolean {
+    const requests = this.getEcsSurvivabilityRequests();
+
+    if (!requests) {
+      return false;
+    }
+
+    requests.deathRequested = true;
+    return true;
+  }
+
+  private requestEcsRespawn(): boolean {
+    const requests = this.getEcsSurvivabilityRequests();
+
+    if (!requests) {
+      return false;
+    }
+
+    requests.respawnRequested = true;
+    return true;
+  }
+
+  private syncEcsInvulnerabilityState(): boolean {
+    const health = this.getEcsHealthState();
+
+    if (!health) {
+      return false;
+    }
+
+    health.isInvulnerable = true;
+    health.invulnerabilityTimer = health.invulnerabilityDuration;
+    health.blinkActive = true;
+    health.blinkTimer = 0;
+    return true;
+  }
+
+  private getEcsHealthState() {
+    if (!this.ecsSurvivabilityWorld || this.ecsSurvivabilityEntityId === null) {
+      return null;
+    }
+
+    return (
+      this.ecsSurvivabilityWorld.getComponent(
+        this.ecsSurvivabilityEntityId,
+        PlayerHealthStateComponent,
+      ) ?? null
+    );
+  }
+
+  private getEcsSurvivabilityRequests() {
+    if (!this.ecsSurvivabilityWorld || this.ecsSurvivabilityEntityId === null) {
+      return null;
+    }
+
+    return (
+      this.ecsSurvivabilityWorld.getComponent(
+        this.ecsSurvivabilityEntityId,
+        PlayerSurvivabilityRequestComponent,
+      ) ?? null
+    );
+  }
+
+  public getEcsRagdollState() {
+    if (!this.ecsSurvivabilityWorld || this.ecsSurvivabilityEntityId === null) {
+      return null;
+    }
+
+    return (
+      this.ecsSurvivabilityWorld.getComponent(
+        this.ecsSurvivabilityEntityId,
+        PlayerRagdollStateComponent,
+      ) ?? null
+    );
   }
 }

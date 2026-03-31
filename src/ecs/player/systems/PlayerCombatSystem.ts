@@ -3,12 +3,17 @@ import { AudioManager } from '../../../AudioManager.ts';
 import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
-import { PlayerCombatMode, PlayerWeaponPhase } from '../PlayerStateEnums.ts';
+import {
+  PlayerCombatMode,
+  PlayerLifeState,
+  PlayerWeaponPhase,
+} from '../PlayerStateEnums.ts';
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
   PlayerGroundingStateComponent,
+  PlayerHealthStateComponent,
   PlayerLocomotionStateComponent,
   PlayerPhysicsViewRefsComponent,
   PlayerWeaponStateComponent,
@@ -25,6 +30,7 @@ export class PlayerCombatSystem implements EcsSystem {
       PlayerCombatStateComponent,
       PlayerControlStateComponent,
       PlayerGroundingStateComponent,
+      PlayerHealthStateComponent,
       PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
       PlayerWeaponStateComponent,
@@ -42,6 +48,7 @@ export class PlayerCombatSystem implements EcsSystem {
         entityId,
         PlayerGroundingStateComponent,
       );
+      const health = world.getComponent(entityId, PlayerHealthStateComponent);
       const locomotion = world.getComponent(
         entityId,
         PlayerLocomotionStateComponent,
@@ -58,6 +65,7 @@ export class PlayerCombatSystem implements EcsSystem {
         !combat ||
         !control ||
         !grounding ||
+        !health ||
         !locomotion ||
         !physicsRefs.body ||
         !weapon
@@ -82,7 +90,7 @@ export class PlayerCombatSystem implements EcsSystem {
         weapon.cooldownTimer = Math.max(0, weapon.cooldownTimer - deltaTime);
       }
 
-      if (refs.controller.currentHealth <= 0) {
+      if (health.lifeState !== PlayerLifeState.ALIVE) {
         this.endAttack(combat, weapon, refs, true);
         control.attackRequested = false;
         continue;

@@ -6,7 +6,9 @@ import {
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
   PlayerGroundingStateComponent,
+  PlayerHealthStateComponent,
   PlayerLocomotionStateComponent,
+  PlayerRagdollStateComponent,
   PlayerWeaponStateComponent,
 } from '../components/index.ts';
 
@@ -29,7 +31,9 @@ export class PlayerControllerBridgeSystem implements EcsSystem {
       PlayerControlStateComponent,
       PlayerCombatStateComponent,
       PlayerGroundingStateComponent,
+      PlayerHealthStateComponent,
       PlayerLocomotionStateComponent,
+      PlayerRagdollStateComponent,
       PlayerWeaponStateComponent,
     );
 
@@ -41,10 +45,12 @@ export class PlayerControllerBridgeSystem implements EcsSystem {
         entityId,
         PlayerGroundingStateComponent,
       );
+      const health = world.getComponent(entityId, PlayerHealthStateComponent);
       const locomotion = world.getComponent(
         entityId,
         PlayerLocomotionStateComponent,
       );
+      const ragdoll = world.getComponent(entityId, PlayerRagdollStateComponent);
       const weapon = world.getComponent(entityId, PlayerWeaponStateComponent);
 
       if (
@@ -52,7 +58,9 @@ export class PlayerControllerBridgeSystem implements EcsSystem {
         !control ||
         !combat ||
         !grounding ||
+        !health ||
         !locomotion ||
+        !ragdoll ||
         !weapon
       ) {
         continue;
@@ -68,15 +76,24 @@ export class PlayerControllerBridgeSystem implements EcsSystem {
       controller.wasGrounded = grounding.wasGrounded;
       controller.coyoteTimer = grounding.coyoteTimer;
       controller.coyoteTime = grounding.coyoteTime;
+      controller.currentHealth = health.currentHealth;
+      controller.maxHealth = health.maxHealth;
+      controller.isInvulnerable = health.isInvulnerable;
+      controller.invulnerabilityTimer = health.invulnerabilityTimer;
+      controller.blinkInterval = health.blinkActive ? 1 : null;
       controller.isDashing = locomotion.isDashing;
+      controller.isKnockedBack = locomotion.isKnockedBack;
       controller.isMoving = locomotion.isMoving;
       controller.dashDirection = locomotion.dashDirection.clone();
       controller.dashTimer = locomotion.dashTimer;
       controller.dashCooldownTimer = locomotion.dashCooldownTimer;
+      controller.knockbackDuration = locomotion.knockbackDuration;
       controller.lastFacingDirection = locomotion.lastFacingDirection.clone();
+      controller.lastKnockbackDir = ragdoll.lastKnockbackDir.clone();
       controller.targetRotation = locomotion.targetRotation.clone();
       controller.targetScale = locomotion.targetScale.clone();
       controller.recoilVelocity = locomotion.recoilVelocity.clone();
+      controller.ragdoll = ragdoll.ragdoll as typeof controller.ragdoll;
       controller.syncEcsCombatState({
         isAttacking: combat.isAttacking,
         isDancing: combat.isDancing,
