@@ -23,6 +23,10 @@ import '@babylonjs/loaders/glTF';
 import HavokPhysics from '@babylonjs/havok';
 import { PlayerController } from './player/PlayerController.ts';
 import {
+  createPlayerFacade,
+  type PlayerFacade,
+} from './player/PlayerFacade.ts';
+import {
   createPlayerAnimationRegistry,
   PlayerAnimationRegistry,
 } from './player/PlayerAnimations.ts';
@@ -48,6 +52,7 @@ class Game {
   camera: ArcRotateCamera | null = null;
   cameraShaker: CameraShaker | null = null;
   playerController: PlayerController | null = null;
+  playerFacade: PlayerFacade | null = null;
   playerAnimations: PlayerAnimationRegistry = {};
   enemies: any[] = [];
   debugGUI: DebugGUI | null = null;
@@ -156,11 +161,15 @@ class Game {
       this.scene,
     );
 
-    // Tunear valores
-    this.playerController.setMoveSpeed(8);
-    this.playerController.setJumpForce(12);
+    this.playerFacade = createPlayerFacade(this.playerController);
 
-    this.playerController.initRagdoll(
+    // Tunear valores
+    this.playerFacade.setup.configureTuning({
+      moveSpeed: 8,
+      jumpForce: 12,
+    });
+
+    this.playerFacade.setup.initializeRagdoll(
       this.player.skeleton,
       this.player.armatureNode,
     );
@@ -173,12 +182,12 @@ class Game {
     this.gameManager = new GameManager(this.scene, this.engine);
 
     // Asignar referencias
-    this.gameManager.setPlayerController(this.playerController);
+    this.gameManager.setPlayerInputController(this.playerFacade?.input ?? null);
     this.gameManager.setEnemies(this.enemies);
     this.gameManager.setCamera(this.camera);
 
     // Asignar GameManager al PlayerController para que pueda notificarlo de muerte
-    this.playerController.setGameManager(this.gameManager);
+    this.playerFacade?.setup.connectGameOverHandler(this.gameManager);
 
     console.log('GameManager inicializado');
   }
@@ -462,20 +471,22 @@ class Game {
 
     // Asignar referencia al player y registrar en WeaponSystem
     for (const enemy of this.enemies) {
-      enemy.setPlayerRef(this.playerController);
+      enemy.setPlayerTarget(this.playerFacade?.combatTarget ?? null);
     }
-    this.playerController.registerEnemies(this.enemies);
+    this.playerFacade?.combatRegistration.registerEnemies(this.enemies);
 
     console.log(`${this.enemies.length} enemigos creados con EnemyFactory`);
   }
 
   setupDebugGUI() {
     this.debugGUI = new DebugGUI();
-    this.debugGUI.setupPlayerControls(this.playerController);
+    if (this.playerFacade) {
+      this.debugGUI.setupPlayerControls(this.playerFacade.debug);
+      this.debugGUI.addLogButton(this.playerFacade.debug);
+    }
     this.debugGUI.setupModelControls(this.player);
     this.debugGUI.setupEnemyControls(this.enemies);
     this.debugGUI.setupCameraControls(this.camera);
-    this.debugGUI.addLogButton(this.playerController);
     console.log('Debug GUI initialized');
   }
 

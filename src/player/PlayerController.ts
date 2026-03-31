@@ -19,7 +19,6 @@ import { WeaponSystem } from '../WeaponSystem.ts';
 import { EffectManager } from '../EffectManager.ts';
 import { AudioManager } from '../AudioManager.ts';
 import { Ragdoll } from '../ragdoll_copy.js';
-import { GameManager } from '../GameManager.ts';
 import { CameraShaker } from '../CameraShaker.ts';
 import type { EntityId } from '../ecs/core/Entity.ts';
 import type { World } from '../ecs/core/World.ts';
@@ -33,6 +32,10 @@ import {
   PlayerAnimationName,
   PlayerAnimationRegistry,
 } from './PlayerAnimations.ts';
+import type {
+  PlayerGameOverHandler,
+  PlayerTuningConfig,
+} from './PlayerFacade.ts';
 
 // ===== JUMP PHASE STATE MACHINE =====
 enum JumpPhase {
@@ -57,7 +60,7 @@ export class PlayerController {
   dashDuration: number;
   dashSpeed: number;
   dashTimer: number;
-  gameManager: GameManager | null = null;
+  gameManager: PlayerGameOverHandler | null = null;
   healthText: TextBlock | null;
   healthUI: AdvancedDynamicTexture | null;
   inputEnabled: boolean = true; // Flag para pausar input
@@ -1238,6 +1241,7 @@ export class PlayerController {
   // ===== MÉTODOS PÚBLICOS =====
   setMoveSpeed(speed: number) {
     this.moveSpeed = speed;
+    this.normalMoveSpeed = speed;
   }
 
   setJumpForce(force: number) {
@@ -1258,6 +1262,28 @@ export class PlayerController {
 
   setCoyoteTime(time: number) {
     this.coyoteTime = time;
+  }
+
+  configureTuning(config: PlayerTuningConfig) {
+    if (config.moveSpeed !== undefined) {
+      this.setMoveSpeed(config.moveSpeed);
+    }
+
+    if (config.jumpForce !== undefined) {
+      this.setJumpForce(config.jumpForce);
+    }
+
+    if (config.dashSpeed !== undefined) {
+      this.setDashSpeed(config.dashSpeed);
+    }
+
+    if (config.magnetismRange !== undefined) {
+      this.setMagnetismRange(config.magnetismRange);
+    }
+
+    if (config.coyoteTime !== undefined) {
+      this.setCoyoteTime(config.coyoteTime);
+    }
   }
 
   setJumpBufferTime(time: number) {
@@ -1672,6 +1698,10 @@ export class PlayerController {
     console.log('Ragdoll initialized');
   }
 
+  initializeRagdoll(skeleton: Skeleton, armatureNode: Mesh) {
+    this.initRagdoll(skeleton, armatureNode);
+  }
+
   public resetRagdollForRespawn() {
     if (this.ragdoll) {
       this.ragdoll.dispose();
@@ -1689,19 +1719,31 @@ export class PlayerController {
    * ===== GAME STATE CONTROL =====
    * Métodos para pausar/reanudar el input y movimiento del jugador
    */
-  public setGameManager(gameManager: GameManager) {
+  public connectGameOverHandler(gameManager: PlayerGameOverHandler | null) {
     this.gameManager = gameManager;
   }
 
-  public enableInput() {
+  public setGameManager(gameManager: PlayerGameOverHandler) {
+    this.connectGameOverHandler(gameManager);
+  }
+
+  public resumeInput() {
     this.inputEnabled = true;
   }
 
-  public detachControl() {
+  public enableInput() {
+    this.resumeInput();
+  }
+
+  public pauseInput() {
     this.inputEnabled = false;
     // Limpiar inputs activos
     this.inputMap = {};
     this.isDashing = false;
+  }
+
+  public detachControl() {
+    this.pauseInput();
   }
 
   private enqueueEcsDamageRequest(

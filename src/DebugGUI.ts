@@ -1,4 +1,5 @@
 import GUI from 'lil-gui';
+import type { PlayerDebugApi } from './player/PlayerFacade.ts';
 
 export class DebugGUI {
   gui: GUI;
@@ -15,7 +16,7 @@ export class DebugGUI {
   /**
    * Configurar controles para el jugador
    */
-  setupPlayerControls(playerController: any) {
+  setupPlayerControls(playerController: PlayerDebugApi) {
     this.playerFolder = this.gui.addFolder('Player');
 
     // Velocidades
@@ -293,7 +294,7 @@ export class DebugGUI {
   /**
    * Botón para imprimir valores actuales en consola
    */
-  addLogButton(playerController: any) {
+  addLogButton(playerController: PlayerDebugApi) {
     const actions = {
       logRotation: () => {
         console.log('=== PLAYER ROTATION DEBUG ===');

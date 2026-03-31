@@ -20,6 +20,7 @@ import { AudioManager } from './AudioManager.ts';
 import { EffectManager } from './EffectManager.ts';
 import { Ragdoll } from './ragdoll_copy.js';
 import LootManager from './LootManager.ts';
+import type { PlayerCombatTargetApi } from './player/PlayerFacade.ts';
 
 // ===== ESTADOS DE IA =====
 export enum EnemyState {
@@ -72,7 +73,7 @@ export class EnemyController {
   physicsAggregate: PhysicsAggregate | null = null;
   physicsCapsule: Mesh; // Cápsula invisible para física
   physicsEngine: any;
-  playerRef: any; // Referencia al PlayerController
+  playerTarget: PlayerCombatTargetApi | null = null;
   root: TransformNode; // Root del modelo instanciado
   scene: Scene;
 
@@ -529,10 +530,10 @@ export class EnemyController {
     }
 
     // Perseguir al jugador
-    if (!this.playerRef?.mesh) {
+    if (!this.playerTarget) {
       return;
     }
-    const playerPos = this.playerRef.mesh.getAbsolutePosition();
+    const playerPos = this.playerTarget.getWorldPosition();
     const pos = this.physicsCapsule.position;
     const dir = new Vector3(playerPos.x - pos.x, 0, playerPos.z - pos.z);
 
@@ -587,13 +588,13 @@ export class EnemyController {
   private _checkAttackHit() {
     if (
       !this._attackHitboxSystem?.isEnabled() ||
-      !this.playerRef ||
+      !this.playerTarget ||
       this._hasHitPlayerThisAttack
     ) {
       return;
     }
 
-    const playerMesh = this.playerRef.mesh;
+    const playerMesh = this.playerTarget.getCollisionMesh();
     if (!playerMesh) {
       return;
     }
@@ -605,7 +606,7 @@ export class EnemyController {
   }
 
   private _onHitPlayer() {
-    if (!this.playerRef || this._hasHitPlayerThisAttack) return;
+    if (!this.playerTarget || this._hasHitPlayerThisAttack) return;
 
     this._hasHitPlayerThisAttack = true;
 
@@ -613,7 +614,7 @@ export class EnemyController {
 
     // Aplicar daño al jugador
     const enemyPos = this.physicsCapsule.position;
-    this.playerRef.takeDamage(this.config.contactDamage, enemyPos);
+    this.playerTarget.takeDamage(this.config.contactDamage, enemyPos);
   }
 
   // ==========================================================
@@ -907,8 +908,8 @@ export class EnemyController {
   }
 
   private _dodgeObstacle() {
-    if (!this.playerRef?.mesh) return;
-    const playerPos = this.playerRef.mesh.getAbsolutePosition();
+    if (!this.playerTarget) return;
+    const playerPos = this.playerTarget.getWorldPosition();
     const pos = this.physicsCapsule.position;
     const toPlayer = new Vector3(
       playerPos.x - pos.x,
@@ -929,31 +930,31 @@ export class EnemyController {
   //  DISTANCE & COLLISION
   // ==========================================================
   private _updateDistanceToPlayer() {
-    if (!this.playerRef?.mesh) {
+    if (!this.playerTarget) {
       this.distanceToPlayer = Infinity;
       return;
     }
     const ep = this.physicsCapsule.position;
-    const pp = this.playerRef.mesh.getAbsolutePosition();
+    const pp = this.playerTarget.getWorldPosition();
     const dx = pp.x - ep.x;
     const dz = pp.z - ep.z;
     this.distanceToPlayer = Math.sqrt(dx * dx + dz * dz);
   }
 
   private _checkPlayerCollision() {
-    if (!this.playerRef || !this.canDamagePlayer) return;
+    if (!this.playerTarget || !this.canDamagePlayer) return;
     if (
       this.currentState === EnemyState.DEAD ||
       this.currentState === EnemyState.HIT
     )
       return;
 
-    const playerMesh = this.playerRef.mesh;
+    const playerMesh = this.playerTarget.getCollisionMesh();
     if (!playerMesh) return;
 
     if (this.physicsCapsule.intersectsMesh(playerMesh, false)) {
       const myPos = this.physicsCapsule.getAbsolutePosition();
-      this.playerRef.takeDamage(this.config.contactDamage, myPos);
+      this.playerTarget.takeDamage(this.config.contactDamage, myPos);
       this.canDamagePlayer = false;
       this.damageCooldownTimer = this.damageCooldown;
     }
@@ -1017,8 +1018,12 @@ export class EnemyController {
     return false;
   }
 
-  setPlayerRef(player: any) {
-    this.playerRef = player;
+  setPlayerTarget(player: PlayerCombatTargetApi | null) {
+    this.playerTarget = player;
+  }
+
+  setPlayerRef(player: PlayerCombatTargetApi | null) {
+    this.setPlayerTarget(player);
   }
 
   isAlive(): boolean {

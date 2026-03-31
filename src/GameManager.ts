@@ -9,6 +9,7 @@ import {
 } from '@babylonjs/gui';
 import { Scene, Vector3 } from '@babylonjs/core';
 import { AudioManager } from './AudioManager.ts';
+import type { PlayerInputControllerApi } from './player/PlayerFacade.ts';
 
 /**
  * Estados principales del juego
@@ -35,7 +36,7 @@ export class GameManager {
   private uiTexture: AdvancedDynamicTexture | null = null;
 
   // Referencias a objetos del juego
-  private playerController: any = null;
+  private playerInputController: PlayerInputControllerApi | null = null;
   private enemies: any[] = [];
   private camera: any = null;
 
@@ -63,8 +64,16 @@ export class GameManager {
   /**
    * ===== SETTERS - Para vincular referencias después de crear los objetos =====
    */
-  public setPlayerController(playerController: any) {
-    this.playerController = playerController;
+  public setPlayerInputController(
+    playerInputController: PlayerInputControllerApi | null,
+  ) {
+    this.playerInputController = playerInputController;
+  }
+
+  public setPlayerController(
+    playerController: PlayerInputControllerApi | null,
+  ) {
+    this.setPlayerInputController(playerController);
   }
 
   public setEnemies(enemies: any[]) {
@@ -335,8 +344,8 @@ export class GameManager {
     this.enableCameraInput();
 
     // Habilitar controles de PlayerController
-    if (this.playerController) {
-      this.playerController.enableInput();
+    if (this.playerInputController) {
+      this.playerInputController.resumeInput();
     }
 
     // Activar AI de enemigos
@@ -357,8 +366,8 @@ export class GameManager {
     this.showPauseScreen();
 
     // Detener controles de movimiento del jugador
-    if (this.playerController && this.playerController.detachControl) {
-      this.playerController.detachControl();
+    if (this.playerInputController) {
+      this.playerInputController.pauseInput();
     }
 
     // Detener input de cámara
@@ -387,8 +396,8 @@ export class GameManager {
     // Re-activar input de cámara
     this.enableCameraInput();
 
-    if (this.playerController && this.playerController.enableInput) {
-      this.playerController.enableInput();
+    if (this.playerInputController) {
+      this.playerInputController.resumeInput();
     }
 
     // Re-activar enemigos
@@ -414,8 +423,8 @@ export class GameManager {
     this.showDeadScreen();
 
     // Detener todo
-    if (this.playerController && this.playerController.detachControl) {
-      this.playerController.detachControl();
+    if (this.playerInputController) {
+      this.playerInputController.pauseInput();
     }
 
     this.disableEnemies();
