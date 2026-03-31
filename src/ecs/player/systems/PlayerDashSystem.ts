@@ -6,10 +6,13 @@ import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import { PlayerLocomotionMode } from '../PlayerStateEnums.ts';
 import {
+  PlayerCombatStateComponent,
   PlayerControlStateComponent,
   PlayerLocomotionStateComponent,
   PlayerPhysicsViewRefsComponent,
+  PlayerWeaponStateComponent,
 } from '../components/index.ts';
+import { PlayerCombatMode, PlayerWeaponPhase } from '../PlayerStateEnums.ts';
 
 export class PlayerDashSystem implements EcsSystem {
   readonly name = 'PlayerDashSystem';
@@ -19,13 +22,16 @@ export class PlayerDashSystem implements EcsSystem {
     const entityIds = world.query(
       LegacyPlayerRefsComponent,
       PlayerControlStateComponent,
+      PlayerCombatStateComponent,
       PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
+      PlayerWeaponStateComponent,
     );
 
     for (const entityId of entityIds) {
       const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
+      const combat = world.getComponent(entityId, PlayerCombatStateComponent);
       const locomotion = world.getComponent(
         entityId,
         PlayerLocomotionStateComponent,
@@ -34,8 +40,16 @@ export class PlayerDashSystem implements EcsSystem {
         entityId,
         PlayerPhysicsViewRefsComponent,
       );
+      const weapon = world.getComponent(entityId, PlayerWeaponStateComponent);
 
-      if (!refs || !control || !locomotion || !physicsRefs.body) {
+      if (
+        !refs ||
+        !control ||
+        !combat ||
+        !locomotion ||
+        !physicsRefs.body ||
+        !weapon
+      ) {
         continue;
       }
 
@@ -53,6 +67,7 @@ export class PlayerDashSystem implements EcsSystem {
       if (refs.controller.currentHealth <= 0) {
         locomotion.isDashing = false;
         control.dashRequested = false;
+        this.cancelAttack(control, combat, weapon, refs);
         continue;
       }
 
@@ -112,8 +127,7 @@ export class PlayerDashSystem implements EcsSystem {
             : new Vector3(0, 0, 1);
         locomotion.targetScale = new Vector3(0.7, 1.3, 0.7);
 
-        (refs.controller as { attackQueue?: string[] }).attackQueue = [];
-        refs.controller.isAttacking = false;
+        this.cancelAttack(control, combat, weapon, refs);
 
         AudioManager.play('player_dash');
         EffectManager.showDust(physicsRefs.mesh.getAbsolutePosition(), {
@@ -125,6 +139,33 @@ export class PlayerDashSystem implements EcsSystem {
 
       control.dashRequested = false;
     }
+  }
+
+  private cancelAttack(
+    control: PlayerControlStateComponent,
+    combat: PlayerCombatStateComponent,
+    weapon: PlayerWeaponStateComponent,
+    refs: LegacyPlayerRefsComponent,
+  ) {
+    control.attackRequested = false;
+    combat.attackQueue = [];
+    combat.activeAttackAnimation = null;
+    combat.activeAttackElapsed = 0;
+    combat.activeAttackDuration = 0;
+    combat.hitboxStartTime = 0;
+    combat.hitboxEndTime = 0;
+    combat.isAttacking = false;
+    combat.mode = combat.isDancing
+      ? PlayerCombatMode.DANCING
+      : PlayerCombatMode.IDLE;
+    weapon.phase =
+      weapon.cooldownTimer > 0
+        ? PlayerWeaponPhase.COOLDOWN
+        : PlayerWeaponPhase.IDLE;
+    weapon.hitboxActive = false;
+    weapon.hitEnemiesThisSwing.clear();
+    weapon.hitEnemiesThisSwingCount = 0;
+    weapon.weaponSystem?.deactivateHitbox();
   }
 
   private getMoveDirection(

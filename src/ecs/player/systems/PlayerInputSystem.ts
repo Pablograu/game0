@@ -10,9 +10,11 @@ import type { EntityId } from '../../core/Entity.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import {
+  PlayerCombatStateComponent,
   PlayerControlStateComponent,
   PlayerGroundingStateComponent,
 } from '../components/index.ts';
+import { PlayerCombatMode } from '../PlayerStateEnums.ts';
 
 interface PlayerInputObserverHandles {
   keyboardObserver: Observer<KeyboardInfo>;
@@ -28,6 +30,7 @@ export class PlayerInputSystem implements EcsSystem {
   update(world: World): void {
     const entityIds = world.query(
       LegacyPlayerRefsComponent,
+      PlayerCombatStateComponent,
       PlayerControlStateComponent,
       PlayerGroundingStateComponent,
     );
@@ -36,9 +39,10 @@ export class PlayerInputSystem implements EcsSystem {
       this.ensureObservers(world, entityId);
 
       const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
+      const combat = world.getComponent(entityId, PlayerCombatStateComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
 
-      if (!refs || !control) {
+      if (!refs || !combat || !control) {
         continue;
       }
 
@@ -59,13 +63,13 @@ export class PlayerInputSystem implements EcsSystem {
       control.moveInputZ =
         Number(!!control.inputMap.w) - Number(!!control.inputMap.s);
 
-      if (control.attackRequested) {
-        refs.controller.punch();
-        control.attackRequested = false;
-      }
-
       if (control.danceToggleRequested) {
-        refs.controller.isDancing = !refs.controller.isDancing;
+        combat.isDancing = !combat.isDancing;
+        if (!combat.isAttacking) {
+          combat.mode = combat.isDancing
+            ? PlayerCombatMode.DANCING
+            : PlayerCombatMode.IDLE;
+        }
         control.danceToggleRequested = false;
       }
     }

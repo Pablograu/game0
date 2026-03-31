@@ -682,6 +682,28 @@ export class PlayerController {
     };
   }
 
+  public syncEcsCombatState(snapshot: {
+    isAttacking: boolean;
+    isDancing: boolean;
+    useLeftPunch: boolean;
+    punchSpeed: number;
+    attackMoveSpeedMultiplier: number;
+    punchHitboxDelay: number;
+    magnetismRange: number;
+    magnetismLungeSpeed: number;
+    attackQueue: string[];
+  }) {
+    this.isAttacking = snapshot.isAttacking;
+    this.isDancing = snapshot.isDancing;
+    this.useLeftPunch = snapshot.useLeftPunch;
+    this.punchSpeed = snapshot.punchSpeed;
+    this.attackMoveSpeedMultiplier = snapshot.attackMoveSpeedMultiplier;
+    this.punchHitboxDelay = snapshot.punchHitboxDelay;
+    this.magnetismRange = snapshot.magnetismRange;
+    this.magnetismLungeSpeed = snapshot.magnetismLungeSpeed;
+    this.attackQueue = [...snapshot.attackQueue];
+  }
+
   update() {
     if (this.ecsLocomotionFacadeEnabled) {
       return;

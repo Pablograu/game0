@@ -4,6 +4,7 @@ import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import { PlayerLocomotionMode } from '../PlayerStateEnums.ts';
 import {
+  PlayerCombatStateComponent,
   PlayerControlStateComponent,
   PlayerGroundingStateComponent,
   PlayerLocomotionStateComponent,
@@ -18,6 +19,7 @@ export class PlayerMovementSystem implements EcsSystem {
     const entityIds = world.query(
       LegacyPlayerRefsComponent,
       PlayerControlStateComponent,
+      PlayerCombatStateComponent,
       PlayerGroundingStateComponent,
       PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
@@ -26,6 +28,7 @@ export class PlayerMovementSystem implements EcsSystem {
     for (const entityId of entityIds) {
       const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
+      const combat = world.getComponent(entityId, PlayerCombatStateComponent);
       const grounding = world.getComponent(
         entityId,
         PlayerGroundingStateComponent,
@@ -39,7 +42,14 @@ export class PlayerMovementSystem implements EcsSystem {
         PlayerPhysicsViewRefsComponent,
       );
 
-      if (!refs || !control || !grounding || !locomotion || !physicsRefs.body) {
+      if (
+        !refs ||
+        !control ||
+        !combat ||
+        !grounding ||
+        !locomotion ||
+        !physicsRefs.body
+      ) {
         continue;
       }
 
@@ -89,7 +99,7 @@ export class PlayerMovementSystem implements EcsSystem {
       }
 
       if (
-        refs.controller.isAttacking &&
+        combat.isAttacking &&
         !grounding.isGrounded &&
         moveDirection.length() > 0.1
       ) {
@@ -109,8 +119,8 @@ export class PlayerMovementSystem implements EcsSystem {
       refs.controller.recoilVelocity = locomotion.recoilVelocity.clone();
 
       const currentVelocity = physicsRefs.body.getLinearVelocity();
-      const effectiveMoveSpeed = refs.controller.isAttacking
-        ? refs.controller.moveSpeed * refs.controller.attackMoveSpeedMultiplier
+      const effectiveMoveSpeed = combat.isAttacking
+        ? refs.controller.moveSpeed * combat.attackMoveSpeedMultiplier
         : refs.controller.moveSpeed;
 
       physicsRefs.body.setLinearVelocity(

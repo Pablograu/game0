@@ -13,6 +13,11 @@ export interface PlayerCombatStateComponent {
   magnetismLungeSpeed: number;
   attackQueue: string[];
   maxAttackQueue: number;
+  activeAttackAnimation: string | null;
+  activeAttackElapsed: number;
+  activeAttackDuration: number;
+  hitboxStartTime: number;
+  hitboxEndTime: number;
 }
 
 export const PlayerCombatStateComponent =

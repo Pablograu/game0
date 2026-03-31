@@ -4,12 +4,14 @@ import type { EntityId } from '../core/Entity.ts';
 import { World } from '../core/World.ts';
 import {
   createPlayerEntity,
+  PlayerCombatSystem,
   PlayerControllerBridgeSystem,
   PlayerDashSystem,
   PlayerGroundProbeSystem,
   PlayerInputSystem,
   PlayerJumpSystem,
   PlayerMovementSystem,
+  PlayerWeaponHitSystem,
 } from '../player/index.ts';
 
 export interface BootstrapGameEcsOptions {
@@ -44,9 +46,11 @@ export function bootstrapGameEcs(
 
     world.registerSystem(new PlayerInputSystem());
     world.registerSystem(new PlayerGroundProbeSystem());
+    world.registerSystem(new PlayerCombatSystem());
     world.registerSystem(new PlayerDashSystem());
     world.registerSystem(new PlayerJumpSystem());
     world.registerSystem(new PlayerMovementSystem());
+    world.registerSystem(new PlayerWeaponHitSystem());
     world.registerSystem(new PlayerControllerBridgeSystem());
   }
 

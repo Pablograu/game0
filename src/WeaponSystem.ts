@@ -18,6 +18,7 @@ export class WeaponSystem {
   damage: number;
   debugMode: boolean;
   enemies: any[];
+  externalControlEnabled: boolean;
   hitboxOffset: number;
   hitboxSize: Vector3;
   hitboxSystem: HitboxSystem | null = null;
@@ -51,6 +52,7 @@ export class WeaponSystem {
     this.cooldownTimer = 0;
     this.hitEnemiesThisSwing = new Set();
     this.hitObjectsThisSwing = new Set();
+    this.externalControlEnabled = false;
 
     // Lista de enemigos en la escena
     this.enemies = [];
@@ -84,6 +86,10 @@ export class WeaponSystem {
   }
 
   update() {
+    if (this.externalControlEnabled) {
+      return;
+    }
+
     const deltaTime = this.scene.getEngine().getDeltaTime() / 1000;
 
     // Actualizar cooldown
@@ -167,6 +173,15 @@ export class WeaponSystem {
       this.enemies.push(enemy);
       console.log(`✅ Enemy registered: ${this.enemies.length} total`);
     }
+  }
+
+  enableExternalControl() {
+    this.externalControlEnabled = true;
+    this.endAttack();
+  }
+
+  disableExternalControl() {
+    this.externalControlEnabled = false;
   }
 
   onHitEnemy(enemy: any) {

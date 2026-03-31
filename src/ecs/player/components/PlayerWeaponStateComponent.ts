@@ -17,6 +17,8 @@ export interface PlayerWeaponStateComponent {
   registeredEnemyCount: number;
   hitEnemiesThisSwingCount: number;
   hitObjectsThisSwingCount: number;
+  hitboxActive: boolean;
+  hitEnemiesThisSwing: Set<unknown>;
 }
 
 export const PlayerWeaponStateComponent =

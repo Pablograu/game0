@@ -57,6 +57,8 @@ export function createPlayerEntity(
   const weaponSystem = playerController.weaponSystem as WeaponSystem | null;
   const entityId = world.createEntity();
 
+  weaponSystem?.enableExternalControl();
+
   world.addComponent(entityId, PlayerTagComponent, {
     kind: 'player',
   });
@@ -152,6 +154,11 @@ export function createPlayerEntity(
     magnetismLungeSpeed: source.magnetismLungeSpeed ?? 0,
     attackQueue: [...(source.attackQueue ?? [])],
     maxAttackQueue: source.MAX_ATTACK_QUEUE ?? 0,
+    activeAttackAnimation: null,
+    activeAttackElapsed: 0,
+    activeAttackDuration: 0,
+    hitboxStartTime: 0,
+    hitboxEndTime: 0,
   });
 
   world.addComponent(entityId, PlayerWeaponStateComponent, {
@@ -168,6 +175,8 @@ export function createPlayerEntity(
     registeredEnemyCount: weaponSystem?.enemies?.length ?? 0,
     hitEnemiesThisSwingCount: weaponSystem?.hitEnemiesThisSwing?.size ?? 0,
     hitObjectsThisSwingCount: weaponSystem?.hitObjectsThisSwing?.size ?? 0,
+    hitboxActive: weaponSystem?.hitboxSystem?.isEnabled() ?? false,
+    hitEnemiesThisSwing: new Set(weaponSystem?.hitEnemiesThisSwing ?? []),
   });
 
   world.addComponent(entityId, PlayerHealthStateComponent, {
