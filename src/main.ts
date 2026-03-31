@@ -32,6 +32,7 @@ import { CameraShaker } from './CameraShaker.ts';
 import { GameManager } from './GameManager.ts';
 import { DebugGUI } from './DebugGUI.ts';
 import { AudioManager } from './AudioManager.ts';
+import { bootstrapGameEcs, GameEcsRuntime } from './ecs/index.ts';
 
 // Collision filter bitmasks
 const COL_ENVIRONMENT = 0x0001;
@@ -51,6 +52,7 @@ class Game {
   enemies: any[] = [];
   debugGUI: DebugGUI | null = null;
   gameManager: GameManager | null = null;
+  ecsRuntime: GameEcsRuntime | null = null;
 
   constructor() {
     this.canvas = document.getElementById('renderCanvas') as HTMLCanvasElement;
@@ -71,6 +73,7 @@ class Game {
     await this.loadEnvironment();
     this.createLighting();
     this.setupGameManager();
+    this.setupEcs();
     this.startRenderLoop();
     this.setupResize();
     // this.setupDebugGUI();
@@ -178,6 +181,17 @@ class Game {
     this.playerController.setGameManager(this.gameManager);
 
     console.log('GameManager inicializado');
+  }
+
+  setupEcs() {
+    this.ecsRuntime = bootstrapGameEcs({
+      scene: this.scene,
+      playerController: this.playerController,
+      playerMesh: this.player,
+      camera: this.camera,
+    });
+
+    console.log('ECS world initialized');
   }
 
   createLighting() {
