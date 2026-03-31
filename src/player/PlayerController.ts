@@ -10,6 +10,7 @@ import {
   PointerInfo,
   Skeleton,
   AnimationGroup,
+  type Observer,
   PhysicsBody,
   TransformNode,
 } from '@babylonjs/core';
@@ -94,6 +95,11 @@ export class PlayerController {
   targetScale: Vector3;
   wasGrounded: boolean;
   weaponSystem: WeaponSystem | null;
+  private keyboardObserver: Observer<KeyboardInfo> | null = null;
+  private pointerObserver: Observer<PointerInfo> | null = null;
+  private updateObserver: Observer<Scene> | null = null;
+  private afterAnimationsObserver: Observer<Scene> | null = null;
+  private ecsLocomotionFacadeEnabled: boolean = false;
 
   // ===== JUMP PHASE STATE MACHINE =====
   // Single source of truth — replaces isLanding, landingAnticipated, stale _airTime checks.
@@ -515,50 +521,58 @@ export class PlayerController {
   }
 
   setupInput() {
-    this.scene.onKeyboardObservable.add((kbInfo: KeyboardInfo) => {
-      if (!this.inputEnabled) {
-        return; // Ignorar input si está pausado
-      }
+    if (this.keyboardObserver || this.pointerObserver) {
+      return;
+    }
 
-      const key = kbInfo.event.key.toLowerCase();
-
-      // KEYDOWN
-      if (kbInfo.type === 1) {
-        this.inputMap[key] = true;
-
-        if (key === ' ') {
-          this.jumpBufferTimer = this.jumpBufferTime;
-          this.jumpKeyReleased = false;
+    this.keyboardObserver = this.scene.onKeyboardObservable.add(
+      (kbInfo: KeyboardInfo) => {
+        if (!this.inputEnabled) {
+          return; // Ignorar input si está pausado
         }
 
-        if (key === 'shift' && this.dashCooldownTimer <= 0) {
-          this.startDash();
+        const key = kbInfo.event.key.toLowerCase();
+
+        // KEYDOWN
+        if (kbInfo.type === 1) {
+          this.inputMap[key] = true;
+
+          if (key === ' ') {
+            this.jumpBufferTimer = this.jumpBufferTime;
+            this.jumpKeyReleased = false;
+          }
+
+          if (key === 'shift' && this.dashCooldownTimer <= 0) {
+            this.startDash();
+          }
+
+          if (key === 'k') {
+            this.isDancing = !this.isDancing;
+          }
+          // KEYUP
+        } else if (kbInfo.type === 2) {
+          this.inputMap[key] = false;
+
+          // Variable Jump: detectar cuando suelta la tecla
+          if (key === ' ') {
+            this.jumpKeyReleased = true;
+          }
+        }
+      },
+    );
+
+    this.pointerObserver = this.scene.onPointerObservable.add(
+      (pointerInfo: PointerInfo) => {
+        if (!this.inputEnabled) {
+          return; // Ignorar input si está pausado
         }
 
-        if (key === 'k') {
-          this.isDancing = !this.isDancing;
+        // Tipo 1 = POINTERDOWN
+        if (pointerInfo.type === 1 && pointerInfo.event.button === 0) {
+          this.punch();
         }
-        // KEYUP
-      } else if (kbInfo.type === 2) {
-        this.inputMap[key] = false;
-
-        // Variable Jump: detectar cuando suelta la tecla
-        if (key === ' ') {
-          this.jumpKeyReleased = true;
-        }
-      }
-    });
-
-    this.scene.onPointerObservable.add((pointerInfo: PointerInfo) => {
-      if (!this.inputEnabled) {
-        return; // Ignorar input si está pausado
-      }
-
-      // Tipo 1 = POINTERDOWN
-      if (pointerInfo.type === 1 && pointerInfo.event.button === 0) {
-        this.punch();
-      }
-    });
+      },
+    );
   }
 
   setupPhysics() {
@@ -578,89 +592,147 @@ export class PlayerController {
   }
 
   setupUpdate() {
-    this.scene.onBeforeRenderObservable.add(() => {
-      this.update();
-    });
-
-    // Reapply arm scaling AFTER the animation system updates bones each frame
-    this.scene.onAfterAnimationsObservable.add(() => {
-      if (!this.mesh.skeleton) {
-        return;
-      }
-      const scale = this.isAttacking ? 1.5 : 1;
-      const bones = this.mesh.skeleton.bones.filter((b) => /arm/i.test(b.name));
-      bones.forEach((b) => {
-        const tn = b.getTransformNode();
-        if (tn) {
-          tn.scaling.setAll(scale);
+    if (!this.updateObserver) {
+      this.updateObserver = this.scene.onBeforeRenderObservable.add(() => {
+        if (this.ecsLocomotionFacadeEnabled) {
+          return;
         }
+
+        this.update();
       });
-    });
+    }
+
+    if (this.afterAnimationsObserver) {
+      return;
+    }
+
+    this.afterAnimationsObserver = this.scene.onAfterAnimationsObservable.add(
+      () => {
+        if (!this.mesh.skeleton) {
+          return;
+        }
+
+        const scale = this.isAttacking ? 1.5 : 1;
+        const bones = this.mesh.skeleton.bones.filter((b) =>
+          /arm/i.test(b.name),
+        );
+        bones.forEach((b) => {
+          const tn = b.getTransformNode();
+          if (tn) {
+            tn.scaling.setAll(scale);
+          }
+        });
+      },
+    );
   }
 
-  update() {
+  public enableEcsLocomotionFacade() {
+    if (this.ecsLocomotionFacadeEnabled) {
+      return;
+    }
+
+    this.ecsLocomotionFacadeEnabled = true;
+
+    if (this.keyboardObserver) {
+      this.scene.onKeyboardObservable.remove(this.keyboardObserver);
+      this.keyboardObserver = null;
+    }
+
+    if (this.pointerObserver) {
+      this.scene.onPointerObservable.remove(this.pointerObserver);
+      this.pointerObserver = null;
+    }
+
+    if (this.updateObserver) {
+      this.scene.onBeforeRenderObservable.remove(this.updateObserver);
+      this.updateObserver = null;
+    }
+  }
+
+  public runLegacyPostEcsUpdate(moveDirection: Vector3, deltaTime: number) {
     if (!this.body) {
       return;
     }
-    const deltaTime = this.scene.getEngine().getDeltaTime() / 1000;
 
-    // ===== INVULNERABILIDAD UPDATE ====
     this.updateInvulnerability(deltaTime);
 
-    // Guardar estado anterior de grounded
+    const currentVelocity = this.body.getLinearVelocity();
+    this.updateJumpPhase(currentVelocity, deltaTime);
+    this.updateAnimation(moveDirection, currentVelocity);
+  }
+
+  public applyEcsBridgeSnapshot(snapshot: {
+    jumpPhase: string;
+    airTime: number;
+    groundLostTimer: number;
+  }) {
+    this.jumpPhase = snapshot.jumpPhase as JumpPhase;
+    this.airTime = snapshot.airTime;
+    this.groundLostTimer = snapshot.groundLostTimer;
+  }
+
+  public getEcsBridgeSnapshot() {
+    return {
+      jumpPhase: this.jumpPhase,
+      airTime: this.airTime,
+      minAirTime: this.minAirTime,
+      fallingAnimDelay: this.fallingAnimDelay,
+      groundLostTimer: this.groundLostTimer,
+      groundLostGrace: this.groundLostGrace,
+    };
+  }
+
+  update() {
+    if (this.ecsLocomotionFacadeEnabled) {
+      return;
+    }
+
+    if (!this.body) {
+      return;
+    }
+
+    const deltaTime = this.scene.getEngine().getDeltaTime() / 1000;
+
+    this.updateInvulnerability(deltaTime);
     this.wasGrounded = this.isGrounded;
-
-    // ===== GROUND CHECK CON RAYCAST =====
     this.checkGrounded();
-
-    // ===== COYOTE TIME UPDATE =====
     this.updateCoyoteTime(deltaTime);
 
-    // ===== JUMP BUFFER UPDATE =====
     if (this.jumpBufferTimer > 0) {
       this.jumpBufferTimer -= deltaTime;
     }
 
-    // ===== DASH COOLDOWN UPDATE =====
     if (this.dashCooldownTimer > 0) {
       this.dashCooldownTimer -= deltaTime;
     }
 
-    // ===== DASH UPDATE =====
     if (this.isDashing) {
       this.updateDash(deltaTime);
-      return; // Durante el dash, no procesar movimiento normal
+      return;
     }
 
-    // Obtener velocidad actual
     const currentVelocity = this.body.getLinearVelocity();
-
-    // Calcular dirección de movimiento relativa a la cámara
     const moveDirection = this.getMoveDirection();
 
-    // Guardar última dirección para el dash
     if (moveDirection.length() > 0.1) {
       this.lastFacingDirection = moveDirection.clone();
     }
 
-    // ===== DAMAGE KNOCKBACK WINDOW =====
     if (this.isKnockedBack) {
       this.knockbackDuration -= deltaTime;
 
       if (this.knockbackDuration <= 0) {
         this.isKnockedBack = false;
       }
-      // Let Havok carry the impulse velocity naturally.
-      // Only lock rotation and suppress player input this frame.
+
       this.body.setAngularVelocity(new Vector3(0, 0, 0));
-      return; // Skip normal movement this frame
+      return;
     }
 
     if (this.isAttacking && !this.isGrounded && moveDirection.length() > 0.1) {
       return;
     }
 
-    // Decaer el recoil con el tiempo (weapon recoil, not damage knockback)
     if (this.recoilVelocity.length() > 0.1) {
       this.recoilVelocity = this.recoilVelocity.scale(
         1 - this.recoilDecay * deltaTime,
@@ -669,37 +741,23 @@ export class PlayerController {
       this.recoilVelocity = Vector3.Zero();
     }
 
-    // ===== REDUCIR VELOCIDAD DURANTE ATAQUE (ROOTING) =====
     const effectiveMoveSpeed = this.isAttacking
       ? this.moveSpeed * this.attackMoveSpeedMultiplier
       : this.moveSpeed;
 
-    // Crear nueva velocidad (mantener Y para respetar gravedad) + RECOIL
-    const newVelocity = new Vector3(
-      moveDirection.x * effectiveMoveSpeed + this.recoilVelocity.x,
-      currentVelocity.y, // Mantener velocidad vertical (gravedad)
-      moveDirection.z * effectiveMoveSpeed + this.recoilVelocity.z,
+    this.body.setLinearVelocity(
+      new Vector3(
+        moveDirection.x * effectiveMoveSpeed + this.recoilVelocity.x,
+        currentVelocity.y,
+        moveDirection.z * effectiveMoveSpeed + this.recoilVelocity.z,
+      ),
     );
-
-    // Aplicar velocidad directamente (movimiento snappy)
-    this.body.setLinearVelocity(newVelocity);
-
-    // Forzar rotación angular a cero (evitar volcarse)
     this.body.setAngularVelocity(new Vector3(0, 0, 0));
 
-    // ===== ROTACIÓN VISUAL =====
     this.updateRotation(moveDirection, deltaTime);
-
-    // ===== SALTO (con Coyote Time y Jump Buffer) =====
     this.handleJump(currentVelocity);
-
-    // ===== VARIABLE JUMP (cortar salto al soltar) =====
     this.handleVariableJump();
-
-    // ===== JUMP PHASE STATE MACHINE =====
     this.updateJumpPhase(currentVelocity, deltaTime);
-
-    // ===== ACTUALIZAR ANIMACIONES =====
     this.updateAnimation(moveDirection, currentVelocity);
   }
 

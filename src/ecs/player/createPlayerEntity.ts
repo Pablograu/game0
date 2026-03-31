@@ -1,3 +1,4 @@
+import { Vector3 } from '@babylonjs/core';
 import type { Camera, Mesh, Scene } from '@babylonjs/core';
 import type { WeaponSystem } from '../../WeaponSystem.ts';
 import type { PlayerController } from '../../player/PlayerController.ts';
@@ -34,7 +35,7 @@ export interface CreatePlayerEntityOptions {
   camera?: Camera | null;
 }
 
-type PlayerControllerSnapshot = PlayerController & {
+type PlayerControllerSnapshot = {
   jumpPhase?: PlayerJumpPhaseState;
   airTime?: number;
   minAirTime?: number;
@@ -51,7 +52,7 @@ export function createPlayerEntity(
   options: CreatePlayerEntityOptions,
 ): EntityId {
   const { world, scene, playerController } = options;
-  const source = playerController as PlayerControllerSnapshot;
+  const source = playerController as unknown as PlayerControllerSnapshot;
   const playerMesh = options.playerMesh ?? playerController.mesh;
   const weaponSystem = playerController.weaponSystem as WeaponSystem | null;
   const entityId = world.createEntity();
@@ -70,7 +71,12 @@ export function createPlayerEntity(
   world.addComponent(entityId, PlayerControlStateComponent, {
     inputEnabled: playerController.inputEnabled,
     inputMap: { ...playerController.inputMap },
+    moveInputX: 0,
+    moveInputZ: 0,
     jumpKeyReleased: playerController.jumpKeyReleased,
+    dashRequested: false,
+    attackRequested: false,
+    danceToggleRequested: false,
     jumpBufferTime: playerController.jumpBufferTime,
     jumpBufferTimer: playerController.jumpBufferTimer,
   });
@@ -89,6 +95,7 @@ export function createPlayerEntity(
     isMoving: playerController.isMoving,
     isDashing: playerController.isDashing,
     isKnockedBack: playerController.isKnockedBack,
+    moveDirection: Vector3.Zero(),
     moveSpeed: playerController.moveSpeed,
     normalMoveSpeed: playerController.normalMoveSpeed,
     dashSpeed: playerController.dashSpeed,

@@ -7,6 +7,7 @@ export interface PlayerLocomotionStateComponent {
   isMoving: boolean;
   isDashing: boolean;
   isKnockedBack: boolean;
+  moveDirection: Vector3;
   moveSpeed: number;
   normalMoveSpeed: number;
   dashSpeed: number;
