@@ -1,5 +1,10 @@
 import { Quaternion, Vector3 } from '@babylonjs/core';
 import { AudioManager } from '../../../AudioManager.ts';
+import {
+  EnemyPhysicsViewRefsComponent,
+  EnemyStatsComponent,
+} from '../../enemy/components/index.ts';
+import { EnemyLifeState } from '../../enemy/EnemyStateEnums.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import {
@@ -69,19 +74,6 @@ export class PlayerCombatSystem implements EcsSystem {
         continue;
       }
 
-      weapon.damage = weapon.weaponSystem?.damage ?? weapon.damage;
-      weapon.attackDuration =
-        weapon.weaponSystem?.attackDuration ?? weapon.attackDuration;
-      weapon.attackCooldown =
-        weapon.weaponSystem?.attackCooldown ?? weapon.attackCooldown;
-      weapon.hitboxOffset =
-        weapon.weaponSystem?.hitboxOffset ?? weapon.hitboxOffset;
-      weapon.hitboxSize =
-        weapon.weaponSystem?.hitboxSize?.clone() ?? weapon.hitboxSize;
-      weapon.playerKnockback =
-        weapon.weaponSystem?.playerKnockback ?? weapon.playerKnockback;
-      weapon.registeredEnemyCount = weapon.weaponSystem?.enemies?.length ?? 0;
-
       if (weapon.cooldownTimer > 0) {
         weapon.cooldownTimer = Math.max(0, weapon.cooldownTimer - deltaTime);
       }
@@ -104,6 +96,7 @@ export class PlayerCombatSystem implements EcsSystem {
       if (!combat.isAttacking) {
         if (weapon.cooldownTimer <= 0 && combat.attackQueue.length > 0) {
           this.startQueuedAttack(
+            world,
             combat,
             animation,
             locomotion,
@@ -127,7 +120,7 @@ export class PlayerCombatSystem implements EcsSystem {
         weapon.phase = PlayerWeaponPhase.ATTACKING;
         weapon.hitEnemiesThisSwing.clear();
         weapon.hitEnemiesThisSwingCount = 0;
-        weapon.weaponSystem?.activateHitbox();
+        weapon.hitbox?.setEnabled(true);
       }
 
       const shouldDeactivateHitbox =
@@ -136,7 +129,7 @@ export class PlayerCombatSystem implements EcsSystem {
 
       if (shouldDeactivateHitbox) {
         weapon.hitboxActive = false;
-        weapon.weaponSystem?.deactivateHitbox();
+        weapon.hitbox?.setEnabled(false);
         weapon.phase = PlayerWeaponPhase.IDLE;
       }
 
@@ -162,6 +155,7 @@ export class PlayerCombatSystem implements EcsSystem {
   }
 
   private startQueuedAttack(
+    world: World,
     combat: PlayerCombatStateComponent,
     animation: PlayerAnimationStateComponent,
     locomotion: PlayerLocomotionStateComponent,
@@ -181,6 +175,7 @@ export class PlayerCombatSystem implements EcsSystem {
     }
 
     this.applyAutoAim(
+      world,
       nextAttack,
       animation,
       locomotion,
@@ -216,6 +211,7 @@ export class PlayerCombatSystem implements EcsSystem {
   }
 
   private applyAutoAim(
+    world: World,
     attackAnimation: string,
     animation: PlayerAnimationStateComponent,
     locomotion: PlayerLocomotionStateComponent,
@@ -224,7 +220,7 @@ export class PlayerCombatSystem implements EcsSystem {
     weapon: PlayerWeaponStateComponent,
   ) {
     const target = this.getClosestAliveEnemy(
-      weapon.weaponSystem?.enemies ?? [],
+      world,
       physicsRefs.mesh.getAbsolutePosition(),
       combat.magnetismRange,
     );
@@ -234,7 +230,7 @@ export class PlayerCombatSystem implements EcsSystem {
     }
 
     const playerPos = physicsRefs.mesh.getAbsolutePosition();
-    const enemyPos = target.getPosition();
+    const enemyPos = target;
     const direction = enemyPos.subtract(playerPos);
     direction.y = 0;
 
@@ -272,19 +268,27 @@ export class PlayerCombatSystem implements EcsSystem {
   }
 
   private getClosestAliveEnemy(
-    enemies: any[],
+    world: World,
     playerPosition: { x: number; z: number },
     maxRange: number,
   ) {
-    let closestEnemy: any | null = null;
+    let closestEnemyPosition: Vector3 | null = null;
     let closestDistance = maxRange;
 
-    for (const enemy of enemies) {
-      if (!enemy?.isAlive?.()) {
+    const enemyIds = world.query(
+      EnemyPhysicsViewRefsComponent,
+      EnemyStatsComponent,
+    );
+
+    for (const enemyId of enemyIds) {
+      const refs = world.getComponent(enemyId, EnemyPhysicsViewRefsComponent);
+      const stats = world.getComponent(enemyId, EnemyStatsComponent);
+
+      if (!refs || !stats || stats.lifeState !== EnemyLifeState.ALIVE) {
         continue;
       }
 
-      const enemyPosition = enemy.getPosition();
+      const enemyPosition = refs.mesh.getAbsolutePosition();
       const dx = enemyPosition.x - playerPosition.x;
       const dz = enemyPosition.z - playerPosition.z;
       const distance = Math.sqrt(dx * dx + dz * dz);
@@ -294,10 +298,10 @@ export class PlayerCombatSystem implements EcsSystem {
       }
 
       closestDistance = distance;
-      closestEnemy = enemy;
+      closestEnemyPosition = enemyPosition.clone();
     }
 
-    return closestEnemy;
+    return closestEnemyPosition;
   }
 
   private endAttack(
@@ -318,7 +322,7 @@ export class PlayerCombatSystem implements EcsSystem {
     weapon.hitboxActive = false;
     weapon.hitEnemiesThisSwing.clear();
     weapon.hitEnemiesThisSwingCount = 0;
-    weapon.weaponSystem?.deactivateHitbox();
+    weapon.hitbox?.setEnabled(false);
 
     if (!preserveCooldown) {
       weapon.cooldownTimer = weapon.attackCooldown;

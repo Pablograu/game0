@@ -10,7 +10,6 @@ import type {
 } from '@babylonjs/core';
 import type { EnemyController } from '../../../EnemyController.ts';
 import type LootManager from '../../../LootManager.ts';
-import type { PlayerCombatTargetApi } from '../../../player/PlayerFacade.ts';
 import { createComponentType } from '../../core/Component.ts';
 
 export interface EnemyPhysicsViewRefsComponent {
@@ -25,7 +24,6 @@ export interface EnemyPhysicsViewRefsComponent {
   animationGroups: AnimationGroup[];
   skeleton: Skeleton | null;
   armatureNode: TransformNode | null;
-  playerTarget: PlayerCombatTargetApi | null;
   lootManager: LootManager | null;
 }
 

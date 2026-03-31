@@ -1,5 +1,11 @@
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core';
 import { AudioManager } from '../../../AudioManager.ts';
+import {
+  EnemyLifecycleRequestComponent,
+  EnemyPhysicsViewRefsComponent,
+  EnemyStatsComponent,
+} from '../../enemy/components/index.ts';
+import { EnemyLifeState } from '../../enemy/EnemyStateEnums.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import {
@@ -30,11 +36,11 @@ export class PlayerWeaponHitSystem implements EcsSystem {
       );
       const weapon = world.getComponent(entityId, PlayerWeaponStateComponent);
 
-      if (!locomotion || !physicsRefs.mesh || !weapon?.weaponSystem) {
+      if (!locomotion || !physicsRefs.mesh || !weapon?.hitbox) {
         continue;
       }
 
-      const hitboxSystem = weapon.weaponSystem.hitboxSystem;
+      const hitboxSystem = weapon.hitbox;
 
       if (!hitboxSystem || !weapon.hitboxActive) {
         continue;
@@ -51,33 +57,50 @@ export class PlayerWeaponHitSystem implements EcsSystem {
       );
       hitboxSystem.setRotation(rotation);
 
-      const enemies = weapon.weaponSystem.enemies ?? [];
-      weapon.registeredEnemyCount = enemies.length;
+      const enemyIds = world.query(
+        EnemyLifecycleRequestComponent,
+        EnemyPhysicsViewRefsComponent,
+        EnemyStatsComponent,
+      );
+      weapon.registeredEnemyCount = enemyIds.length;
 
-      for (const enemy of enemies) {
-        if (!enemy?.mesh || !enemy?.isAlive?.()) {
+      for (const enemyId of enemyIds) {
+        const enemyRefs = world.getComponent(
+          enemyId,
+          EnemyPhysicsViewRefsComponent,
+        );
+        const enemyStats = world.getComponent(enemyId, EnemyStatsComponent);
+        const enemyLifecycle = world.getComponent(
+          enemyId,
+          EnemyLifecycleRequestComponent,
+        );
+
+        if (
+          !enemyRefs ||
+          !enemyStats ||
+          !enemyLifecycle ||
+          enemyStats.lifeState !== EnemyLifeState.ALIVE
+        ) {
           continue;
         }
 
-        if (weapon.hitEnemiesThisSwing.has(enemy)) {
+        if (weapon.hitEnemiesThisSwing.has(enemyId)) {
           continue;
         }
 
-        if (!hitboxSystem.intersectsMesh(enemy.mesh, false)) {
+        if (!hitboxSystem.intersectsMesh(enemyRefs.mesh, false)) {
           continue;
         }
 
-        weapon.hitEnemiesThisSwing.add(enemy);
+        weapon.hitEnemiesThisSwing.add(enemyId);
         weapon.hitEnemiesThisSwingCount = weapon.hitEnemiesThisSwing.size;
 
         AudioManager.play('player_punch');
 
-        if (enemy.takeDamage) {
-          enemy.takeDamage(
-            weapon.damage,
-            physicsRefs.mesh.getAbsolutePosition(),
-          );
-        }
+        enemyLifecycle.damageRequests.push({
+          amount: weapon.damage,
+          damageSourcePosition: physicsRefs.mesh.getAbsolutePosition().clone(),
+        });
 
         physicsRefs.cameraShaker?.shakeMedium();
       }

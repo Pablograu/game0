@@ -7,6 +7,12 @@ import {
 import type { World } from '../../core/World.ts';
 import { GameFlowStateComponent } from '../../game/components/index.ts';
 import { GameFlowState } from '../../game/GameFlowState.ts';
+import {
+  PlayerHealthStateComponent,
+  PlayerPhysicsViewRefsComponent,
+  PlayerSurvivabilityRequestComponent,
+} from '../../player/components/index.ts';
+import { PlayerLifeState } from '../../player/PlayerStateEnums.ts';
 import type {
   EnemyAiStateComponent,
   EnemyAnimationStateComponent,
@@ -61,18 +67,78 @@ export function transitionEnemyBehavior(
   return true;
 }
 
+export interface EnemyPlayerCombatContext {
+  physicsRefs: PlayerPhysicsViewRefsComponent;
+  health: PlayerHealthStateComponent;
+  requests: PlayerSurvivabilityRequestComponent;
+  position: Vector3;
+}
+
+export function resolveEnemyPlayerCombatContext(
+  world: World,
+): EnemyPlayerCombatContext | null {
+  const playerIds = world.query(
+    PlayerHealthStateComponent,
+    PlayerPhysicsViewRefsComponent,
+    PlayerSurvivabilityRequestComponent,
+  );
+
+  for (const playerId of playerIds) {
+    const physicsRefs = world.getComponent(
+      playerId,
+      PlayerPhysicsViewRefsComponent,
+    );
+    const health = world.getComponent(playerId, PlayerHealthStateComponent);
+    const requests = world.getComponent(
+      playerId,
+      PlayerSurvivabilityRequestComponent,
+    );
+
+    if (!physicsRefs || !health || !requests) {
+      continue;
+    }
+
+    return {
+      physicsRefs,
+      health,
+      requests,
+      position: physicsRefs.mesh.getAbsolutePosition().clone(),
+    };
+  }
+
+  return null;
+}
+
 export function computeEnemyDistanceToPlayer(
+  player: EnemyPlayerCombatContext | null,
   refs: EnemyPhysicsViewRefsComponent,
 ): number {
-  if (!refs.playerTarget) {
+  if (!player) {
     return Number.POSITIVE_INFINITY;
   }
 
   const enemyPosition = refs.mesh.getAbsolutePosition();
-  const playerPosition = refs.playerTarget.getWorldPosition();
+  const playerPosition = player.position;
   const deltaX = playerPosition.x - enemyPosition.x;
   const deltaZ = playerPosition.z - enemyPosition.z;
   return Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+}
+
+export function queueDamageToPlayer(
+  player: EnemyPlayerCombatContext | null,
+  amount: number,
+  damageSourcePosition: Vector3,
+) {
+  if (!player || player.health.lifeState !== PlayerLifeState.ALIVE) {
+    return false;
+  }
+
+  player.requests.damageRequests.push({
+    amount,
+    damageSourcePosition: damageSourcePosition.clone(),
+  });
+
+  return true;
 }
 
 export function pickEnemyPatrolTarget(position: Vector3, patrolRadius: number) {

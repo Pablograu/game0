@@ -83,7 +83,6 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
     animationGroups: options.animationGroups,
     skeleton: options.skeleton,
     armatureNode: options.armatureNode,
-    playerTarget: null,
     lootManager,
   });
 

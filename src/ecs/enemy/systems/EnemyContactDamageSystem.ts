@@ -7,7 +7,11 @@ import {
   EnemyStatsComponent,
 } from '../components/index.ts';
 import { EnemyBehaviorState, EnemyLifeState } from '../EnemyStateEnums.ts';
-import { isEnemyGameplayPaused } from './enemyRuntimeUtils.ts';
+import {
+  isEnemyGameplayPaused,
+  queueDamageToPlayer,
+  resolveEnemyPlayerCombatContext,
+} from './enemyRuntimeUtils.ts';
 
 export class EnemyContactDamageSystem implements EcsSystem {
   readonly name = 'EnemyContactDamageSystem';
@@ -17,6 +21,8 @@ export class EnemyContactDamageSystem implements EcsSystem {
     if (isEnemyGameplayPaused(world)) {
       return;
     }
+
+    const player = resolveEnemyPlayerCombatContext(world);
 
     const entityIds = world.query(
       EnemyAiStateComponent,
@@ -31,7 +37,7 @@ export class EnemyContactDamageSystem implements EcsSystem {
       const refs = world.getComponent(entityId, EnemyPhysicsViewRefsComponent);
       const stats = world.getComponent(entityId, EnemyStatsComponent);
 
-      if (!ai || !combat || !refs || !stats || !refs.playerTarget) {
+      if (!ai || !combat || !refs || !stats || !player) {
         continue;
       }
 
@@ -44,16 +50,12 @@ export class EnemyContactDamageSystem implements EcsSystem {
         continue;
       }
 
-      const playerMesh = refs.playerTarget.getCollisionMesh();
-      if (!playerMesh) {
+      if (!refs.mesh.intersectsMesh(player.physicsRefs.mesh, false)) {
         continue;
       }
 
-      if (!refs.mesh.intersectsMesh(playerMesh, false)) {
-        continue;
-      }
-
-      refs.playerTarget.takeDamage(
+      queueDamageToPlayer(
+        player,
         stats.contactDamage,
         refs.mesh.getAbsolutePosition(),
       );

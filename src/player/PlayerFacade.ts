@@ -17,11 +17,6 @@ export interface PlayerCombatTargetApi {
   getWorldPosition(): Vector3;
 }
 
-export interface PlayerCombatRegistrationApi {
-  registerEnemy(enemy: unknown): void;
-  registerEnemies(enemies: unknown[]): void;
-}
-
 export interface PlayerTuningConfig {
   moveSpeed?: number;
   jumpForce?: number;
@@ -30,7 +25,7 @@ export interface PlayerTuningConfig {
   coyoteTime?: number;
 }
 
-export interface PlayerSetupApi extends PlayerCombatRegistrationApi {
+export interface PlayerSetupApi {
   configureTuning(config: PlayerTuningConfig): void;
   connectGameOverHandler(handler: PlayerGameOverHandler | null): void;
   initializeRagdoll(skeleton: Skeleton, armatureNode: Mesh): void;
@@ -56,8 +51,6 @@ export interface PlayerDebugApi {
 
 export interface PlayerFacade {
   readonly input: PlayerInputControllerApi;
-  readonly combatTarget: PlayerCombatTargetApi;
-  readonly combatRegistration: PlayerCombatRegistrationApi;
   readonly setup: PlayerSetupApi;
   readonly debug: PlayerDebugApi;
 }
@@ -67,8 +60,6 @@ export function createPlayerFacade(
 ): PlayerFacade {
   return {
     input: createPlayerInputControllerApi(playerController),
-    combatTarget: createPlayerCombatTargetApi(playerController),
-    combatRegistration: createPlayerCombatRegistrationApi(playerController),
     setup: createPlayerSetupApi(playerController),
     debug: createPlayerDebugApi(playerController),
   };
@@ -87,40 +78,10 @@ function createPlayerInputControllerApi(
   };
 }
 
-function createPlayerCombatTargetApi(
-  playerController: PlayerController,
-): PlayerCombatTargetApi {
-  return {
-    takeDamage(amount: number, damageSourcePosition?: Vector3 | null) {
-      playerController.takeDamage(amount, damageSourcePosition ?? null);
-    },
-    getCollisionMesh() {
-      return playerController.mesh;
-    },
-    getWorldPosition() {
-      return playerController.mesh.getAbsolutePosition();
-    },
-  };
-}
-
-function createPlayerCombatRegistrationApi(
-  playerController: PlayerController,
-): PlayerCombatRegistrationApi {
-  return {
-    registerEnemy(enemy: unknown) {
-      playerController.registerEnemy(enemy);
-    },
-    registerEnemies(enemies: unknown[]) {
-      playerController.registerEnemies(enemies);
-    },
-  };
-}
-
 function createPlayerSetupApi(
   playerController: PlayerController,
 ): PlayerSetupApi {
   return {
-    ...createPlayerCombatRegistrationApi(playerController),
     configureTuning(config: PlayerTuningConfig) {
       playerController.configureTuning(config);
     },

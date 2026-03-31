@@ -995,14 +995,6 @@ export class EnemyController {
     this.changeState(EnemyState.DEAD);
   }
 
-  setPlayerTarget(player: PlayerCombatTargetApi | null) {
-    this.playerTarget = player;
-  }
-
-  setPlayerRef(player: PlayerCombatTargetApi | null) {
-    this.setPlayerTarget(player);
-  }
-
   isAlive(): boolean {
     return this._alive;
   }

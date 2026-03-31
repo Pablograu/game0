@@ -12,6 +12,7 @@ import {
 import { EnemyBehaviorState, EnemyLifeState } from '../EnemyStateEnums.ts';
 import {
   computeEnemyDistanceToPlayer,
+  resolveEnemyPlayerCombatContext,
   pickEnemyPatrolTarget,
   transitionEnemyBehavior,
   isEnemyGameplayPaused,
@@ -25,6 +26,8 @@ export class EnemyDecisionSystem implements EcsSystem {
     if (isEnemyGameplayPaused(world)) {
       return;
     }
+
+    const player = resolveEnemyPlayerCombatContext(world);
 
     const entityIds = world.query(
       EnemyAiStateComponent,
@@ -48,7 +51,7 @@ export class EnemyDecisionSystem implements EcsSystem {
       }
 
       ai.stateElapsedTime += deltaTime;
-      ai.distanceToPlayer = computeEnemyDistanceToPlayer(refs);
+      ai.distanceToPlayer = computeEnemyDistanceToPlayer(player, refs);
 
       combat.attackCooldownTimer = Math.max(
         0,

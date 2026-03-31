@@ -1,6 +1,5 @@
 import { PhysicsRaycastResult, Quaternion, Vector3 } from '@babylonjs/core';
 import type { Mesh, Scene } from '@babylonjs/core';
-import type { WeaponSystem } from '../../WeaponSystem.ts';
 import { PlayerTagComponent } from '../components/PlayerTagComponent.ts';
 import type { EntityId } from '../core/Entity.ts';
 import type { World } from '../core/World.ts';
@@ -44,6 +43,7 @@ export function createPlayerEntity(
   const { world, scene } = options;
   const playerMesh = options.playerMesh;
   const weaponSystem = options.weaponSystem ?? null;
+  const weaponHitbox = weaponSystem?.hitboxSystem ?? null;
   const gameplayConfig = resolvePlayerGameplayConfig(options.gameplayConfig);
   const animationGroups = initializePlayerAnimationGroups(
     options.playerAnimations,
@@ -55,7 +55,7 @@ export function createPlayerEntity(
   );
   const entityId = world.createEntity();
 
-  weaponSystem?.enableExternalControl();
+  weaponHitbox?.setEnabled(false);
 
   world.addComponent(entityId, PlayerTagComponent, {
     kind: 'player',
@@ -162,21 +162,19 @@ export function createPlayerEntity(
   });
 
   world.addComponent(entityId, PlayerWeaponStateComponent, {
-    phase: resolveWeaponPhase(weaponSystem),
-    weaponSystem,
-    damage: weaponSystem?.damage ?? 0,
-    attackDuration: weaponSystem?.attackDuration ?? 0,
+    phase: PlayerWeaponPhase.IDLE,
+    hitbox: weaponHitbox,
+    damage: weaponSystem?.damage ?? 1,
+    attackDuration: weaponSystem?.attackDuration ?? 0.15,
     attackCooldown: weaponSystem?.attackCooldown ?? 0,
-    attackTimer: weaponSystem?.attackTimer ?? 0,
-    cooldownTimer: weaponSystem?.cooldownTimer ?? 0,
+    cooldownTimer: 0,
     hitboxSize: weaponSystem?.hitboxSize?.clone() ?? null,
-    hitboxOffset: weaponSystem?.hitboxOffset ?? 0,
-    playerKnockback: weaponSystem?.playerKnockback ?? 0,
-    registeredEnemyCount: weaponSystem?.enemies?.length ?? 0,
-    hitEnemiesThisSwingCount: weaponSystem?.hitEnemiesThisSwing?.size ?? 0,
-    hitObjectsThisSwingCount: weaponSystem?.hitObjectsThisSwing?.size ?? 0,
-    hitboxActive: weaponSystem?.hitboxSystem?.isEnabled() ?? false,
-    hitEnemiesThisSwing: new Set(weaponSystem?.hitEnemiesThisSwing ?? []),
+    hitboxOffset: weaponSystem?.hitboxOffset ?? 1.8,
+    playerKnockback: weaponSystem?.playerKnockback ?? 3,
+    registeredEnemyCount: 0,
+    hitEnemiesThisSwingCount: 0,
+    hitboxActive: false,
+    hitEnemiesThisSwing: new Set(),
   });
 
   world.addComponent(entityId, PlayerHealthStateComponent, {
@@ -232,22 +230,4 @@ export function createPlayerEntity(
   });
 
   return entityId;
-}
-
-function resolveWeaponPhase(
-  weaponSystem: WeaponSystem | null,
-): PlayerWeaponPhase {
-  if (!weaponSystem) {
-    return PlayerWeaponPhase.IDLE;
-  }
-
-  if (weaponSystem.isAttacking) {
-    return PlayerWeaponPhase.ATTACKING;
-  }
-
-  if (weaponSystem.cooldownTimer > 0) {
-    return PlayerWeaponPhase.COOLDOWN;
-  }
-
-  return PlayerWeaponPhase.IDLE;
 }

@@ -170,7 +170,7 @@ export class PlayerDashSystem implements EcsSystem {
     weapon.hitboxActive = false;
     weapon.hitEnemiesThisSwing.clear();
     weapon.hitEnemiesThisSwingCount = 0;
-    weapon.weaponSystem?.deactivateHitbox();
+    weapon.hitbox?.setEnabled(false);
   }
 
   private getMoveDirection(

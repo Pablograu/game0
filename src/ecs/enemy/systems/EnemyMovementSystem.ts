@@ -13,6 +13,7 @@ import {
 import { EnemyBehaviorState, EnemyLifeState } from '../EnemyStateEnums.ts';
 import {
   isEnemyGameplayPaused,
+  resolveEnemyPlayerCombatContext,
   rotateEnemyTowardTarget,
 } from './enemyRuntimeUtils.ts';
 
@@ -24,6 +25,8 @@ export class EnemyMovementSystem implements EcsSystem {
     if (isEnemyGameplayPaused(world)) {
       return;
     }
+
+    const player = resolveEnemyPlayerCombatContext(world);
 
     const entityIds = world.query(
       EnemyAiStateComponent,
@@ -92,11 +95,8 @@ export class EnemyMovementSystem implements EcsSystem {
         if (ai.current === EnemyBehaviorState.PATROL) {
           direction = patrol.patrolTarget.subtract(refs.mesh.position);
           direction.y = 0;
-        } else if (
-          ai.current === EnemyBehaviorState.CHASE &&
-          refs.playerTarget
-        ) {
-          const playerPosition = refs.playerTarget.getWorldPosition();
+        } else if (ai.current === EnemyBehaviorState.CHASE && player) {
+          const playerPosition = player.position;
           direction = new Vector3(
             playerPosition.x - refs.mesh.position.x,
             0,

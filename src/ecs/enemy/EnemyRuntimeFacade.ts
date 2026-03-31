@@ -1,6 +1,5 @@
 import type { Vector3 } from '@babylonjs/core';
 import type { EnemyConfig, EnemyController } from '../../EnemyController.ts';
-import type { PlayerCombatTargetApi } from '../../player/PlayerFacade.ts';
 import type { EntityId } from '../core/Entity.ts';
 import type { World } from '../core/World.ts';
 import {
@@ -92,21 +91,6 @@ export class EnemyRuntimeFacade {
     });
 
     return true;
-  }
-
-  setPlayerTarget(player: PlayerCombatTargetApi | null) {
-    const refs = this.world.getComponent(
-      this.entityId,
-      EnemyPhysicsViewRefsComponent,
-    );
-    if (refs) {
-      refs.playerTarget = player;
-    }
-    this.controller.setPlayerTarget(player);
-  }
-
-  setPlayerRef(player: PlayerCombatTargetApi | null) {
-    this.setPlayerTarget(player);
   }
 
   isAlive() {

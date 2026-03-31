@@ -1,24 +1,23 @@
 import type { Vector3 } from '@babylonjs/core';
-import type { WeaponSystem } from '../../../WeaponSystem.ts';
 import { createComponentType } from '../../core/Component.ts';
+import type { EntityId } from '../../core/Entity.ts';
+import type { HitboxSystem } from '../../../HitboxSystem.ts';
 import { PlayerWeaponPhase } from '../PlayerStateEnums.ts';
 
 export interface PlayerWeaponStateComponent {
   phase: PlayerWeaponPhase;
-  weaponSystem: WeaponSystem | null;
+  hitbox: HitboxSystem | null;
   damage: number;
   attackDuration: number;
   attackCooldown: number;
-  attackTimer: number;
   cooldownTimer: number;
   hitboxSize: Vector3 | null;
   hitboxOffset: number;
   playerKnockback: number;
   registeredEnemyCount: number;
   hitEnemiesThisSwingCount: number;
-  hitObjectsThisSwingCount: number;
   hitboxActive: boolean;
-  hitEnemiesThisSwing: Set<unknown>;
+  hitEnemiesThisSwing: Set<EntityId>;
 }
 
 export const PlayerWeaponStateComponent =

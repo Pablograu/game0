@@ -196,10 +196,6 @@ export class PlayerController {
     return this.getHealth().healthText;
   }
 
-  get weaponSystem() {
-    return this.getWeapon().weaponSystem;
-  }
-
   get ragdoll() {
     return this.getRagdoll().ragdoll;
   }
@@ -277,16 +273,6 @@ export class PlayerController {
     if (config.coyoteTime !== undefined) {
       this.getGrounding().coyoteTime = config.coyoteTime;
       this.getConfig().coyoteTime = config.coyoteTime;
-    }
-  }
-
-  registerEnemy(enemy: unknown) {
-    this.getWeapon().weaponSystem?.registerEnemy(enemy);
-  }
-
-  registerEnemies(enemies: unknown[]) {
-    for (const enemy of enemies) {
-      this.registerEnemy(enemy);
     }
   }
 

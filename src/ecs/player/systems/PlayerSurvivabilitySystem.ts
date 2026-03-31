@@ -105,7 +105,7 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
       locomotion.mode = PlayerLocomotionMode.IDLE;
       weapon.hitboxActive = false;
       weapon.phase = PlayerWeaponPhase.IDLE;
-      weapon.weaponSystem?.deactivateHitbox();
+      weapon.hitbox?.setEnabled(false);
 
       if (health.blinkActive || health.isInvulnerable) {
         health.blinkActive = false;
@@ -249,7 +249,7 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
     locomotion.mode = PlayerLocomotionMode.IDLE;
     weapon.hitboxActive = false;
     weapon.phase = PlayerWeaponPhase.IDLE;
-    weapon.weaponSystem?.deactivateHitbox();
+    weapon.hitbox?.setEnabled(false);
     requests.respawnRequested = false;
     requests.gameOverRequested = false;
     requests.gameOverReason = null;

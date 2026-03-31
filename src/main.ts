@@ -493,12 +493,6 @@ class Game {
       enemyConfig,
     );
 
-    // Asignar referencia al player y registrar en WeaponSystem
-    for (const enemy of this.enemies) {
-      enemy.setPlayerTarget(this.playerFacade?.combatTarget ?? null);
-    }
-    this.playerFacade?.combatRegistration.registerEnemies(this.enemies);
-
     console.log(`${this.enemies.length} enemigos creados con EnemyFactory`);
   }
 

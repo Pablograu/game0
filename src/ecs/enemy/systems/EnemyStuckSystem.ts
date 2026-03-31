@@ -14,6 +14,7 @@ import { EnemyBehaviorState, EnemyLifeState } from '../EnemyStateEnums.ts';
 import {
   isEnemyGameplayPaused,
   pickEnemyPatrolTarget,
+  resolveEnemyPlayerCombatContext,
 } from './enemyRuntimeUtils.ts';
 
 export class EnemyStuckSystem implements EcsSystem {
@@ -24,6 +25,8 @@ export class EnemyStuckSystem implements EcsSystem {
     if (isEnemyGameplayPaused(world)) {
       return;
     }
+
+    const player = resolveEnemyPlayerCombatContext(world);
 
     const entityIds = world.query(
       EnemyAiStateComponent,
@@ -109,11 +112,11 @@ export class EnemyStuckSystem implements EcsSystem {
         continue;
       }
 
-      if (!refs.playerTarget) {
+      if (!player) {
         continue;
       }
 
-      const playerPosition = refs.playerTarget.getWorldPosition();
+      const playerPosition = player.position;
       const toPlayer = new Vector3(
         playerPosition.x - position.x,
         0,

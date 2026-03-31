@@ -14,6 +14,8 @@ import {
   getEnemyAnimationDuration,
   getEnemyForwardDirection,
   isEnemyGameplayPaused,
+  queueDamageToPlayer,
+  resolveEnemyPlayerCombatContext,
   transitionEnemyBehavior,
 } from './enemyRuntimeUtils.ts';
 
@@ -25,6 +27,8 @@ export class EnemyAttackSystem implements EcsSystem {
     if (isEnemyGameplayPaused(world)) {
       return;
     }
+
+    const player = resolveEnemyPlayerCombatContext(world);
 
     const entityIds = world.query(
       EnemyAiStateComponent,
@@ -50,7 +54,7 @@ export class EnemyAttackSystem implements EcsSystem {
         continue;
       }
 
-      if (ai.current !== EnemyBehaviorState.ATTACK || !refs.playerTarget) {
+      if (ai.current !== EnemyBehaviorState.ATTACK || !player) {
         this.stopAttack(attack);
         continue;
       }
@@ -97,10 +101,10 @@ export class EnemyAttackSystem implements EcsSystem {
         attack.hitbox.setRotation(refs.root.rotationQuaternion);
 
         if (!attack.hasHitPlayerThisAttack) {
-          const playerMesh = refs.playerTarget.getCollisionMesh();
-          if (playerMesh && attack.hitbox.intersectsMesh(playerMesh, false)) {
+          if (attack.hitbox.intersectsMesh(player.physicsRefs.mesh, false)) {
             attack.hasHitPlayerThisAttack = true;
-            refs.playerTarget.takeDamage(
+            queueDamageToPlayer(
+              player,
               stats.contactDamage,
               refs.mesh.getAbsolutePosition(),
             );
