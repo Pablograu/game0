@@ -1,11 +1,10 @@
-import type { Camera, Mesh, Scene } from '@babylonjs/core';
-import type { PlayerController } from '../../player/PlayerController.ts';
+import type { Scene } from '@babylonjs/core';
 import type { EntityId } from '../core/Entity.ts';
 import { World } from '../core/World.ts';
 import {
   createPlayerEntity,
+  PlayerAnimationSystem,
   PlayerCombatSystem,
-  PlayerControllerBridgeSystem,
   PlayerDashSystem,
   PlayerDamageSystem,
   PlayerGameOverSystem,
@@ -13,16 +12,14 @@ import {
   PlayerInputSystem,
   PlayerJumpSystem,
   PlayerMovementSystem,
+  PlayerPresentationSystem,
   PlayerSurvivabilitySystem,
+  PlayerUiSyncSystem,
   PlayerWeaponHitSystem,
 } from '../player/index.ts';
+import type { PlayerBootstrapRuntime } from '../../player/playerRuntime.ts';
 
-export interface BootstrapGameEcsOptions {
-  scene: Scene;
-  playerController?: PlayerController | null;
-  playerMesh?: Mesh | null;
-  camera?: Camera | null;
-}
+export interface BootstrapGameEcsOptions extends PlayerBootstrapRuntime {}
 
 export interface GameEcsRuntime {
   readonly world: World;
@@ -36,28 +33,25 @@ export function bootstrapGameEcs(
   const world = new World();
   let playerEntityId: EntityId | null = null;
 
-  if (options.playerController && options.playerMesh) {
+  if (options.playerMesh) {
     playerEntityId = createPlayerEntity({
       world,
-      scene: options.scene,
-      playerController: options.playerController,
-      playerMesh: options.playerMesh,
-      camera: options.camera ?? null,
+      ...options,
     });
-
-    options.playerController.enableEcsLocomotionFacade();
 
     world.registerSystem(new PlayerInputSystem());
     world.registerSystem(new PlayerDamageSystem());
-    world.registerSystem(new PlayerGroundProbeSystem());
     world.registerSystem(new PlayerSurvivabilitySystem());
     world.registerSystem(new PlayerGameOverSystem());
+    world.registerSystem(new PlayerGroundProbeSystem());
     world.registerSystem(new PlayerCombatSystem());
     world.registerSystem(new PlayerDashSystem());
     world.registerSystem(new PlayerJumpSystem());
     world.registerSystem(new PlayerMovementSystem());
     world.registerSystem(new PlayerWeaponHitSystem());
-    world.registerSystem(new PlayerControllerBridgeSystem());
+    world.registerSystem(new PlayerAnimationSystem());
+    world.registerSystem(new PlayerPresentationSystem());
+    world.registerSystem(new PlayerUiSyncSystem());
   }
 
   const updateObserver = options.scene.onBeforeRenderObservable.add(() => {

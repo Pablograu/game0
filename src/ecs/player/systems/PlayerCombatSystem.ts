@@ -1,6 +1,5 @@
 import { Quaternion, Vector3 } from '@babylonjs/core';
 import { AudioManager } from '../../../AudioManager.ts';
-import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import {
@@ -25,7 +24,6 @@ export class PlayerCombatSystem implements EcsSystem {
 
   update(world: World, deltaTime: number): void {
     const entityIds = world.query(
-      LegacyPlayerRefsComponent,
       PlayerAnimationStateComponent,
       PlayerCombatStateComponent,
       PlayerControlStateComponent,
@@ -37,7 +35,6 @@ export class PlayerCombatSystem implements EcsSystem {
     );
 
     for (const entityId of entityIds) {
-      const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const animation = world.getComponent(
         entityId,
         PlayerAnimationStateComponent,
@@ -60,7 +57,6 @@ export class PlayerCombatSystem implements EcsSystem {
       const weapon = world.getComponent(entityId, PlayerWeaponStateComponent);
 
       if (
-        !refs ||
         !animation ||
         !combat ||
         !control ||
@@ -91,7 +87,7 @@ export class PlayerCombatSystem implements EcsSystem {
       }
 
       if (health.lifeState !== PlayerLifeState.ALIVE) {
-        this.endAttack(combat, weapon, refs, true);
+        this.endAttack(combat, weapon, true);
         control.attackRequested = false;
         continue;
       }
@@ -113,7 +109,6 @@ export class PlayerCombatSystem implements EcsSystem {
             locomotion,
             physicsRefs,
             weapon,
-            refs,
           );
         }
 
@@ -146,7 +141,7 @@ export class PlayerCombatSystem implements EcsSystem {
       }
 
       if (combat.activeAttackElapsed >= combat.activeAttackDuration) {
-        this.endAttack(combat, weapon, refs, false);
+        this.endAttack(combat, weapon, false);
       }
     }
   }
@@ -172,7 +167,6 @@ export class PlayerCombatSystem implements EcsSystem {
     locomotion: PlayerLocomotionStateComponent,
     physicsRefs: PlayerPhysicsViewRefsComponent,
     weapon: PlayerWeaponStateComponent,
-    refs: LegacyPlayerRefsComponent,
   ) {
     const nextAttack = combat.attackQueue.shift() ?? null;
 
@@ -183,7 +177,6 @@ export class PlayerCombatSystem implements EcsSystem {
     const animationGroup = animation.animationGroups.get(nextAttack);
 
     if (!animationGroup) {
-      refs.controller.returnToIdleOrRun();
       return;
     }
 
@@ -197,12 +190,6 @@ export class PlayerCombatSystem implements EcsSystem {
     );
 
     AudioManager.play('player_punch');
-    refs.controller.playSmoothAnimation(
-      nextAttack,
-      false,
-      true,
-      combat.punchSpeed,
-    );
 
     const frameRate =
       animationGroup.targetedAnimations[0]?.animation.framePerSecond || 30;
@@ -316,7 +303,6 @@ export class PlayerCombatSystem implements EcsSystem {
   private endAttack(
     combat: PlayerCombatStateComponent,
     weapon: PlayerWeaponStateComponent,
-    refs: LegacyPlayerRefsComponent,
     preserveCooldown: boolean,
   ) {
     combat.activeAttackAnimation = null;
@@ -342,9 +328,5 @@ export class PlayerCombatSystem implements EcsSystem {
       weapon.cooldownTimer > 0
         ? PlayerWeaponPhase.COOLDOWN
         : PlayerWeaponPhase.IDLE;
-
-    if (combat.attackQueue.length === 0) {
-      refs.controller.returnToIdleOrRun();
-    }
   }
 }

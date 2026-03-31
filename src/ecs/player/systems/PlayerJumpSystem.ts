@@ -1,7 +1,6 @@
 import { Vector3 } from '@babylonjs/core';
 import { AudioManager } from '../../../AudioManager.ts';
 import { EffectManager } from '../../../EffectManager.ts';
-import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import { PlayerJumpPhaseState, PlayerLifeState } from '../PlayerStateEnums.ts';
@@ -19,7 +18,6 @@ export class PlayerJumpSystem implements EcsSystem {
 
   update(world: World, deltaTime: number): void {
     const entityIds = world.query(
-      LegacyPlayerRefsComponent,
       PlayerControlStateComponent,
       PlayerGroundingStateComponent,
       PlayerHealthStateComponent,
@@ -28,7 +26,6 @@ export class PlayerJumpSystem implements EcsSystem {
     );
 
     for (const entityId of entityIds) {
-      const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
       const grounding = world.getComponent(
         entityId,
@@ -45,7 +42,6 @@ export class PlayerJumpSystem implements EcsSystem {
       );
 
       if (
-        !refs ||
         !control ||
         !grounding ||
         !health ||

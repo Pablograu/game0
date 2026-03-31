@@ -1,5 +1,5 @@
+export * from './PlayerAnimationSystem.ts';
 export * from './PlayerCombatSystem.ts';
-export * from './PlayerControllerBridgeSystem.ts';
 export * from './PlayerDashSystem.ts';
 export * from './PlayerDamageSystem.ts';
 export * from './PlayerGameOverSystem.ts';
@@ -7,5 +7,7 @@ export * from './PlayerGroundProbeSystem.ts';
 export * from './PlayerInputSystem.ts';
 export * from './PlayerJumpSystem.ts';
 export * from './PlayerMovementSystem.ts';
+export * from './PlayerPresentationSystem.ts';
 export * from './PlayerSurvivabilitySystem.ts';
+export * from './PlayerUiSyncSystem.ts';
 export * from './PlayerWeaponHitSystem.ts';

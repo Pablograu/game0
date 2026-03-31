@@ -21,6 +21,7 @@ import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import '@babylonjs/core/Cameras/Inputs';
 import '@babylonjs/loaders/glTF';
 import HavokPhysics from '@babylonjs/havok';
+import { WeaponSystem } from './WeaponSystem.ts';
 import { PlayerController } from './player/PlayerController.ts';
 import {
   createPlayerFacade,
@@ -30,6 +31,10 @@ import {
   createPlayerAnimationRegistry,
   PlayerAnimationRegistry,
 } from './player/PlayerAnimations.ts';
+import {
+  DEFAULT_PLAYER_GAMEPLAY_CONFIG,
+  createPlayerHealthUi,
+} from './player/playerRuntime.ts';
 import { EnemyFactory } from './EnemyFactory.ts';
 import { EffectManager } from './EffectManager.ts';
 import { CameraShaker } from './CameraShaker.ts';
@@ -73,12 +78,11 @@ class Game {
     await this.preloadEnemyAssets();
     this.player = await this.createPlayer();
     this.camera = this.createCamera();
-    this.setupPlayerController();
+    this.setupPlayerRuntime();
     await this.createEnemies();
     await this.loadEnvironment();
     this.createLighting();
     this.setupGameManager();
-    this.setupEcs();
     this.startRenderLoop();
     this.setupResize();
     // this.setupDebugGUI();
@@ -144,21 +148,57 @@ class Game {
     return camera;
   }
 
-  setupPlayerController() {
+  setupPlayerRuntime() {
     // Configurar la cámara para seguir al jugador
     if (this.camera && this.player) {
       this.camera.lockedTarget = this.player;
     }
-    // Inicializar CameraShaker
+
     this.cameraShaker = new CameraShaker(this.camera, this.scene);
 
-    // Instanciar el controlador con la cámara ya creada
-    this.playerController = new PlayerController(
-      this.camera,
-      this.cameraShaker,
-      this.player,
-      this.playerAnimations,
+    const healthUi = createPlayerHealthUi(
       this.scene,
+      DEFAULT_PLAYER_GAMEPLAY_CONFIG.maxHealth,
+    );
+
+    const weaponSystem = new WeaponSystem(
+      {
+        mesh: this.player,
+        body: this.player.physicsBody,
+        targetRotation: Quaternion.Identity(),
+      },
+      this.scene,
+      {
+        damage: 1,
+        attackDuration: 0.15,
+        attackCooldown: 0,
+        debug: true,
+        cameraShaker: this.cameraShaker,
+        hitboxOffset: 1.8,
+      },
+    );
+
+    this.ecsRuntime = bootstrapGameEcs({
+      scene: this.scene,
+      playerMesh: this.player,
+      camera: this.camera,
+      cameraShaker: this.cameraShaker,
+      playerAnimations: this.playerAnimations,
+      weaponSystem,
+      healthUI: healthUi.healthUI,
+      healthText: healthUi.healthText,
+      spawnPoint: this.player.position.clone(),
+      ragdollSkeleton: this.player.skeleton ?? null,
+      ragdollArmatureNode: this.player.armatureNode ?? null,
+    });
+
+    if (!this.ecsRuntime.playerEntityId) {
+      throw new Error('Failed to create player ECS entity.');
+    }
+
+    this.playerController = new PlayerController(
+      this.ecsRuntime.world,
+      this.ecsRuntime.playerEntityId,
     );
 
     this.playerFacade = createPlayerFacade(this.playerController);
@@ -169,12 +209,7 @@ class Game {
       jumpForce: 12,
     });
 
-    this.playerFacade.setup.initializeRagdoll(
-      this.player.skeleton,
-      this.player.armatureNode,
-    );
-
-    console.log('PlayerController inicializado');
+    console.log('Player runtime initialized');
   }
 
   setupGameManager() {
@@ -190,17 +225,6 @@ class Game {
     this.playerFacade?.setup.connectGameOverHandler(this.gameManager);
 
     console.log('GameManager inicializado');
-  }
-
-  setupEcs() {
-    this.ecsRuntime = bootstrapGameEcs({
-      scene: this.scene,
-      playerController: this.playerController,
-      playerMesh: this.player,
-      camera: this.camera,
-    });
-
-    console.log('ECS world initialized');
   }
 
   createLighting() {

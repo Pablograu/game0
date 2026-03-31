@@ -1,7 +1,9 @@
-import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
-import { PlayerSurvivabilityRequestComponent } from '../components/index.ts';
+import {
+  PlayerGameOverHandlerComponent,
+  PlayerSurvivabilityRequestComponent,
+} from '../components/index.ts';
 
 export class PlayerGameOverSystem implements EcsSystem {
   readonly name = 'PlayerGameOverSystem';
@@ -9,26 +11,29 @@ export class PlayerGameOverSystem implements EcsSystem {
 
   update(world: World): void {
     const entityIds = world.query(
-      LegacyPlayerRefsComponent,
+      PlayerGameOverHandlerComponent,
       PlayerSurvivabilityRequestComponent,
     );
 
     for (const entityId of entityIds) {
-      const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
+      const gameOver = world.getComponent(
+        entityId,
+        PlayerGameOverHandlerComponent,
+      );
       const requests = world.getComponent(
         entityId,
         PlayerSurvivabilityRequestComponent,
       );
 
-      if (!refs || !requests || !requests.gameOverRequested) {
+      if (!gameOver || !requests || !requests.gameOverRequested) {
         continue;
       }
 
-      if (!requests.autoSignalGameOver || !refs.controller.gameManager) {
+      if (!requests.autoSignalGameOver || !gameOver.handler) {
         continue;
       }
 
-      refs.controller.gameManager.gameOver();
+      gameOver.handler.gameOver();
       requests.gameOverRequested = false;
       requests.gameOverReason = null;
     }

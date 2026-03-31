@@ -1,8 +1,8 @@
 import type { TransformNode } from '@babylonjs/core';
-import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import {
+  PlayerGameplayConfigComponent,
   PlayerGroundingStateComponent,
   PlayerPhysicsViewRefsComponent,
 } from '../components/index.ts';
@@ -15,13 +15,16 @@ export class PlayerGroundProbeSystem implements EcsSystem {
 
   update(world: World, deltaTime: number): void {
     const entityIds = world.query(
-      LegacyPlayerRefsComponent,
+      PlayerGameplayConfigComponent,
       PlayerGroundingStateComponent,
       PlayerPhysicsViewRefsComponent,
     );
 
     for (const entityId of entityIds) {
-      const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
+      const config = world.getComponent(
+        entityId,
+        PlayerGameplayConfigComponent,
+      );
       const grounding = world.getComponent(
         entityId,
         PlayerGroundingStateComponent,
@@ -31,14 +34,14 @@ export class PlayerGroundProbeSystem implements EcsSystem {
         PlayerPhysicsViewRefsComponent,
       );
 
-      if (!refs || !grounding || !physicsRefs.physicsEngine) {
+      if (!config || !grounding || !physicsRefs.physicsEngine) {
         continue;
       }
 
-      grounding.jumpForce = refs.controller.jumpForce;
-      grounding.jumpCutMultiplier = refs.controller.jumpCutMultiplier;
-      grounding.coyoteTime = refs.controller.coyoteTime;
-      grounding.jumpBufferTime = refs.controller.jumpBufferTime;
+      grounding.jumpForce = config.jumpForce;
+      grounding.jumpCutMultiplier = config.jumpCutMultiplier;
+      grounding.coyoteTime = config.coyoteTime;
+      grounding.jumpBufferTime = config.jumpBufferTime;
 
       grounding.wasGrounded = grounding.isGrounded;
 

@@ -1,5 +1,5 @@
 import { Vector3 } from '@babylonjs/core';
-import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
+import { createPlayerRagdoll } from '../../../player/playerRuntime.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import {
@@ -36,7 +36,6 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
 
   update(world: World, deltaTime: number): void {
     const entityIds = world.query(
-      LegacyPlayerRefsComponent,
       PlayerCombatStateComponent,
       PlayerControlStateComponent,
       PlayerHealthStateComponent,
@@ -49,7 +48,6 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
     );
 
     for (const entityId of entityIds) {
-      const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const combat = world.getComponent(entityId, PlayerCombatStateComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
       const health = world.getComponent(entityId, PlayerHealthStateComponent);
@@ -70,7 +68,6 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
       const weapon = world.getComponent(entityId, PlayerWeaponStateComponent);
 
       if (
-        !refs ||
         !combat ||
         !control ||
         !health ||
@@ -154,7 +151,6 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
 
       if (requests.respawnRequested || health.respawnTimer <= 0) {
         this.respawnPlayer(
-          refs,
           control,
           combat,
           health,
@@ -206,7 +202,6 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
   }
 
   private respawnPlayer(
-    refs: LegacyPlayerRefsComponent,
     control: PlayerControlStateComponent,
     combat: PlayerCombatStateComponent,
     health: PlayerHealthStateComponent,
@@ -223,9 +218,12 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
     physicsRefs.body?.setLinearVelocity(Vector3.Zero());
     physicsRefs.body?.setAngularVelocity(Vector3.Zero());
 
-    refs.controller.resetRagdollForRespawn();
-    ragdoll.ragdoll = refs.controller.ragdoll;
-    ragdoll.mode = refs.controller.ragdoll
+    this.disposeRagdoll(ragdoll.ragdoll);
+    ragdoll.ragdoll = createPlayerRagdoll(
+      ragdoll.ragdollSkeleton,
+      ragdoll.ragdollArmatureNode,
+    );
+    ragdoll.mode = ragdoll.ragdoll
       ? PlayerRagdollMode.READY
       : PlayerRagdollMode.UNINITIALIZED;
     ragdoll.pendingImpulse = null;
@@ -238,7 +236,6 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
     health.blinkActive = true;
     health.blinkTimer = 0;
     health.respawnTimer = 0;
-    this.updateHealthUi(health);
 
     control.inputEnabled = true;
     combat.isAttacking = false;
@@ -258,19 +255,11 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
     requests.gameOverReason = null;
   }
 
-  private updateHealthUi(health: PlayerHealthStateComponent) {
-    if (!health.healthText) {
+  private disposeRagdoll(ragdoll: unknown | null) {
+    if (!ragdoll || typeof ragdoll !== 'object' || !('dispose' in ragdoll)) {
       return;
     }
 
-    health.healthText.text = `Vidas: ${health.currentHealth}`;
-
-    if (health.currentHealth <= 1) {
-      health.healthText.color = 'red';
-    } else if (health.currentHealth <= 2) {
-      health.healthText.color = 'orange';
-    } else {
-      health.healthText.color = 'white';
-    }
+    (ragdoll as { dispose(): void }).dispose();
   }
 }

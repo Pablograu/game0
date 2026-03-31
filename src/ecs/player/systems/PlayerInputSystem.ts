@@ -5,7 +5,6 @@ import {
   type Observer,
   type PointerInfo,
 } from '@babylonjs/core';
-import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EntityId } from '../../core/Entity.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
@@ -14,6 +13,7 @@ import {
   PlayerControlStateComponent,
   PlayerGroundingStateComponent,
   PlayerHealthStateComponent,
+  PlayerPhysicsViewRefsComponent,
 } from '../components/index.ts';
 import { PlayerCombatMode, PlayerLifeState } from '../PlayerStateEnums.ts';
 
@@ -30,22 +30,21 @@ export class PlayerInputSystem implements EcsSystem {
 
   update(world: World): void {
     const entityIds = world.query(
-      LegacyPlayerRefsComponent,
       PlayerCombatStateComponent,
       PlayerControlStateComponent,
       PlayerGroundingStateComponent,
       PlayerHealthStateComponent,
+      PlayerPhysicsViewRefsComponent,
     );
 
     for (const entityId of entityIds) {
       this.ensureObservers(world, entityId);
 
-      const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const combat = world.getComponent(entityId, PlayerCombatStateComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
       const health = world.getComponent(entityId, PlayerHealthStateComponent);
 
-      if (!refs || !combat || !control || !health) {
+      if (!combat || !control || !health) {
         continue;
       }
 
@@ -84,70 +83,70 @@ export class PlayerInputSystem implements EcsSystem {
       return;
     }
 
-    const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
+    const physicsRefs = world.getComponent(
+      entityId,
+      PlayerPhysicsViewRefsComponent,
+    );
 
-    if (!refs) {
+    if (!physicsRefs) {
       return;
     }
 
-    const keyboardObserver = refs.scene.onKeyboardObservable.add((kbInfo) => {
-      const control = world.getComponent(entityId, PlayerControlStateComponent);
-      const grounding = world.getComponent(
-        entityId,
-        PlayerGroundingStateComponent,
-      );
-      const currentRefs = world.getComponent(
-        entityId,
-        LegacyPlayerRefsComponent,
-      );
+    const keyboardObserver = physicsRefs.scene.onKeyboardObservable.add(
+      (kbInfo) => {
+        const control = world.getComponent(
+          entityId,
+          PlayerControlStateComponent,
+        );
+        const grounding = world.getComponent(
+          entityId,
+          PlayerGroundingStateComponent,
+        );
 
-      if (!control || !grounding || !control.inputEnabled || !currentRefs) {
-        return;
-      }
-
-      const key = kbInfo.event.key.toLowerCase();
-
-      if (kbInfo.type === KeyboardEventTypes.KEYDOWN) {
-        control.inputMap[key] = true;
-
-        if (key === ' ') {
-          grounding.jumpBufferTimer = grounding.jumpBufferTime;
-          control.jumpBufferTimer = grounding.jumpBufferTimer;
-          control.jumpKeyReleased = false;
+        if (!control || !grounding || !control.inputEnabled) {
+          return;
         }
 
-        if (key === 'shift') {
-          control.dashRequested = true;
+        const key = kbInfo.event.key.toLowerCase();
+
+        if (kbInfo.type === KeyboardEventTypes.KEYDOWN) {
+          control.inputMap[key] = true;
+
+          if (key === ' ') {
+            grounding.jumpBufferTimer = grounding.jumpBufferTime;
+            control.jumpBufferTimer = grounding.jumpBufferTimer;
+            control.jumpKeyReleased = false;
+          }
+
+          if (key === 'shift') {
+            control.dashRequested = true;
+          }
+
+          if (key === 'k') {
+            control.danceToggleRequested = true;
+          }
+
+          return;
         }
 
-        if (key === 'k') {
-          control.danceToggleRequested = true;
+        if (kbInfo.type === KeyboardEventTypes.KEYUP) {
+          control.inputMap[key] = false;
+
+          if (key === ' ') {
+            control.jumpKeyReleased = true;
+          }
         }
+      },
+    );
 
-        return;
-      }
-
-      if (kbInfo.type === KeyboardEventTypes.KEYUP) {
-        control.inputMap[key] = false;
-
-        if (key === ' ') {
-          control.jumpKeyReleased = true;
-        }
-      }
-    });
-
-    const pointerObserver = refs.scene.onPointerObservable.add(
+    const pointerObserver = physicsRefs.scene.onPointerObservable.add(
       (pointerInfo) => {
         const control = world.getComponent(
           entityId,
           PlayerControlStateComponent,
         );
-        const currentRefs = world.getComponent(
-          entityId,
-          LegacyPlayerRefsComponent,
-        );
 
-        if (!control || !control.inputEnabled || !currentRefs) {
+        if (!control || !control.inputEnabled) {
           return;
         }
 

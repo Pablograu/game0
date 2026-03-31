@@ -1,11 +1,11 @@
-import { Vector3 } from '@babylonjs/core';
-import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
+import { Quaternion, Vector3 } from '@babylonjs/core';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import { PlayerLifeState, PlayerLocomotionMode } from '../PlayerStateEnums.ts';
 import {
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
+  PlayerGameplayConfigComponent,
   PlayerGroundingStateComponent,
   PlayerHealthStateComponent,
   PlayerLocomotionStateComponent,
@@ -18,9 +18,9 @@ export class PlayerMovementSystem implements EcsSystem {
 
   update(world: World, deltaTime: number): void {
     const entityIds = world.query(
-      LegacyPlayerRefsComponent,
       PlayerControlStateComponent,
       PlayerCombatStateComponent,
+      PlayerGameplayConfigComponent,
       PlayerGroundingStateComponent,
       PlayerHealthStateComponent,
       PlayerLocomotionStateComponent,
@@ -28,9 +28,12 @@ export class PlayerMovementSystem implements EcsSystem {
     );
 
     for (const entityId of entityIds) {
-      const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
       const combat = world.getComponent(entityId, PlayerCombatStateComponent);
+      const config = world.getComponent(
+        entityId,
+        PlayerGameplayConfigComponent,
+      );
       const grounding = world.getComponent(
         entityId,
         PlayerGroundingStateComponent,
@@ -46,9 +49,9 @@ export class PlayerMovementSystem implements EcsSystem {
       );
 
       if (
-        !refs ||
         !control ||
         !combat ||
+        !config ||
         !grounding ||
         !health ||
         !locomotion ||
@@ -57,14 +60,14 @@ export class PlayerMovementSystem implements EcsSystem {
         continue;
       }
 
-      locomotion.moveSpeed = refs.controller.moveSpeed;
-      locomotion.normalMoveSpeed = refs.controller.normalMoveSpeed;
-      locomotion.rotationSpeed = refs.controller.rotationSpeed;
-      locomotion.recoilForce = refs.controller.recoilForce;
-      locomotion.recoilDecay = refs.controller.recoilDecay;
-      locomotion.pogoForce = refs.controller.pogoForce;
-      locomotion.damageKnockbackForce = refs.controller.damageKnockbackForce;
-      locomotion.originalScale = refs.controller.originalScale.clone();
+      locomotion.moveSpeed = config.moveSpeed;
+      locomotion.normalMoveSpeed = config.moveSpeed;
+      locomotion.rotationSpeed = config.rotationSpeed;
+      locomotion.recoilForce = config.recoilForce;
+      locomotion.recoilDecay = config.recoilDecay;
+      locomotion.pogoForce = config.pogoForce;
+      locomotion.damageKnockbackForce = config.damageKnockbackForce;
+      locomotion.originalScale = physicsRefs.mesh.scaling.clone();
 
       const moveDirection = this.getMoveDirection(
         physicsRefs.camera,
@@ -115,8 +118,8 @@ export class PlayerMovementSystem implements EcsSystem {
 
       const currentVelocity = physicsRefs.body.getLinearVelocity();
       const effectiveMoveSpeed = combat.isAttacking
-        ? refs.controller.moveSpeed * combat.attackMoveSpeedMultiplier
-        : refs.controller.moveSpeed;
+        ? config.moveSpeed * combat.attackMoveSpeedMultiplier
+        : config.moveSpeed;
 
       physicsRefs.body.setLinearVelocity(
         new Vector3(
@@ -127,9 +130,15 @@ export class PlayerMovementSystem implements EcsSystem {
       );
       physicsRefs.body.setAngularVelocity(Vector3.Zero());
 
-      refs.controller.updateRotation(moveDirection, deltaTime);
-      locomotion.targetRotation = refs.controller.targetRotation.clone();
-      locomotion.targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
+      if (moveDirection.length() > 0.1) {
+        locomotion.targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
+        locomotion.targetRotation = Quaternion.FromEulerAngles(
+          0,
+          locomotion.targetAngle,
+          0,
+        );
+      }
+
       locomotion.isMoving = moveDirection.length() > 0.1;
       locomotion.mode = locomotion.isMoving
         ? PlayerLocomotionMode.MOVING

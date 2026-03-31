@@ -1,11 +1,11 @@
 import { Vector3 } from '@babylonjs/core';
 import { AudioManager } from '../../../AudioManager.ts';
 import { EffectManager } from '../../../EffectManager.ts';
-import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import { PlayerLocomotionMode } from '../PlayerStateEnums.ts';
 import {
+  PlayerGameplayConfigComponent,
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
   PlayerHealthStateComponent,
@@ -25,9 +25,9 @@ export class PlayerDashSystem implements EcsSystem {
 
   update(world: World, deltaTime: number): void {
     const entityIds = world.query(
-      LegacyPlayerRefsComponent,
       PlayerControlStateComponent,
       PlayerCombatStateComponent,
+      PlayerGameplayConfigComponent,
       PlayerHealthStateComponent,
       PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
@@ -35,9 +35,12 @@ export class PlayerDashSystem implements EcsSystem {
     );
 
     for (const entityId of entityIds) {
-      const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
       const combat = world.getComponent(entityId, PlayerCombatStateComponent);
+      const config = world.getComponent(
+        entityId,
+        PlayerGameplayConfigComponent,
+      );
       const health = world.getComponent(entityId, PlayerHealthStateComponent);
       const locomotion = world.getComponent(
         entityId,
@@ -50,9 +53,9 @@ export class PlayerDashSystem implements EcsSystem {
       const weapon = world.getComponent(entityId, PlayerWeaponStateComponent);
 
       if (
-        !refs ||
         !control ||
         !combat ||
+        !config ||
         !health ||
         !locomotion ||
         !physicsRefs.body ||
@@ -61,9 +64,9 @@ export class PlayerDashSystem implements EcsSystem {
         continue;
       }
 
-      locomotion.dashSpeed = refs.controller.dashSpeed;
-      locomotion.dashDuration = refs.controller.dashDuration;
-      locomotion.dashCooldown = refs.controller.dashCooldown;
+      locomotion.dashSpeed = config.dashSpeed;
+      locomotion.dashDuration = config.dashDuration;
+      locomotion.dashCooldown = config.dashCooldown;
 
       if (locomotion.dashCooldownTimer > 0) {
         locomotion.dashCooldownTimer = Math.max(
@@ -75,7 +78,7 @@ export class PlayerDashSystem implements EcsSystem {
       if (health.lifeState !== PlayerLifeState.ALIVE) {
         locomotion.isDashing = false;
         control.dashRequested = false;
-        this.cancelAttack(control, combat, weapon, refs);
+        this.cancelAttack(control, combat, weapon);
         continue;
       }
 
@@ -110,11 +113,6 @@ export class PlayerDashSystem implements EcsSystem {
         control.inputEnabled &&
         locomotion.dashCooldownTimer <= 0
       ) {
-        const animationName = 'dash';
-        if (refs.controller.animationGroups.get(animationName)) {
-          refs.controller.playSmoothAnimation(animationName, false, true, 1.5);
-        }
-
         const dashDirection = this.getMoveDirection(
           physicsRefs.camera,
           control.moveInputX,
@@ -135,7 +133,7 @@ export class PlayerDashSystem implements EcsSystem {
             : new Vector3(0, 0, 1);
         locomotion.targetScale = new Vector3(0.7, 1.3, 0.7);
 
-        this.cancelAttack(control, combat, weapon, refs);
+        this.cancelAttack(control, combat, weapon);
 
         AudioManager.play('player_dash');
         EffectManager.showDust(physicsRefs.mesh.getAbsolutePosition(), {
@@ -153,7 +151,6 @@ export class PlayerDashSystem implements EcsSystem {
     control: PlayerControlStateComponent,
     combat: PlayerCombatStateComponent,
     weapon: PlayerWeaponStateComponent,
-    refs: LegacyPlayerRefsComponent,
   ) {
     control.attackRequested = false;
     combat.attackQueue = [];

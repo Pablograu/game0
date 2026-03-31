@@ -1,5 +1,4 @@
 export * from './bootstrap/bootstrapGameEcs.ts';
-export * from './components/LegacyPlayerRefsComponent.ts';
 export * from './components/PlayerTagComponent.ts';
 export * from './core/Component.ts';
 export * from './core/Entity.ts';

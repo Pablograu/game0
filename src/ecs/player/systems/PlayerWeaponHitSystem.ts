@@ -1,6 +1,5 @@
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core';
 import { AudioManager } from '../../../AudioManager.ts';
-import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import {
@@ -15,14 +14,12 @@ export class PlayerWeaponHitSystem implements EcsSystem {
 
   update(world: World): void {
     const entityIds = world.query(
-      LegacyPlayerRefsComponent,
       PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
       PlayerWeaponStateComponent,
     );
 
     for (const entityId of entityIds) {
-      const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
       const locomotion = world.getComponent(
         entityId,
         PlayerLocomotionStateComponent,
@@ -33,7 +30,7 @@ export class PlayerWeaponHitSystem implements EcsSystem {
       );
       const weapon = world.getComponent(entityId, PlayerWeaponStateComponent);
 
-      if (!refs || !locomotion || !physicsRefs.mesh || !weapon?.weaponSystem) {
+      if (!locomotion || !physicsRefs.mesh || !weapon?.weaponSystem) {
         continue;
       }
 

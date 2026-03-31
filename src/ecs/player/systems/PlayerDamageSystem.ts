@@ -1,11 +1,11 @@
 import { Vector3 } from '@babylonjs/core';
 import { AudioManager } from '../../../AudioManager.ts';
 import { EffectManager } from '../../../EffectManager.ts';
-import { LegacyPlayerRefsComponent } from '../../components/LegacyPlayerRefsComponent.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import { PlayerLifeState } from '../PlayerStateEnums.ts';
 import {
+  PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
   PlayerHealthStateComponent,
@@ -21,7 +21,7 @@ export class PlayerDamageSystem implements EcsSystem {
 
   update(world: World): void {
     const entityIds = world.query(
-      LegacyPlayerRefsComponent,
+      PlayerAnimationStateComponent,
       PlayerCombatStateComponent,
       PlayerControlStateComponent,
       PlayerHealthStateComponent,
@@ -32,7 +32,10 @@ export class PlayerDamageSystem implements EcsSystem {
     );
 
     for (const entityId of entityIds) {
-      const refs = world.getComponent(entityId, LegacyPlayerRefsComponent);
+      const animation = world.getComponent(
+        entityId,
+        PlayerAnimationStateComponent,
+      );
       const combat = world.getComponent(entityId, PlayerCombatStateComponent);
       const control = world.getComponent(entityId, PlayerControlStateComponent);
       const health = world.getComponent(entityId, PlayerHealthStateComponent);
@@ -51,7 +54,7 @@ export class PlayerDamageSystem implements EcsSystem {
       );
 
       if (
-        !refs ||
+        !animation ||
         !combat ||
         !control ||
         !health ||
@@ -72,7 +75,6 @@ export class PlayerDamageSystem implements EcsSystem {
           health.respawnTimer = health.respawnDelay;
           requests.gameOverRequested = true;
           requests.gameOverReason = 'player-death';
-          this.updateHealthUi(health);
         }
       }
 
@@ -107,7 +109,7 @@ export class PlayerDamageSystem implements EcsSystem {
           direction: knockbackDir.length() > 0.01 ? knockbackDir : undefined,
         });
 
-        refs.controller.playSmoothAnimation('stumble_back', false, true);
+        this.startOverride(animation, 'stumble_back', false, 1, true);
 
         if (
           health.isInvulnerable ||
@@ -122,7 +124,6 @@ export class PlayerDamageSystem implements EcsSystem {
           0,
           health.currentHealth - request.amount,
         );
-        this.updateHealthUi(health);
 
         if (health.currentHealth <= 0) {
           health.lifeState = PlayerLifeState.DEAD;
@@ -144,19 +145,27 @@ export class PlayerDamageSystem implements EcsSystem {
     }
   }
 
-  private updateHealthUi(health: PlayerHealthStateComponent) {
-    if (!health.healthText) {
+  private startOverride(
+    animation: PlayerAnimationStateComponent,
+    animationName: string,
+    loop: boolean,
+    speedRatio: number,
+    forceReset: boolean,
+  ) {
+    const animationGroup = animation.animationGroups.get(animationName);
+    if (!animationGroup) {
       return;
     }
 
-    health.healthText.text = `Vidas: ${health.currentHealth}`;
-
-    if (health.currentHealth <= 1) {
-      health.healthText.color = 'red';
-    } else if (health.currentHealth <= 2) {
-      health.healthText.color = 'orange';
-    } else {
-      health.healthText.color = 'white';
-    }
+    const frameRate =
+      animationGroup.targetedAnimations[0]?.animation.framePerSecond ?? 30;
+    animation.overrideAnimation = animationName;
+    animation.overrideLoop = loop;
+    animation.overrideForceReset = forceReset;
+    animation.overrideSpeedRatio = speedRatio;
+    animation.overrideTimer =
+      (animationGroup.to - animationGroup.from) /
+      frameRate /
+      Math.max(speedRatio, 0.01);
   }
 }

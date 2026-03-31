@@ -1,16 +1,22 @@
-import { Vector3 } from '@babylonjs/core';
-import type { Camera, Mesh, Scene } from '@babylonjs/core';
+import { PhysicsRaycastResult, Quaternion, Vector3 } from '@babylonjs/core';
+import type { Mesh, Scene } from '@babylonjs/core';
 import type { WeaponSystem } from '../../WeaponSystem.ts';
-import type { PlayerController } from '../../player/PlayerController.ts';
-import { LegacyPlayerRefsComponent } from '../components/LegacyPlayerRefsComponent.ts';
 import { PlayerTagComponent } from '../components/PlayerTagComponent.ts';
 import type { EntityId } from '../core/Entity.ts';
 import type { World } from '../core/World.ts';
+import {
+  createPlayerRagdoll,
+  initializePlayerAnimationGroups,
+  resolvePlayerGameplayConfig,
+  type PlayerBootstrapRuntime,
+} from '../../player/playerRuntime.ts';
 import { PlayerSurvivabilityRequestComponent } from './components/PlayerSurvivabilityRequestComponent.ts';
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
+  PlayerGameOverHandlerComponent,
+  PlayerGameplayConfigComponent,
   PlayerGroundingStateComponent,
   PlayerHealthStateComponent,
   PlayerLocomotionStateComponent,
@@ -28,34 +34,25 @@ import {
   PlayerWeaponPhase,
 } from './PlayerStateEnums.ts';
 
-export interface CreatePlayerEntityOptions {
+export interface CreatePlayerEntityOptions extends PlayerBootstrapRuntime {
   world: World;
-  scene: Scene;
-  playerController: PlayerController;
-  playerMesh?: Mesh | null;
-  camera?: Camera | null;
 }
-
-type PlayerControllerSnapshot = {
-  jumpPhase?: PlayerJumpPhaseState;
-  airTime?: number;
-  minAirTime?: number;
-  fallingAnimDelay?: number;
-  groundLostTimer?: number;
-  groundLostGrace?: number;
-  magnetismRange?: number;
-  magnetismLungeSpeed?: number;
-  attackQueue?: string[];
-  MAX_ATTACK_QUEUE?: number;
-};
 
 export function createPlayerEntity(
   options: CreatePlayerEntityOptions,
 ): EntityId {
-  const { world, scene, playerController } = options;
-  const source = playerController as unknown as PlayerControllerSnapshot;
-  const playerMesh = options.playerMesh ?? playerController.mesh;
-  const weaponSystem = playerController.weaponSystem as WeaponSystem | null;
+  const { world, scene } = options;
+  const playerMesh = options.playerMesh;
+  const weaponSystem = options.weaponSystem ?? null;
+  const gameplayConfig = resolvePlayerGameplayConfig(options.gameplayConfig);
+  const animationGroups = initializePlayerAnimationGroups(
+    options.playerAnimations,
+    gameplayConfig.blendingSpeed,
+  );
+  const ragdoll = createPlayerRagdoll(
+    options.ragdollSkeleton ?? null,
+    options.ragdollArmatureNode ?? null,
+  );
   const entityId = world.createEntity();
 
   weaponSystem?.enableExternalControl();
@@ -64,97 +61,99 @@ export function createPlayerEntity(
     kind: 'player',
   });
 
-  world.addComponent(entityId, LegacyPlayerRefsComponent, {
-    scene,
-    mesh: playerMesh,
-    camera: options.camera ?? null,
-    controller: playerController,
+  world.addComponent(entityId, PlayerGameplayConfigComponent, {
+    ...gameplayConfig,
+  });
+
+  world.addComponent(entityId, PlayerGameOverHandlerComponent, {
+    handler: options.gameOverHandler ?? null,
   });
 
   world.addComponent(entityId, PlayerControlStateComponent, {
-    inputEnabled: playerController.inputEnabled,
-    inputMap: { ...playerController.inputMap },
+    inputEnabled: true,
+    inputMap: {},
     moveInputX: 0,
     moveInputZ: 0,
-    jumpKeyReleased: playerController.jumpKeyReleased,
+    jumpKeyReleased: true,
     dashRequested: false,
     attackRequested: false,
     danceToggleRequested: false,
-    jumpBufferTime: playerController.jumpBufferTime,
-    jumpBufferTimer: playerController.jumpBufferTimer,
+    jumpBufferTime: gameplayConfig.jumpBufferTime,
+    jumpBufferTimer: 0,
   });
 
   world.addComponent(entityId, PlayerPhysicsViewRefsComponent, {
     scene,
     mesh: playerMesh,
-    body: playerController.body ?? null,
-    camera: options.camera ?? playerController.camera ?? null,
-    cameraShaker: playerController.cameraShaker,
-    physicsEngine: playerController.physicsEngine,
+    body: playerMesh.physicsBody ?? null,
+    camera: options.camera ?? null,
+    cameraShaker: options.cameraShaker ?? null,
+    physicsEngine:
+      scene.getPhysicsEngine() as unknown as PlayerPhysicsViewRefsComponent['physicsEngine'],
   });
 
   world.addComponent(entityId, PlayerLocomotionStateComponent, {
-    mode: resolveLocomotionMode(playerController),
-    isMoving: playerController.isMoving,
-    isDashing: playerController.isDashing,
-    isKnockedBack: playerController.isKnockedBack,
+    mode: PlayerLocomotionMode.IDLE,
+    isMoving: false,
+    isDashing: false,
+    isKnockedBack: false,
     moveDirection: Vector3.Zero(),
-    moveSpeed: playerController.moveSpeed,
-    normalMoveSpeed: playerController.normalMoveSpeed,
-    dashSpeed: playerController.dashSpeed,
-    dashDuration: playerController.dashDuration,
-    dashTimer: playerController.dashTimer,
-    dashCooldown: playerController.dashCooldown,
-    dashCooldownTimer: playerController.dashCooldownTimer,
-    dashDirection: playerController.dashDirection.clone(),
-    lastFacingDirection: playerController.lastFacingDirection.clone(),
-    lastKnockbackDir: playerController.lastKnockbackDir.clone(),
-    targetAngle: playerController.targetAngle,
-    targetRotation: playerController.targetRotation.clone(),
-    targetScale: playerController.targetScale.clone(),
-    originalScale: playerController.originalScale.clone(),
-    rotationSpeed: playerController.rotationSpeed,
-    scaleSpeed: playerController.scaleSpeed,
-    recoilForce: playerController.recoilForce,
-    recoilVelocity: playerController.recoilVelocity.clone(),
-    recoilDecay: playerController.recoilDecay,
-    pogoForce: playerController.pogoForce,
-    damageKnockbackForce: playerController.damageKnockbackForce,
-    knockbackDuration: playerController.knockbackDuration,
+    moveSpeed: gameplayConfig.moveSpeed,
+    normalMoveSpeed: gameplayConfig.moveSpeed,
+    dashSpeed: gameplayConfig.dashSpeed,
+    dashDuration: gameplayConfig.dashDuration,
+    dashTimer: 0,
+    dashCooldown: gameplayConfig.dashCooldown,
+    dashCooldownTimer: 0,
+    dashDirection: Vector3.Zero(),
+    lastFacingDirection: new Vector3(0, 0, 1),
+    lastKnockbackDir: Vector3.Zero(),
+    targetAngle: 0,
+    targetRotation: Quaternion.Identity(),
+    targetScale: playerMesh.scaling.clone(),
+    originalScale: playerMesh.scaling.clone(),
+    rotationSpeed: gameplayConfig.rotationSpeed,
+    scaleSpeed: gameplayConfig.scaleSpeed,
+    recoilForce: gameplayConfig.recoilForce,
+    recoilVelocity: Vector3.Zero(),
+    recoilDecay: gameplayConfig.recoilDecay,
+    pogoForce: gameplayConfig.pogoForce,
+    damageKnockbackForce: gameplayConfig.damageKnockbackForce,
+    knockbackDuration: gameplayConfig.knockbackDuration,
   });
 
   world.addComponent(entityId, PlayerGroundingStateComponent, {
-    isGrounded: playerController.isGrounded,
-    wasGrounded: playerController.wasGrounded,
-    jumpPhase: source.jumpPhase ?? PlayerJumpPhaseState.GROUNDED,
-    jumpForce: playerController.jumpForce,
-    jumpCutMultiplier: playerController.jumpCutMultiplier,
-    coyoteTime: playerController.coyoteTime,
-    coyoteTimer: playerController.coyoteTimer,
-    jumpBufferTime: playerController.jumpBufferTime,
-    jumpBufferTimer: playerController.jumpBufferTimer,
-    airTime: source.airTime ?? 0,
-    minAirTime: source.minAirTime ?? 0,
-    fallingAnimDelay: source.fallingAnimDelay ?? 0,
-    groundLostTimer: source.groundLostTimer ?? 0,
-    groundLostGrace: source.groundLostGrace ?? 0,
-    playerHeight: playerController.playerHeight,
-    playerRadius: playerController.playerRadius,
-    raycastResult: playerController.raycastResult,
+    isGrounded: false,
+    wasGrounded: false,
+    jumpPhase: PlayerJumpPhaseState.GROUNDED,
+    jumpForce: gameplayConfig.jumpForce,
+    jumpCutMultiplier: gameplayConfig.jumpCutMultiplier,
+    coyoteTime: gameplayConfig.coyoteTime,
+    coyoteTimer: 0,
+    jumpBufferTime: gameplayConfig.jumpBufferTime,
+    jumpBufferTimer: 0,
+    airTime: 0,
+    minAirTime: gameplayConfig.minAirTime,
+    fallingAnimDelay: gameplayConfig.fallingAnimDelay,
+    groundLostTimer: 0,
+    groundLostGrace: gameplayConfig.groundLostGrace,
+    playerHeight: gameplayConfig.playerHeight,
+    playerRadius: gameplayConfig.playerRadius,
+    raycastResult: new PhysicsRaycastResult(),
   });
 
   world.addComponent(entityId, PlayerCombatStateComponent, {
-    mode: resolveCombatMode(playerController),
-    isAttacking: playerController.isAttacking,
-    isDancing: playerController.isDancing,
-    useLeftPunch: playerController.useLeftPunch,
-    punchSpeed: playerController.punchSpeed,
-    attackMoveSpeedMultiplier: playerController.attackMoveSpeedMultiplier,
-    punchHitboxDelay: playerController.punchHitboxDelay,
-    magnetismRange: source.magnetismRange ?? 0,
-    magnetismLungeSpeed: source.magnetismLungeSpeed ?? 0,
-    attackQueue: [...(source.attackQueue ?? [])],
-    maxAttackQueue: source.MAX_ATTACK_QUEUE ?? 0,
+    mode: PlayerCombatMode.IDLE,
+    isAttacking: false,
+    isDancing: false,
+    useLeftPunch: true,
+    punchSpeed: gameplayConfig.punchSpeed,
+    attackMoveSpeedMultiplier: gameplayConfig.attackMoveSpeedMultiplier,
+    punchHitboxDelay: gameplayConfig.punchHitboxDelay,
+    magnetismRange: gameplayConfig.magnetismRange,
+    magnetismLungeSpeed: gameplayConfig.magnetismLungeSpeed,
+    attackQueue: [],
+    maxAttackQueue: gameplayConfig.maxAttackQueue,
     activeAttackAnimation: null,
     activeAttackElapsed: 0,
     activeAttackDuration: 0,
@@ -181,39 +180,44 @@ export function createPlayerEntity(
   });
 
   world.addComponent(entityId, PlayerHealthStateComponent, {
-    lifeState:
-      playerController.currentHealth > 0
-        ? PlayerLifeState.ALIVE
-        : PlayerLifeState.DEAD,
-    currentHealth: playerController.currentHealth,
-    maxHealth: playerController.maxHealth,
-    isInvulnerable: playerController.isInvulnerable,
-    invulnerabilityDuration: playerController.invulnerabilityDuration,
-    invulnerabilityTimer: playerController.invulnerabilityTimer,
-    blinkActive: !!playerController.blinkInterval,
+    lifeState: PlayerLifeState.ALIVE,
+    currentHealth: gameplayConfig.maxHealth,
+    maxHealth: gameplayConfig.maxHealth,
+    isInvulnerable: false,
+    invulnerabilityDuration: gameplayConfig.invulnerabilityDuration,
+    invulnerabilityTimer: 0,
+    blinkActive: false,
     blinkTimer: 0,
     blinkInterval: 0.1,
-    respawnDelay: 2,
+    respawnDelay: gameplayConfig.respawnDelay,
     respawnTimer: 0,
-    healthUI: playerController.healthUI,
-    healthText: playerController.healthText,
+    healthUI: options.healthUI ?? null,
+    healthText: options.healthText ?? null,
   });
 
   world.addComponent(entityId, PlayerAnimationStateComponent, {
-    currentAnimation: playerController.currentPlayingAnimation,
-    blendingSpeed: playerController.blendingSpeed,
-    animationGroups: new Map(playerController.animationGroups),
-    animationRegistry: playerController.playerAnimations,
+    currentAnimation: 'idle',
+    blendingSpeed: gameplayConfig.blendingSpeed,
+    activeSpeedRatio: 1,
+    animationGroups,
+    animationRegistry: options.playerAnimations,
+    overrideAnimation: null,
+    overrideLoop: false,
+    overrideForceReset: false,
+    overrideSpeedRatio: 1,
+    overrideTimer: 0,
   });
 
   world.addComponent(entityId, PlayerSpawnStateComponent, {
-    spawnPoint: playerController.spawnPoint.clone(),
+    spawnPoint: (options.spawnPoint ?? playerMesh.position).clone(),
   });
 
   world.addComponent(entityId, PlayerRagdollStateComponent, {
-    mode: resolveRagdollMode(playerController),
-    ragdoll: playerController.ragdoll,
-    lastKnockbackDir: playerController.lastKnockbackDir.clone(),
+    mode: ragdoll ? PlayerRagdollMode.READY : PlayerRagdollMode.UNINITIALIZED,
+    ragdoll,
+    ragdollSkeleton: options.ragdollSkeleton ?? null,
+    ragdollArmatureNode: options.ragdollArmatureNode ?? null,
+    lastKnockbackDir: Vector3.Zero(),
     pendingImpulse: null,
     pendingImpulseDelay: 0,
   });
@@ -227,41 +231,7 @@ export function createPlayerEntity(
     autoSignalGameOver: false,
   });
 
-  playerController.attachEcsSurvivabilityFacade(world, entityId);
-
   return entityId;
-}
-
-function resolveLocomotionMode(
-  playerController: PlayerController,
-): PlayerLocomotionMode {
-  if (playerController.isKnockedBack) {
-    return PlayerLocomotionMode.KNOCKBACK;
-  }
-
-  if (playerController.isDashing) {
-    return PlayerLocomotionMode.DASHING;
-  }
-
-  if (playerController.isMoving) {
-    return PlayerLocomotionMode.MOVING;
-  }
-
-  return PlayerLocomotionMode.IDLE;
-}
-
-function resolveCombatMode(
-  playerController: PlayerController,
-): PlayerCombatMode {
-  if (playerController.isDancing) {
-    return PlayerCombatMode.DANCING;
-  }
-
-  if (playerController.isAttacking) {
-    return PlayerCombatMode.ATTACKING;
-  }
-
-  return PlayerCombatMode.IDLE;
 }
 
 function resolveWeaponPhase(
@@ -280,18 +250,4 @@ function resolveWeaponPhase(
   }
 
   return PlayerWeaponPhase.IDLE;
-}
-
-function resolveRagdollMode(
-  playerController: PlayerController,
-): PlayerRagdollMode {
-  if (!playerController.ragdoll) {
-    return PlayerRagdollMode.UNINITIALIZED;
-  }
-
-  if (playerController.currentHealth <= 0) {
-    return PlayerRagdollMode.ACTIVE;
-  }
-
-  return PlayerRagdollMode.READY;
 }
