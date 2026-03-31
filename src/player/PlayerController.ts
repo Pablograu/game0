@@ -14,12 +14,17 @@ import {
   TransformNode,
 } from '@babylonjs/core';
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
-import { WeaponSystem } from './WeaponSystem.ts';
-import { EffectManager } from './EffectManager.ts';
-import { AudioManager } from './AudioManager.ts';
-import { Ragdoll } from './ragdoll_copy.js';
-import { GameManager } from './GameManager.ts';
-import { CameraShaker } from './CameraShaker.ts';
+import { WeaponSystem } from '../WeaponSystem.ts';
+import { EffectManager } from '../EffectManager.ts';
+import { AudioManager } from '../AudioManager.ts';
+import { Ragdoll } from '../ragdoll_copy.js';
+import { GameManager } from '../GameManager.ts';
+import { CameraShaker } from '../CameraShaker.ts';
+import {
+  PlayerAnimationEntry,
+  PlayerAnimationName,
+  PlayerAnimationRegistry,
+} from './PlayerAnimations.ts';
 
 // ===== JUMP PHASE STATE MACHINE =====
 enum JumpPhase {
@@ -70,6 +75,7 @@ export class PlayerController {
   mesh: Mesh;
   moveSpeed: number;
   originalScale: Vector3;
+  playerAnimations: PlayerAnimationRegistry;
   physicsEngine: any;
   playerHeight: number;
   playerRadius: number;
@@ -120,14 +126,16 @@ export class PlayerController {
   private attackQueue: string[] = [];
 
   constructor(
-    mesh: Mesh,
     camera: Camera,
-    scene: Scene,
     cameraShaker: CameraShaker = null,
+    mesh: Mesh,
+    playerAnimations: PlayerAnimationRegistry,
+    scene: Scene,
   ) {
     this.mesh = mesh;
     this.camera = camera;
     this.scene = scene;
+    this.playerAnimations = playerAnimations;
     this.body = mesh.physicsBody;
     this.physicsEngine = scene.getPhysicsEngine();
     this.cameraShaker = cameraShaker;
@@ -363,7 +371,7 @@ export class PlayerController {
         const angle = Math.atan2(dir.x, dir.z);
         this.targetRotation = Quaternion.FromEulerAngles(0, angle, 0);
         // Snap inmediato del modelo para que el ataque apunte al enemigo desde el frame 0
-        const modelRoot = this.mesh.animationModels?.[animationName]?.root;
+        const modelRoot = this.getAnimationEntry(animationName)?.root;
         if (modelRoot) {
           if (!modelRoot.rotationQuaternion) {
             modelRoot.rotationQuaternion = Quaternion.Identity();
@@ -466,21 +474,28 @@ export class PlayerController {
   }
 
   setupAnimationHandler() {
-    if (this.mesh.animationModels) {
-      this.setupAnimations();
-      console.log('Sistema de animaciones inicializado');
-    } else {
-      console.warn('AnimationModels no disponibles');
+    if (Object.keys(this.playerAnimations).length === 0) {
+      console.warn('Player animations no disponibles');
+      return;
     }
+
+    this.setupAnimations();
+    console.log('Sistema de animaciones inicializado');
   }
 
   setupAnimations() {
     console.log('🎬 Configurando blending en todas las animaciones...');
 
-    Object.keys(this.mesh.animationModels).forEach((animName) => {
-      const animModel = this.mesh.animationModels[animName];
-      if (animModel?.animations && animModel.animations.length > 0) {
-        const animGroup = animModel.animations[0];
+    this.animationGroups.clear();
+
+    const animationEntries = Object.entries(this.playerAnimations) as [
+      PlayerAnimationName,
+      PlayerAnimationEntry,
+    ][];
+
+    animationEntries.forEach(([animName, animEntry]) => {
+      if (animEntry) {
+        const animGroup = animEntry.animationGroup;
 
         animGroup.enableBlending = true;
         animGroup.blendingSpeed = this.blendingSpeed;
@@ -914,8 +929,9 @@ export class PlayerController {
     const targetAngle = Math.atan2(moveDirection.x, moveDirection.z);
     this.targetRotation = Quaternion.FromEulerAngles(0, targetAngle, 0);
 
-    const modelRoot =
-      this.mesh.animationModels?.[this.currentPlayingAnimation]?.root;
+    const modelRoot = this.getAnimationEntry(
+      this.currentPlayingAnimation,
+    )?.root;
 
     if (modelRoot) {
       if (!modelRoot.rotationQuaternion) {
@@ -938,6 +954,10 @@ export class PlayerController {
         slerpFactor,
       );
     }
+  }
+
+  private getAnimationEntry(name: string): PlayerAnimationEntry | undefined {
+    return this.playerAnimations[name as PlayerAnimationName];
   }
 
   // ===== DASH =====

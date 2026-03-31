@@ -21,7 +21,11 @@ import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import '@babylonjs/core/Cameras/Inputs';
 import '@babylonjs/loaders/glTF';
 import HavokPhysics from '@babylonjs/havok';
-import { PlayerController } from './PlayerController.ts';
+import { PlayerController } from './player/PlayerController.ts';
+import {
+  createPlayerAnimationRegistry,
+  PlayerAnimationRegistry,
+} from './player/PlayerAnimations.ts';
 import { EnemyFactory } from './EnemyFactory.ts';
 import { EffectManager } from './EffectManager.ts';
 import { CameraShaker } from './CameraShaker.ts';
@@ -43,6 +47,7 @@ class Game {
   camera: ArcRotateCamera | null = null;
   cameraShaker: CameraShaker | null = null;
   playerController: PlayerController | null = null;
+  playerAnimations: PlayerAnimationRegistry = {};
   enemies: any[] = [];
   debugGUI: DebugGUI | null = null;
   gameManager: GameManager | null = null;
@@ -141,18 +146,17 @@ class Game {
 
     // Instanciar el controlador con la cámara ya creada
     this.playerController = new PlayerController(
-      this.player,
       this.camera,
-      this.scene,
       this.cameraShaker,
+      this.player,
+      this.playerAnimations,
+      this.scene,
     );
 
     // Tunear valores
     this.playerController.setMoveSpeed(8);
     this.playerController.setJumpForce(12);
 
-    // Inicializar AnimationHandler ahora que los modelos están cargados
-    this.playerController.setupAnimationHandler();
     this.playerController.initRagdoll(
       this.player.skeleton,
       this.player.armatureNode,
@@ -369,33 +373,22 @@ class Game {
       );
     }
 
-    // Guardar referencias de animaciones en la cápsula
-    console.log('<<< physicsCapsule', physicsCapsule);
-    physicsCapsule.animationModels = {
-      idle: { root: rootMesh, animations: idleAnim ? [idleAnim] : [] },
-      run: { root: rootMesh, animations: runAnim ? [runAnim] : [] },
-      jump: { root: rootMesh, animations: jumpAnim ? [jumpAnim] : [] },
-      punch_L: { root: rootMesh, animations: punchLAnim ? [punchLAnim] : [] },
-      punch_R: { root: rootMesh, animations: punchRAnim ? [punchRAnim] : [] },
-      macarena: {
-        root: rootMesh,
-        animations: dancingAnim ? [dancingAnim] : [],
-      },
-      dash: { root: rootMesh, animations: dashAnim ? [dashAnim] : [] },
-      dead: { root: rootMesh, animations: deadAnim ? [deadAnim] : [] },
-      falling: { root: rootMesh, animations: fallingAnim ? [fallingAnim] : [] },
-      hit: { root: rootMesh, animations: hitAnim ? [hitAnim] : [] },
-      land: { root: rootMesh, animations: landingAnim ? [landingAnim] : [] },
-      walk: { root: rootMesh, animations: walkAnim ? [walkAnim] : [] },
-      flying_kick: {
-        root: rootMesh,
-        animations: flyingKick ? [flyingKick] : [],
-      },
-      stumble_back: {
-        root: rootMesh,
-        animations: stumbleBack ? [stumbleBack] : [],
-      },
-    };
+    this.playerAnimations = createPlayerAnimationRegistry(rootMesh, {
+      idle: idleAnim,
+      run: runAnim,
+      jump: jumpAnim,
+      punch_L: punchLAnim,
+      punch_R: punchRAnim,
+      macarena: dancingAnim,
+      dash: dashAnim,
+      dead: deadAnim,
+      falling: fallingAnim,
+      hit: hitAnim,
+      land: landingAnim,
+      walk: walkAnim,
+      flying_kick: flyingKick,
+      stumble_back: stumbleBack,
+    });
 
     // Add physics to the capsule
     const capsuleAggregate = new PhysicsAggregate(
