@@ -46,18 +46,7 @@ export class GameFlowRuntimeSystem implements EcsSystem {
         runtime.cameraSyncPending = false;
       }
 
-      if (
-        runtime.enemySyncPending ||
-        runtime.enemyUpdatesEnabled !== shouldRunGameplay
-      ) {
-        for (const enemy of runtime.enemies) {
-          if (shouldRunGameplay) {
-            enemy.enableUpdate?.();
-          } else {
-            enemy.disableUpdate?.();
-          }
-        }
-
+      if (runtime.enemySyncPending) {
         runtime.enemyUpdatesEnabled = shouldRunGameplay;
         runtime.enemySyncPending = false;
       }

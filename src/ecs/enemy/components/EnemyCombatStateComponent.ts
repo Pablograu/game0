@@ -6,6 +6,7 @@ export interface EnemyCombatStateComponent {
   attackCooldownTimer: number;
   contactDamageCooldown: number;
   damageCooldownTimer: number;
+  stunTimer: number;
   canDamagePlayer: boolean;
   updatesEnabled: boolean;
 }

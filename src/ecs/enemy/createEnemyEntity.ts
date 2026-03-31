@@ -14,21 +14,28 @@ import { Ragdoll } from '../../ragdoll_copy.js';
 import type { EntityId } from '../core/Entity.ts';
 import type { World } from '../core/World.ts';
 import {
+  EnemyAiStateComponent,
   EnemyAnimationStateComponent,
+  EnemyAttackStateComponent,
   EnemyCombatStateComponent,
   EnemyIdentityComponent,
   EnemyLifecycleRequestComponent,
+  EnemyLocomotionStateComponent,
+  EnemyPatrolStateComponent,
   EnemyPhysicsViewRefsComponent,
   EnemyRagdollStateComponent,
   EnemySpawnStateComponent,
   EnemyStatsComponent,
+  EnemyStuckStateComponent,
 } from './components/index.ts';
 import {
+  EnemyBehaviorState,
   EnemyCombatMode,
   EnemyLifeState,
   EnemyRagdollMode,
   EnemySpawnState,
 } from './EnemyStateEnums.ts';
+import { HitboxSystem } from '../../HitboxSystem.ts';
 
 export interface CreateEnemyEntityOptions {
   world: World;
@@ -49,6 +56,12 @@ export interface CreateEnemyEntityOptions {
 export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
   const entityId = options.world.createEntity();
   const lootManager = options.lootManager ?? new LootManager();
+  const attackHitbox = new HitboxSystem(
+    `enemyAttackHitbox_${Math.random().toString(36).slice(2, 11)}`,
+    new Vector3(1.5, 1.5, 1.5),
+    options.scene,
+    options.config.debug,
+  );
   lootManager.init(options.scene);
 
   options.world.addComponent(entityId, EnemyIdentityComponent, {
@@ -80,6 +93,35 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
     blendingSpeed: 4,
   });
 
+  options.world.addComponent(entityId, EnemyAiStateComponent, {
+    current: EnemyBehaviorState.PATROL,
+    previous: null,
+    distanceToPlayer: Number.POSITIVE_INFINITY,
+    targetYAngle: 0,
+    rotationSpeed: 8,
+    stateElapsedTime: 0,
+    alertAudioPlayed: false,
+  });
+
+  options.world.addComponent(entityId, EnemyPatrolStateComponent, {
+    patrolTarget: options.mesh.position.clone(),
+    patrolRadius: 6,
+    targetReachDistance: 1,
+    chaseGiveUpRange: options.config.chaseGiveUpRange,
+  });
+
+  options.world.addComponent(entityId, EnemyStuckStateComponent, {
+    lastPosition: options.mesh.position.clone(),
+    stuckTimer: 0,
+    stuckThreshold: 0.4,
+    minMovementDistance: 0.05,
+  });
+
+  options.world.addComponent(entityId, EnemyLocomotionStateComponent, {
+    overrideDirection: null,
+    overrideTimer: 0,
+  });
+
   options.world.addComponent(entityId, EnemyStatsComponent, {
     currentHp: options.config.hp,
     maxHp: options.config.hp,
@@ -101,8 +143,22 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
     attackCooldownTimer: 0,
     contactDamageCooldown: 0.8,
     damageCooldownTimer: 0,
+    stunTimer: 0,
     canDamagePlayer: true,
     updatesEnabled: true,
+  });
+
+  options.world.addComponent(entityId, EnemyAttackStateComponent, {
+    hitbox: attackHitbox,
+    hitboxActivationDelay: 1,
+    hitboxOffsetDistance: 1.2,
+    hitboxSize: { x: 1.5, y: 1.5, z: 1.5 },
+    attackAnimationSpeed: 1.2,
+    attackElapsedTime: 0,
+    attackDuration: 0,
+    attackInProgress: false,
+    hitboxActive: false,
+    hasHitPlayerThisAttack: false,
   });
 
   options.world.addComponent(entityId, EnemyRagdollStateComponent, {

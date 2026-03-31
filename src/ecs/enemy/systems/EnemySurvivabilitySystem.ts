@@ -1,7 +1,10 @@
 import { Vector3 } from '@babylonjs/core';
+import { AudioManager } from '../../../AudioManager.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import {
+  EnemyAiStateComponent,
+  EnemyAttackStateComponent,
   EnemyCombatStateComponent,
   EnemyLifecycleRequestComponent,
   EnemyPhysicsViewRefsComponent,
@@ -10,11 +13,16 @@ import {
   EnemyStatsComponent,
 } from '../components/index.ts';
 import {
+  EnemyBehaviorState,
   EnemyCombatMode,
   EnemyLifeState,
   EnemyRagdollMode,
   EnemySpawnState,
 } from '../EnemyStateEnums.ts';
+import {
+  isEnemyGameplayPaused,
+  transitionEnemyBehavior,
+} from './enemyRuntimeUtils.ts';
 
 interface EcsEnemyRagdollApi {
   ragdoll(): void;
@@ -30,7 +38,13 @@ export class EnemySurvivabilitySystem implements EcsSystem {
   readonly order = 18;
 
   update(world: World, deltaTime: number): void {
+    if (isEnemyGameplayPaused(world)) {
+      return;
+    }
+
     const entityIds = world.query(
+      EnemyAiStateComponent,
+      EnemyAttackStateComponent,
       EnemyCombatStateComponent,
       EnemyLifecycleRequestComponent,
       EnemyPhysicsViewRefsComponent,
@@ -40,6 +54,8 @@ export class EnemySurvivabilitySystem implements EcsSystem {
     );
 
     for (const entityId of entityIds) {
+      const ai = world.getComponent(entityId, EnemyAiStateComponent);
+      const attack = world.getComponent(entityId, EnemyAttackStateComponent);
       const combat = world.getComponent(entityId, EnemyCombatStateComponent);
       const requests = world.getComponent(
         entityId,
@@ -50,7 +66,16 @@ export class EnemySurvivabilitySystem implements EcsSystem {
       const spawn = world.getComponent(entityId, EnemySpawnStateComponent);
       const stats = world.getComponent(entityId, EnemyStatsComponent);
 
-      if (!combat || !requests || !refs || !ragdoll || !spawn || !stats) {
+      if (
+        !ai ||
+        !attack ||
+        !combat ||
+        !requests ||
+        !refs ||
+        !ragdoll ||
+        !spawn ||
+        !stats
+      ) {
         continue;
       }
 
@@ -63,8 +88,11 @@ export class EnemySurvivabilitySystem implements EcsSystem {
         spawn.despawnTimer = spawn.despawnDelay;
         combat.mode = EnemyCombatMode.DEAD;
         stats.lifeState = EnemyLifeState.DEAD;
-
-        refs.controller?.onLifecycleDeath();
+        transitionEnemyBehavior(ai, combat, EnemyBehaviorState.DEAD);
+        attack.hitbox?.setEnabled(false);
+        attack.attackInProgress = false;
+        attack.hitboxActive = false;
+        AudioManager.play('enemy_death');
 
         for (const mesh of refs.meshes) {
           mesh.checkCollisions = false;

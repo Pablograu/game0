@@ -208,19 +208,11 @@ export class EnemyController {
     // Empezar animación
     this.playAnimation('walking', true);
 
-    // Update loop
-    this._updateObserver = this.scene.onBeforeRenderObservable.add(() => {
-      this._update();
-    });
-
     // Metadata para detección de golpes
     this.physicsCapsule.metadata = { type: 'enemy', instance: this };
     for (const m of this.meshes) {
       m.metadata = { type: 'enemy', instance: this };
     }
-
-    // Crear hitbox de ataque
-    this._createAttackHitbox();
 
     console.log('[EnemyController] Creado con estado PATROL');
   }

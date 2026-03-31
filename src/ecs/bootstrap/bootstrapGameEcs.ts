@@ -2,9 +2,15 @@ import type { Scene } from '@babylonjs/core';
 import type { EntityId } from '../core/Entity.ts';
 import { World } from '../core/World.ts';
 import {
+  EnemyAnimationSystem,
+  EnemyAttackSystem,
+  EnemyContactDamageSystem,
   EnemyDamageSystem,
   EnemyDespawnSystem,
+  EnemyDecisionSystem,
   EnemyLootSystem,
+  EnemyMovementSystem,
+  EnemyStuckSystem,
   EnemySurvivabilitySystem,
 } from '../enemy/index.ts';
 import {
@@ -64,10 +70,16 @@ export function bootstrapGameEcs(
   world.registerSystem(new GameFlowInputGateSystem());
   world.registerSystem(new GameFlowRuntimeSystem());
   world.registerSystem(new GameFlowUiSystem());
+  world.registerSystem(new EnemyDecisionSystem());
+  world.registerSystem(new EnemyStuckSystem());
+  world.registerSystem(new EnemyMovementSystem());
+  world.registerSystem(new EnemyContactDamageSystem());
   world.registerSystem(new EnemyDamageSystem());
+  world.registerSystem(new EnemyAttackSystem());
   world.registerSystem(new EnemySurvivabilitySystem());
   world.registerSystem(new EnemyLootSystem());
   world.registerSystem(new EnemyDespawnSystem());
+  world.registerSystem(new EnemyAnimationSystem());
 
   if (options.playerMesh) {
     playerEntityId = createPlayerEntity({

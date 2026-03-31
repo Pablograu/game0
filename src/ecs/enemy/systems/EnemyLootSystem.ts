@@ -4,12 +4,17 @@ import {
   EnemyLifecycleRequestComponent,
   EnemyPhysicsViewRefsComponent,
 } from '../components/index.ts';
+import { isEnemyGameplayPaused } from './enemyRuntimeUtils.ts';
 
 export class EnemyLootSystem implements EcsSystem {
   readonly name = 'EnemyLootSystem';
   readonly order = 19;
 
   update(world: World): void {
+    if (isEnemyGameplayPaused(world)) {
+      return;
+    }
+
     const entityIds = world.query(
       EnemyLifecycleRequestComponent,
       EnemyPhysicsViewRefsComponent,

@@ -4,12 +4,13 @@ import type { PlayerCombatTargetApi } from '../../player/PlayerFacade.ts';
 import type { EntityId } from '../core/Entity.ts';
 import type { World } from '../core/World.ts';
 import {
+  EnemyAiStateComponent,
   EnemyCombatStateComponent,
   EnemyLifecycleRequestComponent,
   EnemyPhysicsViewRefsComponent,
   EnemyStatsComponent,
 } from './components/index.ts';
-import { EnemyLifeState } from './EnemyStateEnums.ts';
+import { EnemyBehaviorState, EnemyLifeState } from './EnemyStateEnums.ts';
 
 export class EnemyRuntimeFacade {
   constructor(
@@ -113,7 +114,8 @@ export class EnemyRuntimeFacade {
   }
 
   getState() {
-    return this.controller.getState();
+    return this.world.getComponent(this.entityId, EnemyAiStateComponent)
+      ?.current;
   }
 
   getPosition() {
@@ -137,7 +139,6 @@ export class EnemyRuntimeFacade {
     if (combat) {
       combat.updatesEnabled = true;
     }
-    this.controller.enableUpdate();
   }
 
   disableUpdate() {
@@ -148,7 +149,6 @@ export class EnemyRuntimeFacade {
     if (combat) {
       combat.updatesEnabled = false;
     }
-    this.controller.disableUpdate();
   }
 
   setVisionRange(range: number) {

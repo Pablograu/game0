@@ -3,8 +3,17 @@ export enum EnemyLifeState {
   DEAD = 'DEAD',
 }
 
+export enum EnemyBehaviorState {
+  PATROL = 'PATROL',
+  CHASE = 'CHASE',
+  ATTACK = 'ATTACK',
+  HIT = 'HIT',
+  DEAD = 'DEAD',
+}
+
 export enum EnemyCombatMode {
   IDLE = 'IDLE',
+  ATTACK = 'ATTACK',
   HIT = 'HIT',
   DEAD = 'DEAD',
 }
