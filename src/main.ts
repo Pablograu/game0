@@ -486,6 +486,7 @@ class Game {
     };
 
     this.enemies = EnemyFactory.spawnMultiple(
+      this.ecsRuntime!.world,
       LADRON_PATH,
       this.scene,
       enemyPositions,

@@ -645,67 +645,25 @@ export class EnemyController {
       ag.stop();
     }
 
-    this.lootManager.spawnLoot(this.physicsCapsule.position);
-
-    // 2. Activate ragdoll if initialised, otherwise fall back to capsule topple
-    if (this.ragdoll) {
-      this.ragdoll.ragdoll();
-
-      // Apply the knockback impulse to every bone body.
-      // setTimeout(0) gives Havok one tick to register DYNAMIC motion type.
-      const impulse = this.lastKnockbackDir.scale(
-        this.config.knockbackForce * 15,
-      );
-      const appPoint = this.physicsCapsule.getAbsolutePosition();
-      setTimeout(() => {
-        for (const agg of this.ragdoll.getAggregates()) {
-          agg.body?.applyImpulse(impulse, appPoint);
-        }
-      }, 0);
-    } else {
-      // Fallback: unlock inertia and topple the capsule
-      if (this.body) {
-        const currentVel = this.body.getLinearVelocity();
-        this.body.setMassProperties({
-          mass: this.config.mass,
-          inertia: new Vector3(0.4, 0.1, 0.4),
-        });
-        const toppleAxis = new Vector3(-currentVel.z, 0, currentVel.x);
-        if (toppleAxis.length() > 0.01) toppleAxis.normalize();
-        else
-          toppleAxis
-            .set(Math.random() - 0.5, 0, Math.random() - 0.5)
-            .normalize();
-        this.body.setAngularVelocity(toppleAxis.scale(6));
-        this.body.applyImpulse(
-          new Vector3(0, 20, 0),
-          this.physicsCapsule.getAbsolutePosition(),
-        );
-      }
-    }
-
-    // 3. Disable collisions and pickability on visual meshes
+    // 2. Disable collisions and pickability on visual meshes
     for (const m of this.meshes) {
       m.checkCollisions = false;
       m.isPickable = false;
     }
 
-    // 4. Clean up debug visuals
+    // 3. Clean up debug visuals
     if (this.visionCircle) {
       this.visionCircle.dispose();
       this.visionCircle = null;
     }
 
-    // 5. Remove AI update observer
+    // 4. Remove AI update observer
     if (this._updateObserver) {
       this.scene.onBeforeRenderObservable.remove(this._updateObserver);
       this._updateObserver = null;
     }
 
-    // 6. After settling, schedule visual dispose
-    this._scheduleDispose(4.0);
-
-    console.log('[EnemyController] DEAD — ragdoll activated');
+    console.log('[EnemyController] DEAD — lifecycle delegated to ECS');
   }
 
   // ==========================================================
@@ -1016,6 +974,33 @@ export class EnemyController {
 
     this.changeState(EnemyState.HIT);
     return false;
+  }
+
+  syncLifecycleHealth(hp: number, maxHp: number) {
+    this.hp = hp;
+    this.maxHP = maxHp;
+  }
+
+  onLifecycleHit() {
+    if (!this._alive || this.currentState === EnemyState.DEAD) {
+      return;
+    }
+
+    if (this.hp <= 0) {
+      this.changeState(EnemyState.DEAD);
+      return;
+    }
+
+    this.changeState(EnemyState.HIT);
+  }
+
+  onLifecycleDeath() {
+    if (this.currentState === EnemyState.DEAD) {
+      return;
+    }
+
+    this.hp = 0;
+    this.changeState(EnemyState.DEAD);
   }
 
   setPlayerTarget(player: PlayerCombatTargetApi | null) {

@@ -7,6 +7,8 @@ import {
 } from '@babylonjs/core';
 import { LoadAssetContainerAsync } from '@babylonjs/core/Loading';
 import { EnemyController, EnemyConfig } from './EnemyController.ts';
+import { createEnemyEntity, EnemyRuntimeFacade } from './ecs/enemy/index.ts';
+import type { World } from './ecs/core/World.ts';
 
 /**
  * EnemyFactory — Carga un GLB una sola vez y clona instancias independientes
@@ -30,21 +32,22 @@ export class EnemyFactory {
 
     console.log(
       `[EnemyFactory] Container listo: ${container.meshes.length} meshes, ` +
-      `${container.animationGroups.length} animation groups ` +
-      `(${container.animationGroups.map((ag: AnimationGroup) => ag.name).join(', ')})`,
+        `${container.animationGroups.length} animation groups ` +
+        `(${container.animationGroups.map((ag: AnimationGroup) => ag.name).join(', ')})`,
     );
   }
 
   /**
    * Crea una instancia independiente del enemigo con su propio set de animaciones.
-   * Cada llamada devuelve un EnemyController completamente independiente.
+   * Cada llamada devuelve un runtime ECS-compatible que preserva la API antigua.
    */
   static spawn(
+    world: World,
     path: string,
     scene: Scene,
     position: Vector3,
     config: EnemyConfig = {},
-  ): EnemyController {
+  ): EnemyRuntimeFacade {
     const container = this.containers.get(path);
     if (!container) {
       throw new Error(
@@ -86,7 +89,7 @@ export class EnemyFactory {
 
     console.log(
       `[EnemyFactory] Spawned en (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}) — ` +
-      `${meshes.length} meshes, ${animGroups.length} anims: [${animGroups.map((ag) => ag.name).join(', ')}]`,
+        `${meshes.length} meshes, ${animGroups.length} anims: [${animGroups.map((ag) => ag.name).join(', ')}]`,
     );
 
     // Crear el controller
@@ -103,27 +106,47 @@ export class EnemyFactory {
     // Extract skeleton and armatureNode from the instantiated model
     const skeleton = instance.skeletons?.[0] ?? null;
     // The Armature node name gets the factory suffix appended, so we search by partial match
-    const armatureNode = root.getChildTransformNodes(false).find((tn) => tn.id.includes('Clone of ladron')) ?? null;
+    const armatureNode =
+      root
+        .getChildTransformNodes(false)
+        .find((tn) => tn.id.includes('Clone of ladron')) ?? null;
 
     // without this scaling the ragdoll looks small
     root.scaling = new Vector3(1, 1, 1);
-    armatureNode.scaling = new Vector3(0.017, 0.017, 0.017);
+    if (armatureNode) {
+      armatureNode.scaling = new Vector3(0.017, 0.017, 0.017);
+    }
 
-    controller.initRagdoll(skeleton, armatureNode);
+    const entityId = createEnemyEntity({
+      world,
+      scene,
+      modelPath: path,
+      debugLabel: root.name,
+      controller,
+      config: controller.config,
+      root,
+      meshes,
+      mesh: controller.mesh,
+      animationGroups: animGroups,
+      skeleton,
+      armatureNode,
+      lootManager: controller.lootManager,
+    });
 
-    return controller;
+    return new EnemyRuntimeFacade(world, entityId, controller);
   }
 
   /**
    * Spawns múltiples enemigos del mismo tipo.
    */
   static spawnMultiple(
+    world: World,
     path: string,
     scene: Scene,
     positions: Vector3[],
     config: EnemyConfig = {},
-  ): EnemyController[] {
-    return positions.map((pos) => this.spawn(path, scene, pos, config));
+  ): EnemyRuntimeFacade[] {
+    return positions.map((pos) => this.spawn(world, path, scene, pos, config));
   }
 
   /**

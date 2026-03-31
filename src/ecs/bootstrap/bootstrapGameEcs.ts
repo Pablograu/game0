@@ -2,6 +2,12 @@ import type { Scene } from '@babylonjs/core';
 import type { EntityId } from '../core/Entity.ts';
 import { World } from '../core/World.ts';
 import {
+  EnemyDamageSystem,
+  EnemyDespawnSystem,
+  EnemyLootSystem,
+  EnemySurvivabilitySystem,
+} from '../enemy/index.ts';
+import {
   createGameFlowControllerApi,
   createGameFlowEntity,
   GameFlowInputGateSystem,
@@ -58,6 +64,10 @@ export function bootstrapGameEcs(
   world.registerSystem(new GameFlowInputGateSystem());
   world.registerSystem(new GameFlowRuntimeSystem());
   world.registerSystem(new GameFlowUiSystem());
+  world.registerSystem(new EnemyDamageSystem());
+  world.registerSystem(new EnemySurvivabilitySystem());
+  world.registerSystem(new EnemyLootSystem());
+  world.registerSystem(new EnemyDespawnSystem());
 
   if (options.playerMesh) {
     playerEntityId = createPlayerEntity({

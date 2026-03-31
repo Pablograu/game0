@@ -5,5 +5,6 @@ export * from './core/Entity.ts';
 export * from './core/System.ts';
 export * from './core/SystemRunner.ts';
 export * from './core/World.ts';
+export * from './enemy/index.ts';
 export * from './game/index.ts';
 export * from './player/index.ts';
