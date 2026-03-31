@@ -207,7 +207,7 @@ class Game {
     console.log('HDR skybox cargado: /hdr/skybox.hdr');
   }
 
-  async loadEnvironment() {
+  loadEnvironment() {
     // create simple ground
     const ground = MeshBuilder.CreateGround(
       'ground',
@@ -249,10 +249,12 @@ class Game {
       enemy.meshes.forEach((m: any) => shadowGenerator.addShadowCaster(m)),
     );
     shadowGenerator.useExponentialShadowMap = true;
+
+    this.scene.fogMode = Scene.FOGMODE_EXP2;
+    this.scene.fogDensity = 0.05;
   }
 
   async createPlayer() {
-    // ===== CARGAR MODELO CON TODAS LAS ANIMACIONES =====
     console.log('Loading animated character...');
 
     const result = await ImportMeshAsync('/models/player.glb', this.scene);
@@ -287,7 +289,7 @@ class Game {
     rootMesh.position = new Vector3(0, -1.1, 0);
 
     // Store for ragdoll init in PlayerController
-    (physicsCapsule as any).skeleton = skeleton;
+    physicsCapsule.skeleton = skeleton;
     (physicsCapsule as any).armatureNode = armatureNode;
 
     // Encontrar animaciones por nombre
@@ -343,53 +345,32 @@ class Game {
       (ag) => ag.name.toLowerCase() === 'stumble_back',
     );
 
-    if (
-      [
-        idleAnim,
-        runAnim,
-        jumpAnim,
-        punchLAnim,
-        punchRAnim,
-        dancingAnim,
-        dashAnim,
-        deadAnim,
-        fallingAnim,
-        hitAnim,
-        landingAnim,
-        walkAnim,
-        flyingKick,
-        stumbleBack,
-      ].some((anim) => !anim)
-    ) {
+    const playerAnimations = [
+      idleAnim,
+      runAnim,
+      jumpAnim,
+      punchLAnim,
+      punchRAnim,
+      dancingAnim,
+      dashAnim,
+      deadAnim,
+      fallingAnim,
+      hitAnim,
+      landingAnim,
+      walkAnim,
+      flyingKick,
+      stumbleBack,
+    ];
+
+    if (playerAnimations.some((anim) => !anim)) {
       console.error(
         'No se encontraron todas las animaciones necesarias. Animaciones encontradas:',
+        playerAnimations.map((anim) => (anim ? anim.name : 'missing')),
       );
     }
 
-    // Detener todas las animaciones inicialmente
-    for (const ag of animationGroups) {
-      ag.stop();
-    }
-
-    // Add physics to the capsule
-    const capsuleAggregate = new PhysicsAggregate(
-      physicsCapsule,
-      PhysicsShapeType.CAPSULE,
-      {
-        mass: 1,
-        restitution: 0,
-        friction: 0.5,
-      },
-      this.scene,
-    );
-
-    // Capsule is PLAYER — collides with ENVIRONMENT + ENEMY, NOT with RAGDOLL bones
-    if (capsuleAggregate.shape) {
-      capsuleAggregate.shape.filterMembershipMask = COL_PLAYER;
-      capsuleAggregate.shape.filterCollideMask = COL_ENVIRONMENT | COL_ENEMY;
-    }
-
     // Guardar referencias de animaciones en la cápsula
+    console.log('<<< physicsCapsule', physicsCapsule);
     physicsCapsule.animationModels = {
       idle: { root: rootMesh, animations: idleAnim ? [idleAnim] : [] },
       run: { root: rootMesh, animations: runAnim ? [runAnim] : [] },
@@ -415,6 +396,24 @@ class Game {
         animations: stumbleBack ? [stumbleBack] : [],
       },
     };
+
+    // Add physics to the capsule
+    const capsuleAggregate = new PhysicsAggregate(
+      physicsCapsule,
+      PhysicsShapeType.CAPSULE,
+      {
+        mass: 1,
+        restitution: 0,
+        friction: 0.5,
+      },
+      this.scene,
+    );
+
+    // Capsule is PLAYER — collides with ENVIRONMENT + ENEMY, NOT with RAGDOLL bones
+    if (capsuleAggregate.shape) {
+      capsuleAggregate.shape.filterMembershipMask = COL_PLAYER;
+      capsuleAggregate.shape.filterCollideMask = COL_ENVIRONMENT | COL_ENEMY;
+    }
 
     return physicsCapsule;
   }

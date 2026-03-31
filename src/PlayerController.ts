@@ -12,7 +12,6 @@ import {
   AnimationGroup,
   PhysicsBody,
   TransformNode,
-  HavokPlugin,
 } from '@babylonjs/core';
 import { AdvancedDynamicTexture, TextBlock, Control } from '@babylonjs/gui';
 import { WeaponSystem } from './WeaponSystem.ts';
@@ -59,21 +58,23 @@ export class PlayerController {
   isInvulnerable: boolean;
   isKnockedBack: boolean = false;
   isMoving: boolean = false;
-  knockbackDuration: number;
   jumpBufferTime: number;
   jumpBufferTimer: number;
   jumpCutMultiplier: number;
   jumpForce: number;
   jumpKeyReleased: boolean;
+  knockbackDuration: number;
   lastFacingDirection: Vector3;
+  lastKnockbackDir: Vector3 = Vector3.Zero();
   maxHealth: number;
   mesh: Mesh;
   moveSpeed: number;
   originalScale: Vector3;
-  physicsEngine: HavokPlugin;
+  physicsEngine: any;
   playerHeight: number;
   playerRadius: number;
   pogoForce: number;
+  ragdoll: Ragdoll | null = null;
   raycastResult: PhysicsRaycastResult;
   recoilDecay: number;
   recoilForce: number;
@@ -86,20 +87,18 @@ export class PlayerController {
   targetRotation: Quaternion;
   targetScale: Vector3;
   wasGrounded: boolean;
-  ragdoll: Ragdoll | null = null;
-  lastKnockbackDir: Vector3 = Vector3.Zero();
   weaponSystem: WeaponSystem | null;
 
   // ===== JUMP PHASE STATE MACHINE =====
-  // Single source of truth — replaces isLanding, _landingAnticipated, stale _airTime checks.
-  private _jumpPhase: JumpPhase = JumpPhase.GROUNDED;
-  private _airTime: number = 0; // Seconds airborne in current hop
-  private readonly _minAirTime: number = 0.15; // Guard against spawn-frame flash
-  private readonly _fallingAnimDelay: number = 0.15; // Seconds before 'falling' anim plays
+  // Single source of truth — replaces isLanding, landingAnticipated, stale _airTime checks.
+  private jumpPhase: JumpPhase = JumpPhase.GROUNDED;
+  private airTime: number = 0; // Seconds airborne in current hop
+  private readonly minAirTime: number = 0.15; // Guard against spawn-frame flash
+  private readonly fallingAnimDelay: number = 0.15; // Seconds before 'falling' anim plays
 
   // ===== GROUND DETECTION DEBOUNCE =====
-  private _groundLostTimer: number = 0; // Time since last valid ground contact
-  private readonly _groundLostGrace: number = 0.08; // 80ms grace before marking airborne
+  private groundLostTimer: number = 0; // Time since last valid ground contact
+  private readonly groundLostGrace: number = 0.08; // 80ms grace before marking airborne
   private readonly COL_ENVIRONMENT: number = 0x0001; // Must match main.ts collision mask
 
   // ===== SISTEMA DE PUÑOS RÁPIDOS =====
@@ -702,10 +701,10 @@ export class PlayerController {
       return;
     }
     // PRE_LANDING: landing anim is running — allow movement to cancel it early
-    if (this._jumpPhase === JumpPhase.PRE_LANDING) {
+    if (this.jumpPhase === JumpPhase.PRE_LANDING) {
       if (this.isGrounded && moveDirection.length() > 0.1) {
         // Player started running — skip the rest of the landing clip
-        this._jumpPhase = JumpPhase.GROUNDED;
+        this.jumpPhase = JumpPhase.GROUNDED;
         const landingAg = this.animationGroups.get('land');
         if (landingAg) {
           landingAg.onAnimationGroupEndObservable.clear();
@@ -724,12 +723,12 @@ export class PlayerController {
     } else if (this.currentHealth <= 0) {
       targetAnimation = 'dead';
       animSpeed = 1.0;
-    } else if (this._jumpPhase === JumpPhase.RISING) {
+    } else if (this.jumpPhase === JumpPhase.RISING) {
       // Ascending — scale anim speed to vertical velocity
       targetAnimation = 'jump';
       animSpeed = Math.max(0.5, (velocity.y / this.jumpForce) * 1.2);
-    } else if (this._jumpPhase === JumpPhase.FALLING) {
-      if (this._airTime >= this._fallingAnimDelay) {
+    } else if (this.jumpPhase === JumpPhase.FALLING) {
+      if (this.airTime >= this.fallingAnimDelay) {
         // Extended airtime — switch to falling anim
         targetAnimation = 'falling';
         animSpeed = Math.min(1.0, Math.abs(velocity.y) / 10);
@@ -799,14 +798,14 @@ export class PlayerController {
 
       if (this.isSurface(hitBody.transformNode)) {
         this.isGrounded = true;
-        this._groundLostTimer = 0;
+        this.groundLostTimer = 0;
         return;
       }
     }
 
     // Grace period: don't immediately mark as airborne to prevent single-frame flickers
-    this._groundLostTimer += deltaTime;
-    if (this._groundLostTimer >= this._groundLostGrace) {
+    this.groundLostTimer += deltaTime;
+    if (this.groundLostTimer >= this.groundLostGrace) {
       this.isGrounded = false;
     }
   }
@@ -877,8 +876,8 @@ export class PlayerController {
 
     this.jumpBufferTimer = 0;
     this.coyoteTimer = 0;
-    this._jumpPhase = JumpPhase.RISING;
-    this._airTime = 0;
+    this.jumpPhase = JumpPhase.RISING;
+    this.airTime = 0;
 
     AudioManager.play('player_jump');
 
@@ -1004,7 +1003,7 @@ export class PlayerController {
 
   // ===== EVENTOS =====
   onLand() {
-    this._airTime = 0;
+    this.airTime = 0;
 
     const dustPos = this.mesh.getAbsolutePosition().clone();
     dustPos.y -= this.playerHeight / 2;
@@ -1016,23 +1015,23 @@ export class PlayerController {
 
     if (this.cameraShaker) this.cameraShaker.shakeSoft();
 
-    if (this._jumpPhase === JumpPhase.PRE_LANDING) {
+    if (this.jumpPhase === JumpPhase.PRE_LANDING) {
       // Anticipation already started the anim — observable will set GROUNDED when it ends
       return;
     }
 
     // Short hop: anticipation never fired — play landing now as fallback
-    this._jumpPhase = JumpPhase.PRE_LANDING;
+    this.jumpPhase = JumpPhase.PRE_LANDING;
     const landingAg = this.animationGroups.get('land');
     if (landingAg) {
       // forceReset: false — let blending smooth the entry, no skeleton snap
       this.playSmoothAnimation('land', false, false, 1.0);
       landingAg.onAnimationGroupEndObservable.clear();
       landingAg.onAnimationGroupEndObservable.addOnce(() => {
-        this._jumpPhase = JumpPhase.GROUNDED;
+        this.jumpPhase = JumpPhase.GROUNDED;
       });
     } else {
-      this._jumpPhase = JumpPhase.GROUNDED;
+      this.jumpPhase = JumpPhase.GROUNDED;
     }
   }
 
@@ -1049,34 +1048,34 @@ export class PlayerController {
 
     // ── Already on ground ─────────────────────────────────────────
     if (this.isGrounded) {
-      this._airTime = 0;
+      this.airTime = 0;
       // Don't override PRE_LANDING — its observable handles the GROUNDED transition
-      if (this._jumpPhase !== JumpPhase.PRE_LANDING) {
-        this._jumpPhase = JumpPhase.GROUNDED;
+      if (this.jumpPhase !== JumpPhase.PRE_LANDING) {
+        this.jumpPhase = JumpPhase.GROUNDED;
       }
       return;
     }
 
     // ── Airborne ──────────────────────────────────────────────────
-    this._airTime += deltaTime;
+    this.airTime += deltaTime;
 
-    switch (this._jumpPhase) {
+    switch (this.jumpPhase) {
       case JumpPhase.GROUNDED:
         // Walked off a ledge without jumping
-        this._jumpPhase = JumpPhase.FALLING;
+        this.jumpPhase = JumpPhase.FALLING;
         break;
 
       case JumpPhase.RISING:
         // Transition to falling once past the apex
-        if (velocity.y <= 0 && this._airTime > this._minAirTime) {
-          this._jumpPhase = JumpPhase.FALLING;
+        if (velocity.y <= 0 && this.airTime > this.minAirTime) {
+          this.jumpPhase = JumpPhase.FALLING;
         }
         break;
 
       case JumpPhase.FALLING:
         // Check if ground is close enough to start landing anim early
         if (velocity.y < -0.5) {
-          this._checkLandingAnticipation();
+          this.checkLandingAnticipation();
         }
         break;
 
@@ -1092,7 +1091,7 @@ export class PlayerController {
    * falling-intro lines up with actual physics contact.
    * Tune _landingAnticipationDist to adjust lead time.
    */
-  private _checkLandingAnticipation() {
+  private checkLandingAnticipation() {
     if (!this.raycastResult.hasHit || this.raycastResult.body === this.body) {
       return;
     }
@@ -1102,7 +1101,7 @@ export class PlayerController {
       return;
     }
 
-    this._jumpPhase = JumpPhase.PRE_LANDING;
+    this.jumpPhase = JumpPhase.PRE_LANDING;
     const landingAg = this.animationGroups.get('land');
 
     if (!landingAg) {
@@ -1114,8 +1113,8 @@ export class PlayerController {
     landingAg.onAnimationGroupEndObservable.clear();
     landingAg.onAnimationGroupEndObservable.addOnce(() => {
       // Anim ended: go to GROUNDED if on ground, back to FALLING if still airborne
-      if (this._jumpPhase === JumpPhase.PRE_LANDING) {
-        this._jumpPhase = this.isGrounded
+      if (this.jumpPhase === JumpPhase.PRE_LANDING) {
+        this.jumpPhase = this.isGrounded
           ? JumpPhase.GROUNDED
           : JumpPhase.FALLING;
       }
@@ -1232,17 +1231,20 @@ export class PlayerController {
     const playerPos = this.mesh.getAbsolutePosition();
     let closest: any = null;
     let closestDist = maxRange;
+
     for (const enemy of enemies) {
       if (!enemy.isAlive()) continue;
       const ePos = enemy.getPosition();
       const dx = ePos.x - playerPos.x;
       const dz = ePos.z - playerPos.z;
       const dist = Math.sqrt(dx * dx + dz * dz);
+
       if (dist <= closestDist) {
         closestDist = dist;
         closest = enemy;
       }
     }
+
     return closest;
   }
 
@@ -1293,7 +1295,6 @@ export class PlayerController {
 
     this.playSmoothAnimation('stumble_back', false, true);
 
-    // Ignorar daño si es invulnerable o está muerto
     if (this.isInvulnerable || this.currentHealth <= 0) {
       console.log('Damage ignored (invulnerable or dead)');
       return;
@@ -1301,24 +1302,19 @@ export class PlayerController {
 
     AudioManager.play('player_take_damage');
 
-    // Restar salud
     this.currentHealth -= amount;
 
     console.log(`Player hit! Health: ${this.currentHealth}/${this.maxHealth}`);
 
-    // Actualizar UI
     this.updateHealthUI();
 
-    // Verificar muerte
     if (this.currentHealth <= 0) {
       this.die();
       return;
     }
 
-    // ===== INVULNERABILIDAD TEMPORAL =====
     this.startInvulnerability();
 
-    // ===== CAMERA SHAKE FUERTE =====
     if (this.cameraShaker) {
       this.cameraShaker.shakeHard();
     }
@@ -1327,15 +1323,10 @@ export class PlayerController {
   startInvulnerability() {
     this.isInvulnerable = true;
     this.invulnerabilityTimer = this.invulnerabilityDuration;
-
-    // Iniciar parpadeo visual
     this.startBlinking();
-
-    console.log('Invulnerability started!');
   }
 
   startBlinking() {
-    // Parpadear rápidamente (cada 100ms)
     let visible = true;
     this.blinkInterval = setInterval(() => {
       visible = !visible;
@@ -1348,7 +1339,6 @@ export class PlayerController {
       clearInterval(this.blinkInterval);
       this.blinkInterval = null;
     }
-    // Restaurar visibilidad completa
     this.mesh.visibility = 1;
   }
 
@@ -1360,13 +1350,10 @@ export class PlayerController {
     if (this.invulnerabilityTimer <= 0) {
       this.isInvulnerable = false;
       this.stopBlinking();
-      console.log('Invulnerability ended!');
     }
   }
 
   die() {
-    console.log('Player died!');
-
     if (this.ragdoll) {
       this.ragdoll.ragdoll();
       // Use setTimeout(0) so Havok has one tick to register the DYNAMIC motion type.
@@ -1381,13 +1368,11 @@ export class PlayerController {
       }, 0);
     }
 
-    // Detener cualquier estado activo
     this.stopBlinking();
     this.isDashing = false;
     this.attackQueue = [];
     this.isAttacking = false;
 
-    // Notificar al GameManager
     if (this.gameManager && this.gameManager.gameOver) {
       setTimeout(() => {
         this.gameManager.gameOver();
@@ -1403,20 +1388,16 @@ export class PlayerController {
   respawn() {
     console.log('Respawning...');
 
-    // Restaurar salud
     this.currentHealth = this.maxHealth;
     this.updateHealthUI();
 
-    // Teletransportar al spawn point
     this.mesh.position = this.spawnPoint.clone();
 
-    // Resetear velocidad
     if (this.body) {
       this.body.setLinearVelocity(Vector3.Zero());
       this.body.setAngularVelocity(Vector3.Zero());
     }
 
-    // Pequeña invulnerabilidad post-respawn
     this.startInvulnerability();
 
     console.log('Player respawned!');
@@ -1549,7 +1530,6 @@ export class PlayerController {
 
   public enableInput() {
     this.inputEnabled = true;
-    // No es necesario re-attachar camera controls, el GameManager lo hace
   }
 
   public detachControl() {
@@ -1557,6 +1537,5 @@ export class PlayerController {
     // Limpiar inputs activos
     this.inputMap = {};
     this.isDashing = false;
-    // El GameManager se encarga de detach/attach camera
   }
 }
