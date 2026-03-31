@@ -14,7 +14,6 @@ import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
-  PlayerGameOverHandlerComponent,
   PlayerGameplayConfigComponent,
   PlayerGroundingStateComponent,
   PlayerHealthStateComponent,
@@ -63,10 +62,6 @@ export function createPlayerEntity(
 
   world.addComponent(entityId, PlayerGameplayConfigComponent, {
     ...gameplayConfig,
-  });
-
-  world.addComponent(entityId, PlayerGameOverHandlerComponent, {
-    handler: options.gameOverHandler ?? null,
   });
 
   world.addComponent(entityId, PlayerControlStateComponent, {

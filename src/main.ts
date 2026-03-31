@@ -22,11 +22,6 @@ import '@babylonjs/core/Cameras/Inputs';
 import '@babylonjs/loaders/glTF';
 import HavokPhysics from '@babylonjs/havok';
 import { WeaponSystem } from './WeaponSystem.ts';
-import { PlayerController } from './player/PlayerController.ts';
-import {
-  createPlayerFacade,
-  type PlayerFacade,
-} from './player/PlayerFacade.ts';
 import {
   createPlayerAnimationRegistry,
   PlayerAnimationRegistry,
@@ -35,13 +30,18 @@ import {
   DEFAULT_PLAYER_GAMEPLAY_CONFIG,
   createPlayerHealthUi,
 } from './player/playerRuntime.ts';
-import { EnemyFactory } from './EnemyFactory.ts';
 import { EffectManager } from './EffectManager.ts';
 import { CameraShaker } from './CameraShaker.ts';
 import { GameManager } from './GameManager.ts';
 import { DebugGUI } from './DebugGUI.ts';
 import { AudioManager } from './AudioManager.ts';
-import { bootstrapGameEcs, GameEcsRuntime } from './ecs/index.ts';
+import {
+  bootstrapGameEcs,
+  EnemySpawner,
+  createPlayerDebugApi,
+  type GameEcsRuntime,
+  type PlayerDebugApi,
+} from './ecs/index.ts';
 
 // Collision filter bitmasks
 const COL_ENVIRONMENT = 0x0001;
@@ -56,8 +56,7 @@ class Game {
   player: any;
   camera: ArcRotateCamera | null = null;
   cameraShaker: CameraShaker | null = null;
-  playerController: PlayerController | null = null;
-  playerFacade: PlayerFacade | null = null;
+  playerDebugApi: PlayerDebugApi | null = null;
   playerAnimations: PlayerAnimationRegistry = {};
   enemies: any[] = [];
   debugGUI: DebugGUI | null = null;
@@ -192,24 +191,20 @@ class Game {
       spawnPoint: this.player.position.clone(),
       ragdollSkeleton: this.player.skeleton ?? null,
       ragdollArmatureNode: this.player.armatureNode ?? null,
+      gameplayConfig: {
+        moveSpeed: 8,
+        jumpForce: 12,
+      },
     });
 
     if (!this.ecsRuntime.playerEntityId) {
       throw new Error('Failed to create player ECS entity.');
     }
 
-    this.playerController = new PlayerController(
+    this.playerDebugApi = createPlayerDebugApi(
       this.ecsRuntime.world,
       this.ecsRuntime.playerEntityId,
     );
-
-    this.playerFacade = createPlayerFacade(this.playerController);
-
-    // Tunear valores
-    this.playerFacade.setup.configureTuning({
-      moveSpeed: 8,
-      jumpForce: 12,
-    });
 
     console.log('Player runtime initialized');
   }
@@ -338,7 +333,7 @@ class Game {
     rootMesh.parent = physicsCapsule;
     rootMesh.position = new Vector3(0, -1.1, 0);
 
-    // Store for ragdoll init in PlayerController
+    // Store for ECS player bootstrap helpers
     physicsCapsule.skeleton = skeleton;
     (physicsCapsule as any).armatureNode = armatureNode;
 
@@ -458,7 +453,7 @@ class Game {
   }
 
   async preloadEnemyAssets() {
-    await EnemyFactory.preload('/models/ladron.glb', this.scene);
+    await EnemySpawner.preload('/models/ladron.glb', this.scene);
     console.log('Enemy assets precargados');
   }
 
@@ -485,7 +480,7 @@ class Game {
       debug: true,
     };
 
-    this.enemies = EnemyFactory.spawnMultiple(
+    this.enemies = EnemySpawner.spawnMultiple(
       this.ecsRuntime!.world,
       LADRON_PATH,
       this.scene,
@@ -493,14 +488,14 @@ class Game {
       enemyConfig,
     );
 
-    console.log(`${this.enemies.length} enemigos creados con EnemyFactory`);
+    console.log(`${this.enemies.length} enemigos creados con EnemySpawner`);
   }
 
   setupDebugGUI() {
     this.debugGUI = new DebugGUI();
-    if (this.playerFacade) {
-      this.debugGUI.setupPlayerControls(this.playerFacade.debug);
-      this.debugGUI.addLogButton(this.playerFacade.debug);
+    if (this.playerDebugApi) {
+      this.debugGUI.setupPlayerControls(this.playerDebugApi);
+      this.debugGUI.addLogButton(this.playerDebugApi);
     }
     this.debugGUI.setupModelControls(this.player);
     this.debugGUI.setupEnemyControls(this.enemies);

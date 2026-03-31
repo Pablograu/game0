@@ -13,7 +13,7 @@ export class WeaponSystem {
   playerKnockback: number;
   scene: Scene;
 
-  constructor(_playerController: unknown, scene: Scene, options: any = {}) {
+  constructor(_runtimeRefs: unknown, scene: Scene, options: any = {}) {
     this.scene = scene;
 
     this.damage = options.damage || 1;

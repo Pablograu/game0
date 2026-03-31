@@ -1,10 +1,7 @@
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import { queueGameOverRequest } from '../../game/index.ts';
-import {
-  PlayerGameOverHandlerComponent,
-  PlayerSurvivabilityRequestComponent,
-} from '../components/index.ts';
+import { PlayerSurvivabilityRequestComponent } from '../components/index.ts';
 
 export class PlayerGameOverSystem implements EcsSystem {
   readonly name = 'PlayerGameOverSystem';
@@ -33,16 +30,7 @@ export class PlayerGameOverSystem implements EcsSystem {
       );
 
       if (!queued) {
-        const gameOver = world.getComponent(
-          entityId,
-          PlayerGameOverHandlerComponent,
-        );
-
-        if (!gameOver?.handler) {
-          continue;
-        }
-
-        gameOver.handler.gameOver();
+        continue;
       }
 
       requests.gameOverRequested = false;

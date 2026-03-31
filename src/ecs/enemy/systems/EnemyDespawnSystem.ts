@@ -60,7 +60,9 @@ export class EnemyDespawnSystem implements EcsSystem {
 
       refs.root.setEnabled(false);
       attack.hitbox?.dispose();
-      refs.controller?.dispose();
+      refs.debugVisionCircle?.dispose();
+      refs.physicsAggregate?.dispose();
+      refs.root.dispose();
 
       if (
         ragdoll.ragdoll &&

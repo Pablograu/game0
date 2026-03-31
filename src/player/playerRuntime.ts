@@ -11,7 +11,6 @@ import { AdvancedDynamicTexture, Control, TextBlock } from '@babylonjs/gui';
 import type { CameraShaker } from '../CameraShaker.ts';
 import type { WeaponSystem } from '../WeaponSystem.ts';
 import { Ragdoll } from '../ragdoll_copy.js';
-import type { PlayerGameOverHandler } from './PlayerFacade.ts';
 import type { PlayerAnimationRegistry } from './PlayerAnimations.ts';
 
 export interface PlayerGameplayConfig {
@@ -64,7 +63,6 @@ export interface PlayerBootstrapRuntime {
   spawnPoint?: Vector3 | null;
   ragdollSkeleton?: Skeleton | null;
   ragdollArmatureNode?: Mesh | null;
-  gameOverHandler?: PlayerGameOverHandler | null;
   gameplayConfig?: Partial<PlayerGameplayConfig>;
 }
 

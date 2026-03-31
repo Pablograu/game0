@@ -8,13 +8,11 @@ import type {
   Skeleton,
   TransformNode,
 } from '@babylonjs/core';
-import type { EnemyController } from '../../../EnemyController.ts';
 import type LootManager from '../../../LootManager.ts';
 import { createComponentType } from '../../core/Component.ts';
 
 export interface EnemyPhysicsViewRefsComponent {
   scene: Scene;
-  controller: EnemyController | null;
   root: TransformNode;
   meshes: AbstractMesh[];
   mesh: Mesh;
@@ -25,6 +23,7 @@ export interface EnemyPhysicsViewRefsComponent {
   skeleton: Skeleton | null;
   armatureNode: TransformNode | null;
   lootManager: LootManager | null;
+  debugVisionCircle: Mesh | null;
 }
 
 export const EnemyPhysicsViewRefsComponent =

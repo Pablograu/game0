@@ -3,12 +3,13 @@ import {
   type AnimationGroup,
   type AbstractMesh,
   type Mesh,
+  type PhysicsAggregate,
   type Scene,
   type Skeleton,
   TransformNode,
   Vector3,
 } from '@babylonjs/core';
-import type { EnemyConfig, EnemyController } from '../../EnemyController.ts';
+import type { EnemyConfig } from './EnemySpawner.ts';
 import LootManager from '../../LootManager.ts';
 import { Ragdoll } from '../../ragdoll_copy.js';
 import type { EntityId } from '../core/Entity.ts';
@@ -42,11 +43,11 @@ export interface CreateEnemyEntityOptions {
   scene: Scene;
   modelPath: string;
   debugLabel: string;
-  controller: EnemyController;
   config: Required<EnemyConfig>;
   root: TransformNode;
   meshes: AbstractMesh[];
   mesh: Mesh;
+  physicsAggregate: PhysicsAggregate | null;
   animationGroups: AnimationGroup[];
   skeleton: Skeleton | null;
   armatureNode: TransformNode | null;
@@ -72,18 +73,18 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
 
   options.world.addComponent(entityId, EnemyPhysicsViewRefsComponent, {
     scene: options.scene,
-    controller: options.controller,
     root: options.root,
     meshes: options.meshes,
     mesh: options.mesh,
     body: options.mesh.physicsBody ?? null,
-    physicsAggregate: options.controller.physicsAggregate,
+    physicsAggregate: options.physicsAggregate,
     physicsEngine:
       options.scene.getPhysicsEngine() as unknown as EnemyPhysicsViewRefsComponent['physicsEngine'],
     animationGroups: options.animationGroups,
     skeleton: options.skeleton,
     armatureNode: options.armatureNode,
     lootManager,
+    debugVisionCircle: null,
   });
 
   options.world.addComponent(entityId, EnemyAnimationStateComponent, {

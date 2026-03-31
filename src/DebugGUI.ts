@@ -1,5 +1,5 @@
 import GUI from 'lil-gui';
-import type { PlayerDebugApi } from './player/PlayerFacade.ts';
+import type { PlayerDebugApi } from './ecs/player/api.ts';
 
 export class DebugGUI {
   gui: GUI;
@@ -16,38 +16,38 @@ export class DebugGUI {
   /**
    * Configurar controles para el jugador
    */
-  setupPlayerControls(playerController: PlayerDebugApi) {
+  setupPlayerControls(playerDebug: PlayerDebugApi) {
     this.playerFolder = this.gui.addFolder('Player');
 
     // Velocidades
     this.playerFolder
-      .add(playerController, 'moveSpeed', 1, 20, 0.5)
+      .add(playerDebug, 'moveSpeed', 1, 20, 0.5)
       .name('Move Speed');
     this.playerFolder
-      .add(playerController, 'jumpForce', 5, 20, 0.5)
+      .add(playerDebug, 'jumpForce', 5, 20, 0.5)
       .name('Jump Force');
     this.playerFolder
-      .add(playerController, 'dashSpeed', 10, 40, 1)
+      .add(playerDebug, 'dashSpeed', 10, 40, 1)
       .name('Dash Speed');
 
     // Rotación del mesh principal
     const rotationFolder = this.playerFolder.addFolder('Rotation');
     rotationFolder
-      .add(playerController.mesh.rotation, 'x', -Math.PI, Math.PI, 0.01)
+      .add(playerDebug.mesh.rotation, 'x', -Math.PI, Math.PI, 0.01)
       .name('Capsule X');
     rotationFolder
-      .add(playerController.mesh.rotation, 'y', -Math.PI, Math.PI, 0.01)
+      .add(playerDebug.mesh.rotation, 'y', -Math.PI, Math.PI, 0.01)
       .name('Capsule Y');
     rotationFolder
-      .add(playerController.mesh.rotation, 'z', -Math.PI, Math.PI, 0.01)
+      .add(playerDebug.mesh.rotation, 'z', -Math.PI, Math.PI, 0.01)
       .name('Capsule Z');
     rotationFolder
-      .add(playerController, 'targetAngle', -Math.PI, Math.PI, 0.01)
+      .add(playerDebug, 'targetAngle', -Math.PI, Math.PI, 0.01)
       .name('Target Angle')
       .listen();
 
     // Animation Handler
-    if (playerController.animationHandler) {
+    if (playerDebug.animationHandler) {
       const animFolder = this.playerFolder.addFolder('Animation Blending');
 
       // Controles de blending
@@ -56,14 +56,14 @@ export class DebugGUI {
         .add(blendConfig, 'blendDuration', 0, 1, 0.05)
         .name('Blend Duration (s)')
         .onChange((value: number) => {
-          playerController.animationHandler.setBlendDuration(value);
+          playerDebug.animationHandler.setBlendDuration(value);
         });
 
       // Forzar cambio de animación manual
       const animControls = {
         currentAnim: 'idle',
         forcePlay: () => {
-          playerController.animationHandler.play(animControls.currentAnim, {
+          playerDebug.animationHandler.play(animControls.currentAnim, {
             loop: true,
           });
         },
@@ -77,12 +77,12 @@ export class DebugGUI {
     // Salud
     const healthFolder = this.playerFolder.addFolder('Health');
     healthFolder
-      .add(playerController, 'currentHealth', 0, playerController.maxHealth, 1)
+      .add(playerDebug, 'currentHealth', 0, playerDebug.maxHealth, 1)
       .name('HP')
       .listen();
-    healthFolder.add(playerController, 'maxHealth', 1, 10, 1).name('Max HP');
+    healthFolder.add(playerDebug, 'maxHealth', 1, 10, 1).name('Max HP');
     healthFolder
-      .add(playerController, 'isInvulnerable')
+      .add(playerDebug, 'isInvulnerable')
       .name('Invulnerable')
       .listen();
 
@@ -294,16 +294,16 @@ export class DebugGUI {
   /**
    * Botón para imprimir valores actuales en consola
    */
-  addLogButton(playerController: PlayerDebugApi) {
+  addLogButton(playerDebug: PlayerDebugApi) {
     const actions = {
       logRotation: () => {
         console.log('=== PLAYER ROTATION DEBUG ===');
-        console.log('Capsule rotation:', playerController.mesh.rotation);
-        console.log('Target angle:', playerController.targetAngle);
-        console.log('Target rotation:', playerController.targetRotation);
+        console.log('Capsule rotation:', playerDebug.mesh.rotation);
+        console.log('Target angle:', playerDebug.targetAngle);
+        console.log('Target rotation:', playerDebug.targetRotation);
 
-        if (playerController.mesh.animationModels) {
-          const models = playerController.mesh.animationModels;
+        if (playerDebug.mesh.animationModels) {
+          const models = playerDebug.mesh.animationModels;
           console.log('Idle rotation:', models.idle?.root.rotation);
           console.log('Run rotation:', models.run?.root.rotation);
           console.log('Jump rotation:', models.jump?.root.rotation);

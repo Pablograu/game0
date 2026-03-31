@@ -21,7 +21,7 @@ export { GameFlowState as GameState };
  * - Gestionar transiciones entre estados
  * - Controlar GUI (inicio, pausa, muerte)
  * - Sincronizar input (Escape/P para pausa)
- * - Detener/reanudar lógica de playerController y enemigos
+ * - Coordinar runtime refs de juego y enemigos
  */
 export class GameManager {
   private scene: Scene;
@@ -57,10 +57,6 @@ export class GameManager {
   /**
    * ===== SETTERS - Para vincular referencias después de crear los objetos =====
    */
-  public setPlayerInputController() {
-    // Legacy no-op kept while external setup code is trimmed.
-  }
-
   public setEnemies(enemies: any[]) {
     this.pendingEnemies = enemies;
     this.gameFlow?.setEnemies(enemies);

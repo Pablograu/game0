@@ -1,7 +1,6 @@
 export * from './PlayerAnimationStateComponent.ts';
 export * from './PlayerCombatStateComponent.ts';
 export * from './PlayerControlStateComponent.ts';
-export * from './PlayerGameOverHandlerComponent.ts';
 export * from './PlayerGameplayConfigComponent.ts';
 export * from './PlayerGroundingStateComponent.ts';
 export * from './PlayerHealthStateComponent.ts';
