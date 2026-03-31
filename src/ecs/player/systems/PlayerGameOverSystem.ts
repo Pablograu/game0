@@ -1,5 +1,6 @@
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
+import { queueGameOverRequest } from '../../game/index.ts';
 import {
   PlayerGameOverHandlerComponent,
   PlayerSurvivabilityRequestComponent,
@@ -10,30 +11,40 @@ export class PlayerGameOverSystem implements EcsSystem {
   readonly order = 19;
 
   update(world: World): void {
-    const entityIds = world.query(
-      PlayerGameOverHandlerComponent,
-      PlayerSurvivabilityRequestComponent,
-    );
+    const entityIds = world.query(PlayerSurvivabilityRequestComponent);
 
     for (const entityId of entityIds) {
-      const gameOver = world.getComponent(
-        entityId,
-        PlayerGameOverHandlerComponent,
-      );
       const requests = world.getComponent(
         entityId,
         PlayerSurvivabilityRequestComponent,
       );
 
-      if (!gameOver || !requests || !requests.gameOverRequested) {
+      if (
+        !requests ||
+        !requests.gameOverRequested ||
+        !requests.autoSignalGameOver
+      ) {
         continue;
       }
 
-      if (!requests.autoSignalGameOver || !gameOver.handler) {
-        continue;
+      const queued = queueGameOverRequest(
+        world,
+        requests.gameOverReason ?? 'player-death',
+      );
+
+      if (!queued) {
+        const gameOver = world.getComponent(
+          entityId,
+          PlayerGameOverHandlerComponent,
+        );
+
+        if (!gameOver?.handler) {
+          continue;
+        }
+
+        gameOver.handler.gameOver();
       }
 
-      gameOver.handler.gameOver();
       requests.gameOverRequested = false;
       requests.gameOverReason = null;
     }

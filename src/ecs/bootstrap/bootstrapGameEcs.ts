@@ -2,6 +2,16 @@ import type { Scene } from '@babylonjs/core';
 import type { EntityId } from '../core/Entity.ts';
 import { World } from '../core/World.ts';
 import {
+  createGameFlowControllerApi,
+  createGameFlowEntity,
+  GameFlowInputGateSystem,
+  GameFlowRuntimeSystem,
+  GameFlowStateSystem,
+  GameFlowUiSystem,
+  type GameFlowControllerApi,
+  type GameFlowEngineControl,
+} from '../game/index.ts';
+import {
   createPlayerEntity,
   PlayerAnimationSystem,
   PlayerCombatSystem,
@@ -19,11 +29,16 @@ import {
 } from '../player/index.ts';
 import type { PlayerBootstrapRuntime } from '../../player/playerRuntime.ts';
 
-export interface BootstrapGameEcsOptions extends PlayerBootstrapRuntime {}
+export interface BootstrapGameEcsOptions extends PlayerBootstrapRuntime {
+  engine?: GameFlowEngineControl | null;
+  reloadGame?: (() => void) | null;
+}
 
 export interface GameEcsRuntime {
   readonly world: World;
   readonly playerEntityId: EntityId | null;
+  readonly gameFlowEntityId: EntityId | null;
+  readonly gameFlow: GameFlowControllerApi | null;
   dispose(): void;
 }
 
@@ -31,7 +46,18 @@ export function bootstrapGameEcs(
   options: BootstrapGameEcsOptions,
 ): GameEcsRuntime {
   const world = new World();
+  const gameFlowEntityId = createGameFlowEntity({
+    world,
+    engine: options.engine ?? null,
+    reloadGame: options.reloadGame ?? null,
+  });
+  const gameFlow = createGameFlowControllerApi(world, gameFlowEntityId);
   let playerEntityId: EntityId | null = null;
+
+  world.registerSystem(new GameFlowStateSystem());
+  world.registerSystem(new GameFlowInputGateSystem());
+  world.registerSystem(new GameFlowRuntimeSystem());
+  world.registerSystem(new GameFlowUiSystem());
 
   if (options.playerMesh) {
     playerEntityId = createPlayerEntity({
@@ -62,6 +88,8 @@ export function bootstrapGameEcs(
   return {
     world,
     playerEntityId,
+    gameFlowEntityId,
+    gameFlow,
     dispose() {
       options.scene.onBeforeRenderObservable.remove(updateObserver);
     },

@@ -228,7 +228,7 @@ export function createPlayerEntity(
     respawnRequested: false,
     gameOverRequested: false,
     gameOverReason: null,
-    autoSignalGameOver: false,
+    autoSignalGameOver: true,
   });
 
   return entityId;

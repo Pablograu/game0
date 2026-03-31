@@ -180,6 +180,8 @@ class Game {
 
     this.ecsRuntime = bootstrapGameEcs({
       scene: this.scene,
+      engine: this.engine,
+      reloadGame: () => location.reload(),
       playerMesh: this.player,
       camera: this.camera,
       cameraShaker: this.cameraShaker,
@@ -215,14 +217,11 @@ class Game {
   setupGameManager() {
     // Crear el GameManager para controlar el flujo de la partida
     this.gameManager = new GameManager(this.scene, this.engine);
+    this.gameManager.attachGameFlow(this.ecsRuntime?.gameFlow ?? null);
 
     // Asignar referencias
-    this.gameManager.setPlayerInputController(this.playerFacade?.input ?? null);
     this.gameManager.setEnemies(this.enemies);
     this.gameManager.setCamera(this.camera);
-
-    // Asignar GameManager al PlayerController para que pueda notificarlo de muerte
-    this.playerFacade?.setup.connectGameOverHandler(this.gameManager);
 
     console.log('GameManager inicializado');
   }

@@ -7,19 +7,13 @@ import {
   Rectangle,
   Grid,
 } from '@babylonjs/gui';
-import { Scene, Vector3 } from '@babylonjs/core';
-import { AudioManager } from './AudioManager.ts';
-import type { PlayerInputControllerApi } from './player/PlayerFacade.ts';
+import { Scene } from '@babylonjs/core';
+import { type GameFlowControllerApi, GameFlowState } from './ecs/game/index.ts';
 
 /**
  * Estados principales del juego
  */
-export enum GameState {
-  START = 'START', // Pantalla inicial
-  PLAYING = 'PLAYING', // Juego activo
-  PAUSED = 'PAUSED', // Juego pausado
-  DEAD = 'DEAD', // Pantalla de muerte
-}
+export { GameFlowState as GameState };
 
 /**
  * GameManager - Máquina de estados para controlar el flujo de la partida
@@ -32,13 +26,11 @@ export enum GameState {
 export class GameManager {
   private scene: Scene;
   private engine: any;
-  private state: GameState = GameState.START;
+  private state: GameFlowState = GameFlowState.START;
   private uiTexture: AdvancedDynamicTexture | null = null;
-
-  // Referencias a objetos del juego
-  private playerInputController: PlayerInputControllerApi | null = null;
-  private enemies: any[] = [];
-  private camera: any = null;
+  private gameFlow: GameFlowControllerApi | null = null;
+  private pendingEnemies: any[] = [];
+  private pendingCamera: any = null;
 
   // Panels de UI
   private startPanel: Control | null = null;
@@ -48,9 +40,10 @@ export class GameManager {
   // Referencias a elementos UI del panel de inicio
   private titleText: TextBlock | null = null;
   private startButton: Button | null = null;
+  private deadStatsText: TextBlock | null = null;
 
   // Callbacks para extensión futura (ej: contador de enemigos)
-  private onStateChange: ((newState: GameState) => void) | null = null;
+  private onStateChange: ((newState: GameFlowState) => void) | null = null;
   private enemyDefeatedCount: number = 0;
 
   constructor(scene: Scene, engine: any) {
@@ -64,23 +57,49 @@ export class GameManager {
   /**
    * ===== SETTERS - Para vincular referencias después de crear los objetos =====
    */
-  public setPlayerInputController(
-    playerInputController: PlayerInputControllerApi | null,
-  ) {
-    this.playerInputController = playerInputController;
+  public setPlayerInputController() {
+    // Legacy no-op kept while external setup code is trimmed.
   }
 
   public setEnemies(enemies: any[]) {
-    this.enemies = enemies;
-    // Desactivar todos los enemigos inicialmente (el juego aún no ha comenzado)
-    this.disableEnemies();
+    this.pendingEnemies = enemies;
+    this.gameFlow?.setEnemies(enemies);
   }
 
   public setCamera(camera: any) {
-    this.camera = camera;
+    this.pendingCamera = camera;
+    this.gameFlow?.setCamera(camera);
   }
 
-  public setOnStateChange(callback: (newState: GameState) => void) {
+  public attachGameFlow(gameFlow: GameFlowControllerApi | null) {
+    this.gameFlow = gameFlow;
+
+    if (!this.gameFlow) {
+      return;
+    }
+
+    this.gameFlow.attachUiRefs({
+      uiTexture: this.uiTexture,
+      startPanel: this.startPanel,
+      pausePanel: this.pausePanel,
+      deadPanel: this.deadPanel,
+      titleText: this.titleText,
+      startButton: this.startButton,
+      deadStatsText: this.deadStatsText,
+    });
+
+    if (this.pendingCamera) {
+      this.gameFlow.setCamera(this.pendingCamera);
+    }
+
+    if (this.pendingEnemies.length > 0) {
+      this.gameFlow.setEnemies(this.pendingEnemies);
+    }
+
+    this.syncStateFromFlow();
+  }
+
+  public setOnStateChange(callback: (newState: GameFlowState) => void) {
     this.onStateChange = callback;
   }
 
@@ -98,20 +117,21 @@ export class GameManager {
   /**
    * ===== STATE GETTERS =====
    */
-  public get currentState(): GameState {
+  public get currentState(): GameFlowState {
+    this.syncStateFromFlow();
     return this.state;
   }
 
   public isPlaying(): boolean {
-    return this.state === GameState.PLAYING;
+    return this.currentState === GameFlowState.PLAYING;
   }
 
   public isPaused(): boolean {
-    return this.state === GameState.PAUSED;
+    return this.currentState === GameFlowState.PAUSED;
   }
 
   public isDead(): boolean {
-    return this.state === GameState.DEAD;
+    return this.currentState === GameFlowState.DEAD;
   }
 
   /**
@@ -292,6 +312,7 @@ export class GameManager {
     statsText.fontSize = 24;
     statsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
     statsText.height = '40px';
+    this.deadStatsText = statsText;
 
     // Botón RESTART
     const restartButton = Button.CreateSimpleButton('restartBtn', 'RESTART');
@@ -324,119 +345,39 @@ export class GameManager {
    * Transición: START -> PLAYING
    */
   public startGame() {
-    console.log('[GameManager] Iniciando juego...');
-    AudioManager.play('ui_start');
-    this.changeState(GameState.PLAYING);
-    this.hideStartScreen();
-
-    // Activar pointerlock
-    if (this.engine && this.engine.enterPointerlock) {
-      this.engine.enterPointerlock();
-    }
-
-    // Habilitar controles de cámara
-    this.enableCameraInput();
-
-    // Habilitar controles de PlayerController
-    if (this.playerInputController) {
-      this.playerInputController.resumeInput();
-    }
-
-    // Activar AI de enemigos
-    this.enableEnemies();
+    this.gameFlow?.requestStartFromGesture();
+    this.syncStateFromFlow();
   }
 
   /**
    * Transición: PLAYING -> PAUSED
    */
   public pauseGame() {
-    if (this.state !== GameState.PLAYING) {
-      return; // Solo pausar desde PLAYING
-    }
-
-    console.log('[GameManager] Jugador pausó');
-    AudioManager.play('ui_pause');
-    this.changeState(GameState.PAUSED);
-    this.showPauseScreen();
-
-    // Detener controles de movimiento del jugador
-    if (this.playerInputController) {
-      this.playerInputController.pauseInput();
-    }
-
-    // Detener input de cámara
-    this.disableCameraInput();
-
-    // Pausar enemigos (detener animaciones y movimiento)
-    this.disableEnemies();
-
-    // Liberar ratón si pointerlock está activo
-    this.releasePointerLock();
+    this.gameFlow?.requestPause();
+    this.syncStateFromFlow();
   }
 
   /**
    * Transición: PAUSED -> PLAYING
    */
   public resumeGame() {
-    if (this.state !== GameState.PAUSED) {
-      return;
-    }
-
-    console.log('[GameManager] Reanudando juego...');
-    AudioManager.play('ui_resume');
-    this.changeState(GameState.PLAYING);
-    this.hidePauseScreen();
-
-    // Re-activar input de cámara
-    this.enableCameraInput();
-
-    if (this.playerInputController) {
-      this.playerInputController.resumeInput();
-    }
-
-    // Re-activar enemigos
-    this.enableEnemies();
-
-    // Re-activar pointerlock
-    if (this.engine && this.engine.enterPointerlock) {
-      this.engine.enterPointerlock();
-    }
+    this.gameFlow?.requestResumeFromGesture();
+    this.syncStateFromFlow();
   }
 
   /**
    * Transición: PLAYING -> DEAD
    */
   public gameOver() {
-    if (this.state === GameState.DEAD) {
-      return; // Ya está muerto
-    }
-
-    console.log('[GameManager] GAME OVER');
-    AudioManager.play('ui_game_over');
-    this.changeState(GameState.DEAD);
-    this.showDeadScreen();
-
-    // Detener todo
-    if (this.playerInputController) {
-      this.playerInputController.pauseInput();
-    }
-
-    this.disableEnemies();
-    this.releasePointerLock();
+    this.gameFlow?.requestGameOver('game-manager-request');
+    this.syncStateFromFlow();
   }
 
   /**
    * Reiniciar: DEAD -> START
    */
   public restartGame() {
-    console.log('[GameManager] Reiniciando juego...');
-    // Recargar la página (opción simple)
-    location.reload();
-
-    // Alternativamente, resetear estado interno:
-    // this.changeState(GameState.START);
-    // this.resetGame();
-    // this.showStartScreen();
+    this.gameFlow?.requestRestart();
   }
 
   /**
@@ -480,66 +421,6 @@ export class GameManager {
   }
 
   /**
-   * ===== STATE MANAGEMENT =====
-   */
-  private changeState(newState: GameState) {
-    if (this.state === newState) {
-      return; // No cambiar si ya está en ese estado
-    }
-
-    console.log(`[GameManager] Estado: ${this.state} -> ${newState}`);
-    this.state = newState;
-
-    // Callback para lógica adicional
-    if (this.onStateChange) {
-      this.onStateChange(newState);
-    }
-  }
-
-  /**
-   * ===== ENEMY CONTROL =====
-   */
-  private enableEnemies() {
-    for (const enemy of this.enemies) {
-      if (enemy && enemy.enableUpdate) {
-        enemy.enableUpdate();
-      }
-    }
-  }
-
-  private disableEnemies() {
-    for (const enemy of this.enemies) {
-      if (enemy && enemy.disableUpdate) {
-        enemy.disableUpdate();
-      }
-    }
-  }
-
-  /**
-   * ===== POINTER LOCK =====
-   */
-  private releasePointerLock() {
-    if (document.pointerLockElement) {
-      document.exitPointerLock();
-    }
-  }
-
-  /**
-   * ===== CAMERA CONTROL =====
-   */
-  private enableCameraInput() {
-    if (this.camera && this.camera.attachControl) {
-      this.camera.attachControl();
-    }
-  }
-
-  private disableCameraInput() {
-    if (this.camera && this.camera.detachControl) {
-      this.camera.detachControl();
-    }
-  }
-
-  /**
    * ===== INPUT LISTENERS =====
    */
   private setupInputListeners() {
@@ -549,12 +430,8 @@ export class GameManager {
       // Escape o P para pausar/reanudar
       if (key === 'escape' || key === 'p') {
         event.preventDefault();
-
-        if (this.state === GameState.PLAYING) {
-          this.pauseGame();
-        } else if (this.state === GameState.PAUSED) {
-          this.resumeGame();
-        }
+        this.gameFlow?.requestTogglePauseFromGesture();
+        this.syncStateFromFlow();
       }
     });
   }
@@ -564,17 +441,33 @@ export class GameManager {
    * Implementar cuando el WeaponSystem / HitboxSystem registre kills
    */
   public onEnemyDefeated() {
-    this.enemyDefeatedCount++;
-    console.log(
-      `[GameManager] Enemigos derrotados: ${this.enemyDefeatedCount}`,
-    );
+    this.gameFlow?.onEnemyDefeated();
+    this.enemyDefeatedCount = this.gameFlow?.getEnemyDefeatedCount() ?? 0;
   }
 
   public getEnemyDefeatedCount(): number {
+    this.enemyDefeatedCount = this.gameFlow?.getEnemyDefeatedCount() ?? 0;
     return this.enemyDefeatedCount;
   }
 
   public resetEnemyDefeatedCount() {
+    this.gameFlow?.resetEnemyDefeatedCount();
     this.enemyDefeatedCount = 0;
+  }
+
+  private syncStateFromFlow() {
+    if (!this.gameFlow) {
+      return;
+    }
+
+    const nextState = this.gameFlow.getState();
+    this.enemyDefeatedCount = this.gameFlow.getEnemyDefeatedCount();
+
+    if (nextState === this.state) {
+      return;
+    }
+
+    this.state = nextState;
+    this.onStateChange?.(nextState);
   }
 }
