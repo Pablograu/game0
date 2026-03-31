@@ -70,12 +70,6 @@ export class GameManager {
     this.playerInputController = playerInputController;
   }
 
-  public setPlayerController(
-    playerController: PlayerInputControllerApi | null,
-  ) {
-    this.setPlayerInputController(playerController);
-  }
-
   public setEnemies(enemies: any[]) {
     this.enemies = enemies;
     // Desactivar todos los enemigos inicialmente (el juego aún no ha comenzado)

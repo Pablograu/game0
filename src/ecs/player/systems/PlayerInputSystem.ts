@@ -50,8 +50,7 @@ export class PlayerInputSystem implements EcsSystem {
       }
 
       control.inputEnabled =
-        refs.controller.inputEnabled &&
-        health.lifeState === PlayerLifeState.ALIVE;
+        control.inputEnabled && health.lifeState === PlayerLifeState.ALIVE;
 
       if (!control.inputEnabled) {
         control.inputMap = {};
@@ -102,7 +101,7 @@ export class PlayerInputSystem implements EcsSystem {
         LegacyPlayerRefsComponent,
       );
 
-      if (!control || !grounding || !currentRefs?.controller.inputEnabled) {
+      if (!control || !grounding || !control.inputEnabled || !currentRefs) {
         return;
       }
 
@@ -148,7 +147,7 @@ export class PlayerInputSystem implements EcsSystem {
           LegacyPlayerRefsComponent,
         );
 
-        if (!control || !currentRefs?.controller.inputEnabled) {
+        if (!control || !control.inputEnabled || !currentRefs) {
           return;
         }
 

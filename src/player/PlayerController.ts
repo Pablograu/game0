@@ -23,6 +23,7 @@ import { CameraShaker } from '../CameraShaker.ts';
 import type { EntityId } from '../ecs/core/Entity.ts';
 import type { World } from '../ecs/core/World.ts';
 import {
+  PlayerControlStateComponent,
   PlayerHealthStateComponent,
   PlayerRagdollStateComponent,
   PlayerSurvivabilityRequestComponent,
@@ -336,150 +337,12 @@ export class PlayerController {
   }
 
   punch() {
-    if (this.animationGroups.size === 0) {
-      console.warn('AnimationGroups no configurados');
+    const control = this.getEcsControlState();
+
+    if (!control || !control.inputEnabled) {
       return;
     }
-
-    if (this.attackQueue.length >= this.MAX_ATTACK_QUEUE) {
-      console.log(
-        `🚫 Attack queue full (${this.MAX_ATTACK_QUEUE}), input discarded`,
-      );
-      return;
-    }
-
-    if (!this.isGrounded) {
-      this.attackQueue.push('flying_kick');
-    } else {
-      const punchAnimation = this.useLeftPunch ? 'punch_L' : 'punch_R';
-      this.useLeftPunch = !this.useLeftPunch;
-
-      this.attackQueue.push(punchAnimation);
-      console.log(
-        `📥 Queued: ${punchAnimation} (queue size: ${this.attackQueue.length})`,
-      );
-    }
-
-    if (!this.isAttacking) {
-      this.drainAttackQueue();
-    }
-  }
-
-  private drainAttackQueue() {
-    const next = this.attackQueue.shift();
-    if (next) {
-      console.log(
-        `👊 Ejecutando: ${next} (remaining: ${this.attackQueue.length})`,
-      );
-      this.executeFastPunch(next);
-    } else {
-      this.returnToIdleOrRun();
-    }
-  }
-
-  autoAim(animationName: string) {
-    const target = this.getClosestAliveEnemy(this.magnetismRange);
-    if (target) {
-      const playerPos = this.mesh.getAbsolutePosition();
-      const enemyPos = target.getPosition();
-      const dir = enemyPos.subtract(playerPos);
-      dir.y = 0;
-      const distXZ = dir.length();
-      if (distXZ > 0.01) {
-        dir.x /= distXZ;
-        dir.z /= distXZ;
-        const angle = Math.atan2(dir.x, dir.z);
-        this.targetRotation = Quaternion.FromEulerAngles(0, angle, 0);
-        // Snap inmediato del modelo para que el ataque apunte al enemigo desde el frame 0
-        const modelRoot = this.getAnimationEntry(animationName)?.root;
-        if (modelRoot) {
-          if (!modelRoot.rotationQuaternion) {
-            modelRoot.rotationQuaternion = Quaternion.Identity();
-          }
-          modelRoot.rotationQuaternion = this.targetRotation.clone();
-        }
-        // Lunge físico hacia el enemigo (preservar velocidad vertical para gravedad)
-        const currentY = this.body?.getLinearVelocity().y ?? 0;
-        this.body?.setLinearVelocity(
-          new Vector3(
-            dir.x * this.magnetismLungeSpeed,
-            currentY,
-            dir.z * this.magnetismLungeSpeed,
-          ),
-        );
-      }
-    }
-  }
-
-  executeFastPunch(animationName: string) {
-    // Guardia: nunca interrumpir un ataque en curso
-    if (this.isAttacking) {
-      console.warn('executeFastPunch called while already attacking — skipped');
-      return;
-    }
-
-    // Marcar que estamos atacando
-    this.isAttacking = true;
-
-    this.autoAim(animationName);
-
-    // Obtener el animation group
-    const animGroup = this.animationGroups.get(animationName);
-
-    if (!animGroup) {
-      console.warn(`❌ Animación '${animationName}' no encontrada`);
-      this.isAttacking = false;
-      this.drainAttackQueue();
-      return;
-    }
-
-    // ===== REPRODUCIR CON VELOCIDAD RÁPIDA =====
-    // forceReset = true para que el golpe empiece desde el frame 0
-    // punchSpeed hace que la animación sea más rápida
-    AudioManager.play('player_punch');
-    this.playSmoothAnimation(animationName, false, true, this.punchSpeed);
-
-    // Calcular duración de la animación para sincronizar el daño
-    const frameRate =
-      animGroup.targetedAnimations[0]?.animation.framePerSecond || 30;
-    const baseDuration = (animGroup.to - animGroup.from) / frameRate;
-    const animationDuration = baseDuration / this.punchSpeed; // Ajustar por velocidad
-
-    // Programar activación de hitbox al inicio de la animación (más rápido)
-    const hitboxActivationTime =
-      animationDuration * this.punchHitboxDelay * 1000; // ms
-
-    setTimeout(() => {
-      if (this.isAttacking && this.weaponSystem) {
-        this.activateHitbox();
-      }
-    }, hitboxActivationTime);
-
-    // ===== CALLBACK DE FINALIZACIÓN =====
-    // Limpiar listeners previos para evitar duplicados
-    animGroup.onAnimationGroupEndObservable.clear();
-
-    // Configurar callback para cuando termine la animación
-    animGroup.onAnimationGroupEndObservable.addOnce(() => {
-      this.onFastPunchEnd();
-    });
-  }
-
-  activateHitbox() {
-    if (!this.weaponSystem) {
-      return;
-    }
-    this.weaponSystem.activateHitbox();
-  }
-
-  onFastPunchEnd() {
-    if (this.weaponSystem) {
-      this.weaponSystem.deactivateHitbox();
-    }
-
-    this.isAttacking = false;
-
-    this.drainAttackQueue();
+    control.attackRequested = true;
   }
 
   returnToIdleOrRun() {
@@ -702,23 +565,9 @@ export class PlayerController {
   public syncEcsCombatState(snapshot: {
     isAttacking: boolean;
     isDancing: boolean;
-    useLeftPunch: boolean;
-    punchSpeed: number;
-    attackMoveSpeedMultiplier: number;
-    punchHitboxDelay: number;
-    magnetismRange: number;
-    magnetismLungeSpeed: number;
-    attackQueue: string[];
   }) {
     this.isAttacking = snapshot.isAttacking;
     this.isDancing = snapshot.isDancing;
-    this.useLeftPunch = snapshot.useLeftPunch;
-    this.punchSpeed = snapshot.punchSpeed;
-    this.attackMoveSpeedMultiplier = snapshot.attackMoveSpeedMultiplier;
-    this.punchHitboxDelay = snapshot.punchHitboxDelay;
-    this.magnetismRange = snapshot.magnetismRange;
-    this.magnetismLungeSpeed = snapshot.magnetismLungeSpeed;
-    this.attackQueue = [...snapshot.attackQueue];
   }
 
   update() {
@@ -1363,32 +1212,6 @@ export class PlayerController {
   }
 
   /**
-   * Devuelve el enemigo vivo más cercano dentro de maxRange (distancia XZ),
-   * o null si no hay ninguno en rango.
-   */
-  private getClosestAliveEnemy(maxRange: number): any | null {
-    const enemies: any[] = this.weaponSystem?.enemies ?? [];
-    const playerPos = this.mesh.getAbsolutePosition();
-    let closest: any = null;
-    let closestDist = maxRange;
-
-    for (const enemy of enemies) {
-      if (!enemy.isAlive()) continue;
-      const ePos = enemy.getPosition();
-      const dx = ePos.x - playerPos.x;
-      const dz = ePos.z - playerPos.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-
-      if (dist <= closestDist) {
-        closestDist = dist;
-        closest = enemy;
-      }
-    }
-
-    return closest;
-  }
-
-  /**
    * Registra múltiples enemigos
    * @param {EnemyDummy[]} enemies
    */
@@ -1723,12 +1546,14 @@ export class PlayerController {
     this.gameManager = gameManager;
   }
 
-  public setGameManager(gameManager: PlayerGameOverHandler) {
-    this.connectGameOverHandler(gameManager);
-  }
-
   public resumeInput() {
     this.inputEnabled = true;
+
+    const control = this.getEcsControlState();
+
+    if (control) {
+      control.inputEnabled = true;
+    }
   }
 
   public enableInput() {
@@ -1740,6 +1565,18 @@ export class PlayerController {
     // Limpiar inputs activos
     this.inputMap = {};
     this.isDashing = false;
+
+    const control = this.getEcsControlState();
+
+    if (control) {
+      control.inputEnabled = false;
+      control.inputMap = {};
+      control.moveInputX = 0;
+      control.moveInputZ = 0;
+      control.dashRequested = false;
+      control.attackRequested = false;
+      control.danceToggleRequested = false;
+    }
   }
 
   public detachControl() {
@@ -1822,6 +1659,19 @@ export class PlayerController {
       this.ecsSurvivabilityWorld.getComponent(
         this.ecsSurvivabilityEntityId,
         PlayerSurvivabilityRequestComponent,
+      ) ?? null
+    );
+  }
+
+  private getEcsControlState() {
+    if (!this.ecsSurvivabilityWorld || this.ecsSurvivabilityEntityId === null) {
+      return null;
+    }
+
+    return (
+      this.ecsSurvivabilityWorld.getComponent(
+        this.ecsSurvivabilityEntityId,
+        PlayerControlStateComponent,
       ) ?? null
     );
   }

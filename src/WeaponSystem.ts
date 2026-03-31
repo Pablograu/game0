@@ -5,7 +5,9 @@ import {
   Vector3,
   Matrix,
   Quaternion,
+  Observer,
 } from '@babylonjs/core';
+import type { Scene } from '@babylonjs/core';
 import { HitboxSystem } from './HitboxSystem';
 import { AudioManager } from './AudioManager.ts';
 
@@ -31,6 +33,7 @@ export class WeaponSystem {
   playerKnockback: number;
   playerMesh: any;
   scene: any;
+  updateObserver: Observer<Scene> | null = null;
 
   constructor(playerController: any, scene: any, options: any = {}) {
     this.player = playerController;
@@ -80,7 +83,11 @@ export class WeaponSystem {
   }
 
   setupUpdate() {
-    this.scene.onBeforeRenderObservable.add(() => {
+    if (this.updateObserver) {
+      return;
+    }
+
+    this.updateObserver = this.scene.onBeforeRenderObservable.add(() => {
       this.update();
     });
   }
@@ -176,12 +183,18 @@ export class WeaponSystem {
   }
 
   enableExternalControl() {
+    if (this.updateObserver) {
+      this.scene.onBeforeRenderObservable.remove(this.updateObserver);
+      this.updateObserver = null;
+    }
+
     this.externalControlEnabled = true;
     this.endAttack();
   }
 
   disableExternalControl() {
     this.externalControlEnabled = false;
+    this.setupUpdate();
   }
 
   onHitEnemy(enemy: any) {
@@ -227,6 +240,8 @@ export class WeaponSystem {
   }
 
   deactivateHitbox() {
+    this.isAttacking = false;
+    this.attackTimer = 0;
     this.hitboxSystem?.setEnabled(false);
   }
 
@@ -236,6 +251,11 @@ export class WeaponSystem {
   }
 
   dispose() {
+    if (this.updateObserver) {
+      this.scene.onBeforeRenderObservable.remove(this.updateObserver);
+      this.updateObserver = null;
+    }
+
     if (this.hitboxSystem) {
       this.hitboxSystem.dispose();
       this.hitboxSystem = null;

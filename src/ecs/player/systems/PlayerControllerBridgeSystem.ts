@@ -97,33 +97,12 @@ export class PlayerControllerBridgeSystem implements EcsSystem {
       controller.syncEcsCombatState({
         isAttacking: combat.isAttacking,
         isDancing: combat.isDancing,
-        useLeftPunch: combat.useLeftPunch,
-        punchSpeed: combat.punchSpeed,
-        attackMoveSpeedMultiplier: combat.attackMoveSpeedMultiplier,
-        punchHitboxDelay: combat.punchHitboxDelay,
-        magnetismRange: combat.magnetismRange,
-        magnetismLungeSpeed: combat.magnetismLungeSpeed,
-        attackQueue: combat.attackQueue,
       });
       controller.applyEcsBridgeSnapshot({
         jumpPhase: grounding.jumpPhase,
         airTime: grounding.airTime,
         groundLostTimer: grounding.groundLostTimer,
       });
-
-      if (weapon.weaponSystem) {
-        weapon.weaponSystem.damage = weapon.damage;
-        weapon.weaponSystem.attackDuration = weapon.attackDuration;
-        weapon.weaponSystem.attackCooldown = weapon.attackCooldown;
-        weapon.weaponSystem.cooldownTimer = weapon.cooldownTimer;
-        weapon.weaponSystem.attackTimer = weapon.hitboxActive
-          ? Math.max(0, combat.hitboxEndTime - combat.activeAttackElapsed)
-          : 0;
-        weapon.weaponSystem.isAttacking = weapon.hitboxActive;
-        weapon.weaponSystem.hitEnemiesThisSwing = new Set(
-          weapon.hitEnemiesThisSwing,
-        );
-      }
 
       controller.runLegacyPostEcsUpdate(locomotion.moveDirection, deltaTime);
 
