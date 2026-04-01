@@ -1,5 +1,5 @@
 import { createComponentType } from '../../core/Component.ts';
-import type { PlayerGameplayConfig } from '../../../player/playerRuntime.ts';
+import type { PlayerGameplayConfig } from '../runtime/playerRuntime.ts';
 
 export type PlayerGameplayConfigComponent = PlayerGameplayConfig;
 

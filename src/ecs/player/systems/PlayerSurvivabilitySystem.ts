@@ -1,5 +1,5 @@
 import { Vector3 } from '@babylonjs/core';
-import { createPlayerRagdoll } from '../../../player/playerRuntime.ts';
+import { createPlayerRagdoll } from '../runtime/playerRuntime.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import {

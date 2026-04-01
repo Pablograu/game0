@@ -23,11 +23,11 @@ import {
 import {
   createPlayerAnimationRegistry,
   type PlayerAnimationRegistry,
-} from '../player/PlayerAnimations.ts';
+} from '../ecs/player/runtime/PlayerAnimations.ts';
 import {
   DEFAULT_PLAYER_GAMEPLAY_CONFIG,
   createPlayerHealthUi,
-} from '../player/playerRuntime.ts';
+} from '../ecs/player/runtime/playerRuntime.ts';
 import { COL_ENEMY, COL_ENVIRONMENT, COL_PLAYER } from './sceneRuntime.ts';
 
 export type RuntimePlayerMesh = Mesh & {

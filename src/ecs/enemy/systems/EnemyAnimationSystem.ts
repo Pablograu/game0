@@ -90,8 +90,10 @@ export class EnemyAnimationSystem implements EcsSystem {
       case EnemyBehaviorState.CHASE:
         return { name: 'running', loop: true, speedRatio: 1 };
       case EnemyBehaviorState.PATROL:
-      default:
+      default: {
+        console.log('default');
         return { name: 'walking', loop: true, speedRatio: 1 };
+      }
     }
   }
 

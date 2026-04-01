@@ -1,4 +1,5 @@
 import type { Mesh, Quaternion, Skeleton, Vector3 } from '@babylonjs/core';
+import type { ComponentType } from '../core/Component.ts';
 import type { World } from '../core/World.ts';
 import type { EntityId } from '../core/Entity.ts';
 import {
@@ -13,8 +14,8 @@ import {
   PlayerRagdollStateComponent,
   PlayerSurvivabilityRequestComponent,
 } from './components/index.ts';
-import type { PlayerAnimationRegistry } from '../../player/PlayerAnimations.ts';
-import { createPlayerRagdoll } from '../../player/playerRuntime.ts';
+import type { PlayerAnimationRegistry } from './runtime/PlayerAnimations.ts';
+import { createPlayerRagdoll } from './runtime/playerRuntime.ts';
 
 export interface PlayerCombatTargetApi {
   takeDamage(amount: number, damageSourcePosition?: Vector3 | null): void;
@@ -45,7 +46,7 @@ export function createPlayerDebugApi(
   entityId: EntityId,
 ): PlayerDebugApi {
   const getRequiredComponent = <T>(
-    componentType: { key: symbol },
+    componentType: ComponentType<T>,
     name: string,
   ) => {
     const component = world.getComponent(entityId, componentType) as

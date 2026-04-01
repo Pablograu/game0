@@ -8,7 +8,7 @@ import {
   initializePlayerAnimationGroups,
   resolvePlayerGameplayConfig,
   type PlayerBootstrapRuntime,
-} from '../../player/playerRuntime.ts';
+} from './runtime/playerRuntime.ts';
 import { PlayerSurvivabilityRequestComponent } from './components/PlayerSurvivabilityRequestComponent.ts';
 import {
   PlayerAnimationStateComponent,

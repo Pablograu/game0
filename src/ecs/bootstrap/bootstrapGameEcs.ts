@@ -39,7 +39,7 @@ import {
   PlayerUiSyncSystem,
   PlayerWeaponHitSystem,
 } from '../player/index.ts';
-import type { PlayerBootstrapRuntime } from '../../player/playerRuntime.ts';
+import type { PlayerBootstrapRuntime } from '../player/runtime/playerRuntime.ts';
 
 export interface BootstrapGameEcsOptions extends PlayerBootstrapRuntime {
   engine?: GameFlowEngineControl | null;

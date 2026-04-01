@@ -1,5 +1,5 @@
 import type { AnimationGroup } from '@babylonjs/core';
-import type { PlayerAnimationRegistry } from '../../../player/PlayerAnimations.ts';
+import type { PlayerAnimationRegistry } from '../runtime/PlayerAnimations.ts';
 import { createComponentType } from '../../core/Component.ts';
 
 export interface PlayerAnimationStateComponent {
