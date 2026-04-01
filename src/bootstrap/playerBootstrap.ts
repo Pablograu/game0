@@ -119,6 +119,13 @@ export async function loadPlayerCharacter(
     scene,
   );
 
+  // Lock all angular axes so Havok contact resolution can't tip the capsule.
+  // Visual facing direction is driven by PlayerPresentationSystem via rotationQuaternion slerp.
+  capsuleAggregate.body.setMassProperties({
+    mass: 1,
+    inertia: new Vector3(0, 0, 0),
+  });
+
   if (capsuleAggregate.shape) {
     capsuleAggregate.shape.filterMembershipMask = COL_PLAYER;
     capsuleAggregate.shape.filterCollideMask = COL_ENVIRONMENT | COL_ENEMY;
