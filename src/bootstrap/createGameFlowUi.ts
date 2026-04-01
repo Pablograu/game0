@@ -25,10 +25,10 @@ export function createGameFlowUi(
     scene,
   );
 
-  const titleText = createCenteredText('PACO', 72, '#f4f1de');
+  const titleText = createCenteredText('La Bengansa', 72, '#f4f1de');
   const deadStatsText = createCenteredText('Enemies Defeated: 0', 24, 'white');
 
-  const startButton = Button.CreateSimpleButton('startBtn', 'START');
+  const startButton = Button.CreateSimpleButton('startBtn', 'EMPIESE');
   stylePrimaryButton(startButton, '#be3c3c');
   startButton.onPointerClickObservable.add(() => {
     gameFlow?.requestStartFromGesture();
@@ -46,11 +46,7 @@ export function createGameFlowUi(
     gameFlow?.requestRestart();
   });
 
-  const startPanel = createOverlayPanel([
-    titleText,
-    createCenteredText('empiese', 22, '#ecf0f1'),
-    startButton,
-  ]);
+  const startPanel = createOverlayPanel([titleText, startButton]);
   const pausePanel = createOverlayPanel([
     createCenteredText('PAUSED', 60, 'white'),
     createCenteredText('Press ESC or P to resume', 18, '#ecf0f1'),

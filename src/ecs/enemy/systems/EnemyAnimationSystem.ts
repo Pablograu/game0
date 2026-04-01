@@ -33,6 +33,7 @@ export class EnemyAnimationSystem implements EcsSystem {
         entityId,
         EnemyAnimationStateComponent,
       );
+
       const attack = world.getComponent(entityId, EnemyAttackStateComponent);
       const refs = world.getComponent(entityId, EnemyPhysicsViewRefsComponent);
       const stats = world.getComponent(entityId, EnemyStatsComponent);
@@ -65,6 +66,9 @@ export class EnemyAnimationSystem implements EcsSystem {
         continue;
       }
 
+      console.log('animation', animation);
+      console.log('playback.name', playback.name);
+
       this.playAnimation(
         animation,
         playback.name,
@@ -90,10 +94,9 @@ export class EnemyAnimationSystem implements EcsSystem {
       case EnemyBehaviorState.CHASE:
         return { name: 'running', loop: true, speedRatio: 1 };
       case EnemyBehaviorState.PATROL:
-      default: {
-        console.log('default');
         return { name: 'walking', loop: true, speedRatio: 1 };
-      }
+      default:
+        return { name: 'idle', loop: true, speedRatio: 1 };
     }
   }
 
