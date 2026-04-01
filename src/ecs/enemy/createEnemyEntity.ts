@@ -88,7 +88,7 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
   });
 
   options.world.addComponent(entityId, EnemyAnimationStateComponent, {
-    currentAnimation: 'walking',
+    currentAnimation: '',
     animationGroups: initializeEnemyAnimationGroups(options.animationGroups),
     blendingSpeed: 4,
   });

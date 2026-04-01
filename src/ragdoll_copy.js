@@ -410,14 +410,6 @@ export class Ragdoll {
     for (let i = 0; i < this._aggregates.length; i++) {
       this._aggregates[i].body.setMotionType(2 /* PhysicsMotionType.DYNAMIC */);
     }
-    console.log('<< ragdoll', {
-      rootTransform: this._rootTransformNode,
-      skeleton: this._skeleton,
-      bones: this._bones,
-      transforms: this._transforms,
-      aggregates: this._aggregates,
-      constraints: this._constraints,
-    });
   }
   /**
    * Dispose resources and remove physics objects

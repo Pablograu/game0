@@ -10,14 +10,17 @@ import {
 import { EnemyBehaviorState, EnemyLifeState } from '../EnemyStateEnums.ts';
 import {
   findEnemyAnimationGroup,
+  getEnemyGameFlowState,
   isEnemyGameplayPaused,
 } from './enemyRuntimeUtils.ts';
+import { GameFlowState } from '../../game/GameFlowState.ts';
 
 export class EnemyAnimationSystem implements EcsSystem {
   readonly name = 'EnemyAnimationSystem';
   readonly order = 21;
 
   update(world: World): void {
+    const gameFlowState = getEnemyGameFlowState(world);
     const paused = isEnemyGameplayPaused(world);
     const entityIds = world.query(
       EnemyAiStateComponent,
@@ -57,6 +60,11 @@ export class EnemyAnimationSystem implements EcsSystem {
 
       const playback = this.resolvePlayback(ai.current, attack);
 
+      if (gameFlowState === GameFlowState.START) {
+        this.playAnimation(animation, 'idle', true, 1);
+        continue;
+      }
+
       if (paused) {
         for (const [, group] of animation.animationGroups) {
           if (group.isPlaying) {
@@ -65,9 +73,6 @@ export class EnemyAnimationSystem implements EcsSystem {
         }
         continue;
       }
-
-      console.log('animation', animation);
-      console.log('playback.name', playback.name);
 
       this.playAnimation(
         animation,
@@ -111,10 +116,7 @@ export class EnemyAnimationSystem implements EcsSystem {
       return;
     }
 
-    if (
-      animation.currentAnimation !== name ||
-      (!animationGroup.isPlaying && animation.currentAnimation !== name)
-    ) {
+    if (animation.currentAnimation !== name || !animationGroup.isPlaying) {
       for (const [otherName, otherGroup] of animation.animationGroups) {
         if (
           otherName !== animationGroup.name.toLowerCase() &&

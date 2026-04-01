@@ -22,6 +22,11 @@ import type {
 import { EnemyBehaviorState, EnemyCombatMode } from '../EnemyStateEnums.ts';
 
 export function isEnemyGameplayPaused(world: World): boolean {
+  const state = getEnemyGameFlowState(world);
+  return state !== null ? state !== GameFlowState.PLAYING : false;
+}
+
+export function getEnemyGameFlowState(world: World): GameFlowState | null {
   const entityIds = world.query(GameFlowStateComponent);
 
   for (const entityId of entityIds) {
@@ -30,10 +35,10 @@ export function isEnemyGameplayPaused(world: World): boolean {
       continue;
     }
 
-    return state.current !== GameFlowState.PLAYING;
+    return state.current;
   }
 
-  return false;
+  return null;
 }
 
 export function transitionEnemyBehavior(
