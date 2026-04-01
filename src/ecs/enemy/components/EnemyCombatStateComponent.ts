@@ -8,7 +8,6 @@ export interface EnemyCombatStateComponent {
   damageCooldownTimer: number;
   stunTimer: number;
   canDamagePlayer: boolean;
-  updatesEnabled: boolean;
 }
 
 export const EnemyCombatStateComponent =

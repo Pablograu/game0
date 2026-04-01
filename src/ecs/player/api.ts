@@ -44,8 +44,11 @@ export function createPlayerDebugApi(
   world: World,
   entityId: EntityId,
 ): PlayerDebugApi {
-  const getRequiredComponent = <T,>(componentType: { key: symbol }, name: string) => {
-    const component = world.getComponent(entityId, componentType as never) as
+  const getRequiredComponent = <T>(
+    componentType: { key: symbol },
+    name: string,
+  ) => {
+    const component = world.getComponent(entityId, componentType) as
       | T
       | undefined;
 
@@ -161,7 +164,10 @@ export function createPlayerDebugApi(
             return;
           }
 
-          for (const [otherName, otherAnimationGroup] of animation.animationGroups) {
+          for (const [
+            otherName,
+            otherAnimationGroup,
+          ] of animation.animationGroups) {
             if (otherName !== animationName && otherAnimationGroup.isPlaying) {
               otherAnimationGroup.stop();
             }
@@ -195,7 +201,10 @@ export function createPlayerCombatTargetApi(
   entityId: EntityId,
 ): PlayerCombatTargetApi {
   const getPhysicsRefs = () => {
-    const component = world.getComponent(entityId, PlayerPhysicsViewRefsComponent);
+    const component = world.getComponent(
+      entityId,
+      PlayerPhysicsViewRefsComponent,
+    );
 
     if (!component) {
       throw new Error(
@@ -269,12 +278,17 @@ export function configurePlayerTuning(
   },
 ) {
   const gameplay = world.getComponent(entityId, PlayerGameplayConfigComponent);
-  const locomotion = world.getComponent(entityId, PlayerLocomotionStateComponent);
+  const locomotion = world.getComponent(
+    entityId,
+    PlayerLocomotionStateComponent,
+  );
   const grounding = world.getComponent(entityId, PlayerGroundingStateComponent);
   const combat = world.getComponent(entityId, PlayerCombatStateComponent);
 
   if (!gameplay || !locomotion || !grounding || !combat) {
-    throw new Error(`Player tuning components are missing from entity ${entityId}.`);
+    throw new Error(
+      `Player tuning components are missing from entity ${entityId}.`,
+    );
   }
 
   if (config.moveSpeed !== undefined) {
@@ -306,10 +320,15 @@ export function configurePlayerTuning(
 
 export function pausePlayerInput(world: World, entityId: EntityId) {
   const control = world.getComponent(entityId, PlayerControlStateComponent);
-  const locomotion = world.getComponent(entityId, PlayerLocomotionStateComponent);
+  const locomotion = world.getComponent(
+    entityId,
+    PlayerLocomotionStateComponent,
+  );
 
   if (!control || !locomotion) {
-    throw new Error(`Player input components are missing from entity ${entityId}.`);
+    throw new Error(
+      `Player input components are missing from entity ${entityId}.`,
+    );
   }
 
   control.inputEnabled = false;
@@ -326,7 +345,9 @@ export function resumePlayerInput(world: World, entityId: EntityId) {
   const control = world.getComponent(entityId, PlayerControlStateComponent);
 
   if (!control) {
-    throw new Error(`PlayerControlStateComponent is missing from entity ${entityId}.`);
+    throw new Error(
+      `PlayerControlStateComponent is missing from entity ${entityId}.`,
+    );
   }
 
   control.inputEnabled = true;

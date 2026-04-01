@@ -42,12 +42,9 @@ export function createGameFlowEntity(
   options.world.addComponent(entityId, GameFlowRuntimeRefsComponent, {
     engine: options.engine ?? null,
     camera: null,
-    enemies: [],
     reloadGame: options.reloadGame ?? null,
     cameraInputAttached: false,
-    enemyUpdatesEnabled: false,
     cameraSyncPending: true,
-    enemySyncPending: true,
   });
 
   options.world.addComponent(entityId, GameFlowUiRefsComponent, {

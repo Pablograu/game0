@@ -256,42 +256,6 @@ export class DebugGUI {
   }
 
   /**
-   * Configurar controles para los elementos UI de inicio
-   */
-  setupUIControls(gameManager: any) {
-    const uiFolder = this.gui.addFolder('UI Elements');
-
-    const titleText = gameManager.getTitleText();
-    const startButton = gameManager.getStartButton();
-
-    if (titleText) {
-      const titleFolder = uiFolder.addFolder('Title Text');
-      titleFolder.add(titleText, 'text').name('Text');
-      titleFolder.add(titleText, 'fontSize', 10, 100, 5).name('Font Size');
-      titleFolder.add(titleText, 'color').name('Color');
-      titleFolder
-        .add(titleText, 'fontFamily', [
-          'Arial',
-          'Courier',
-          'Georgia',
-          'Times New Roman',
-          'Verdana',
-        ])
-        .name('Font Family');
-    }
-
-    if (startButton) {
-      const buttonFolder = uiFolder.addFolder('Start Button');
-      buttonFolder.add(startButton, 'background').name('Background Color');
-      buttonFolder.add(startButton, 'color').name('Text Color');
-      buttonFolder.add(startButton, 'fontSize', 10, 50, 1).name('Font Size');
-      buttonFolder
-        .add(startButton, 'cornerRadius', 0, 20, 1)
-        .name('Corner Radius');
-    }
-  }
-
-  /**
    * Botón para imprimir valores actuales en consola
    */
   addLogButton(playerDebug: PlayerDebugApi) {

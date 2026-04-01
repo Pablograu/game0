@@ -145,7 +145,6 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
     damageCooldownTimer: 0,
     stunTimer: 0,
     canDamagePlayer: true,
-    updatesEnabled: true,
   });
 
   options.world.addComponent(entityId, EnemyAttackStateComponent, {

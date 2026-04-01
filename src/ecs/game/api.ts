@@ -12,7 +12,6 @@ import {
   GameFlowStateComponent,
   GameFlowUiRefsComponent,
   type GameFlowCameraControl,
-  type GameFlowEnemyUpdateTarget,
   type GameFlowEngineControl,
 } from './components/index.ts';
 import { GameFlowState } from './GameFlowState.ts';
@@ -30,7 +29,6 @@ export interface GameFlowUiRefs {
 export interface GameFlowControllerApi {
   attachUiRefs(refs: GameFlowUiRefs): void;
   setCamera(camera: GameFlowCameraControl | null): void;
-  setEnemies(enemies: GameFlowEnemyUpdateTarget[]): void;
   setEngine(engine: GameFlowEngineControl | null): void;
   requestStartFromGesture(): void;
   requestPause(): void;
@@ -176,11 +174,6 @@ export function createGameFlowControllerApi(
       const runtime = getRuntimeComponent();
       runtime.camera = camera;
       runtime.cameraSyncPending = true;
-    },
-    setEnemies(enemies) {
-      const runtime = getRuntimeComponent();
-      runtime.enemies = enemies;
-      runtime.enemySyncPending = true;
     },
     setEngine(engine) {
       const runtime = getRuntimeComponent();

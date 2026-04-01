@@ -118,26 +118,6 @@ export class EnemyRuntimeFacade {
     return null;
   }
 
-  enableUpdate() {
-    const combat = this.world.getComponent(
-      this.entityId,
-      EnemyCombatStateComponent,
-    );
-    if (combat) {
-      combat.updatesEnabled = true;
-    }
-  }
-
-  disableUpdate() {
-    const combat = this.world.getComponent(
-      this.entityId,
-      EnemyCombatStateComponent,
-    );
-    if (combat) {
-      combat.updatesEnabled = false;
-    }
-  }
-
   setVisionRange(range: number) {
     const stats = this.getStats();
     if (stats) {
