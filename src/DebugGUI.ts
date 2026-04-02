@@ -1,4 +1,5 @@
 import GUI from 'lil-gui';
+import type { Scene } from '@babylonjs/core';
 import type { PlayerDebugApi } from './ecs/player/api.ts';
 
 export class DebugGUI {
@@ -293,6 +294,41 @@ export class DebugGUI {
     };
 
     this.gui.add(actions, 'logRotation').name('🔍 Log Rotation Values');
+  }
+
+  /**
+   * Wireframe toggle for all scene meshes + physics bodies viewer
+   */
+  setupSceneControls(scene: Scene) {
+    const sceneFolder = this.gui.addFolder('Scene');
+
+    const state = { wireframe: false };
+
+    sceneFolder
+      .add(state, 'wireframe')
+      .name('Wireframe')
+      .onChange((enabled: boolean) => {
+        scene.meshes.forEach((mesh) => {
+          if (mesh.material) {
+            mesh.material.wireframe = enabled;
+          }
+        });
+      });
+
+    const physicsAction = {
+      showPhysicsBodies: () => {
+        void import('@babylonjs/core').then(({ PhysicsViewer }) => {
+          const viewer = new PhysicsViewer(scene);
+          [...scene.meshes, ...scene.transformNodes].forEach((node) => {
+            if (node.physicsBody) viewer.showBody(node.physicsBody);
+          });
+        });
+      },
+    };
+
+    sceneFolder
+      .add(physicsAction, 'showPhysicsBodies')
+      .name('Show Physics Bodies');
   }
 
   // close all folders

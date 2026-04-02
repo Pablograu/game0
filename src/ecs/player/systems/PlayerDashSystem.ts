@@ -131,7 +131,6 @@ export class PlayerDashSystem implements EcsSystem {
           resolvedDashDirection.length() > 0
             ? resolvedDashDirection
             : new Vector3(0, 0, 1);
-        locomotion.targetScale = new Vector3(0.7, 1.3, 0.7);
 
         this.cancelAttack(control, combat, weapon);
 

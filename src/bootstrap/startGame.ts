@@ -97,6 +97,7 @@ async function setupOptionalDebugTools(
   debugGui.setupModelControls(playerMesh);
   debugGui.setupEnemyControls(enemies);
   debugGui.setupCameraControls(camera);
+  debugGui.setupSceneControls(camera.getScene());
 
   if (searchParams.has('physics')) {
     showPhysicsBodies(camera.getScene());

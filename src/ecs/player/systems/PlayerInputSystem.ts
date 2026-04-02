@@ -62,9 +62,9 @@ export class PlayerInputSystem implements EcsSystem {
       }
 
       control.moveInputX =
-        Number(!!control.inputMap.d) - Number(!!control.inputMap.a);
+        (control.inputMap.d ? 1 : 0) - (control.inputMap.a ? 1 : 0);
       control.moveInputZ =
-        Number(!!control.inputMap.w) - Number(!!control.inputMap.s);
+        (control.inputMap.w ? 1 : 0) - (control.inputMap.s ? 1 : 0);
 
       if (control.danceToggleRequested) {
         combat.isDancing = !combat.isDancing;
