@@ -1,11 +1,11 @@
-import { AudioManager } from '../../../AudioManager.ts';
-import type { EcsSystem } from '../../core/System.ts';
-import type { World } from '../../core/World.ts';
+import { AudioManager } from "../../../AudioManager.ts";
+import type { EcsSystem } from "../../core/System.ts";
+import type { World } from "../../core/World.ts";
 import {
   PlayerJumpPhaseState,
   PlayerLifeState,
   PlayerRagdollMode,
-} from '../PlayerStateEnums.ts';
+} from "../PlayerStateEnums.ts";
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
@@ -14,10 +14,10 @@ import {
   PlayerLocomotionStateComponent,
   PlayerPhysicsViewRefsComponent,
   PlayerRagdollStateComponent,
-} from '../components/index.ts';
+} from "../components/index.ts";
 
 export class PlayerAnimationSystem implements EcsSystem {
-  readonly name = 'PlayerAnimationSystem';
+  readonly name = "PlayerAnimationSystem";
   readonly order = 60;
 
   update(world: World, deltaTime: number): void {
@@ -103,10 +103,10 @@ export class PlayerAnimationSystem implements EcsSystem {
         playback.speedRatio,
       );
 
-      if (playback.name === 'run' && grounding.isGrounded) {
-        AudioManager.playLoop('player_walk');
+      if (playback.name === "run" && grounding.isGrounded) {
+        AudioManager.playLoop("player_walk");
       } else {
-        AudioManager.stopLoop('player_walk');
+        AudioManager.stopLoop("player_walk");
       }
     }
   }
@@ -121,7 +121,7 @@ export class PlayerAnimationSystem implements EcsSystem {
     if (grounding.isGrounded && !grounding.wasGrounded) {
       grounding.airTime = 0;
       grounding.jumpPhase = PlayerJumpPhaseState.PRE_LANDING;
-      this.startOverride(animation, 'land', false, 1, false);
+
       return;
     }
 
@@ -129,10 +129,11 @@ export class PlayerAnimationSystem implements EcsSystem {
       grounding.airTime = 0;
       if (
         grounding.jumpPhase !== PlayerJumpPhaseState.PRE_LANDING ||
-        animation.overrideAnimation !== 'land'
+        animation.overrideAnimation !== "land"
       ) {
         grounding.jumpPhase = PlayerJumpPhaseState.GROUNDED;
       }
+
       return;
     }
 
@@ -157,7 +158,6 @@ export class PlayerAnimationSystem implements EcsSystem {
       locomotion.moveDirection.length() <= 0.1
     ) {
       grounding.jumpPhase = PlayerJumpPhaseState.PRE_LANDING;
-      this.startOverride(animation, 'land', false, 1, false);
       return;
     }
 
@@ -181,7 +181,7 @@ export class PlayerAnimationSystem implements EcsSystem {
     velocityY: number,
   ) {
     if (ragdoll.mode === PlayerRagdollMode.ACTIVE) {
-      return { name: 'dead', loop: false, forceReset: false, speedRatio: 1 };
+      return { name: "dead", loop: false, forceReset: false, speedRatio: 1 };
     }
 
     if (animation.overrideAnimation) {
@@ -203,16 +203,16 @@ export class PlayerAnimationSystem implements EcsSystem {
     }
 
     if (locomotion.isDashing) {
-      return { name: 'dash', loop: false, forceReset: false, speedRatio: 1.5 };
+      return { name: "dash", loop: false, forceReset: false, speedRatio: 1.5 };
     }
 
     if (health.lifeState !== PlayerLifeState.ALIVE) {
-      return { name: 'dead', loop: false, forceReset: false, speedRatio: 1 };
+      return { name: "dead", loop: false, forceReset: false, speedRatio: 1 };
     }
 
     if (grounding.jumpPhase === PlayerJumpPhaseState.RISING) {
       return {
-        name: 'jump',
+        name: "jump",
         loop: true,
         forceReset: false,
         speedRatio: Math.max(
@@ -225,25 +225,25 @@ export class PlayerAnimationSystem implements EcsSystem {
     if (grounding.jumpPhase === PlayerJumpPhaseState.FALLING) {
       if (grounding.airTime >= grounding.fallingAnimDelay) {
         return {
-          name: 'falling',
+          name: "falling",
           loop: true,
           forceReset: false,
           speedRatio: Math.min(1, Math.abs(velocityY) / 10),
         };
       }
 
-      return { name: 'jump', loop: true, forceReset: false, speedRatio: 0.3 };
+      return { name: "jump", loop: true, forceReset: false, speedRatio: 0.3 };
     }
 
     if (locomotion.isMoving) {
-      return { name: 'run', loop: true, forceReset: false, speedRatio: 1 };
+      return { name: "run", loop: true, forceReset: false, speedRatio: 1 };
     }
 
     if (combat.isDancing) {
-      return { name: 'macarena', loop: true, forceReset: false, speedRatio: 1 };
+      return { name: "macarena", loop: true, forceReset: false, speedRatio: 1 };
     }
 
-    return { name: 'idle', loop: true, forceReset: false, speedRatio: 1 };
+    return { name: "idle", loop: true, forceReset: false, speedRatio: 1 };
   }
 
   private playAnimation(
