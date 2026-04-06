@@ -24,7 +24,7 @@ const INITIAL_ENEMY_POSITIONS = [
   new Vector3(0, 40, -15),
 ];
 const INITIAL_ENEMY_CONFIG = {
-  hp: 3,
+  hp: 1,
   mass: 2,
   knockbackForce: 5,
   contactDamage: 1,
