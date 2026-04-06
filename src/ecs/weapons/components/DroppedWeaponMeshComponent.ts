@@ -1,8 +1,8 @@
-import type { AbstractMesh, Animatable, Scene } from "@babylonjs/core";
+import type { Animatable, Scene, TransformNode } from "@babylonjs/core";
 import { createComponentType } from "../../core/Component.ts";
 
 export interface DroppedWeaponMeshComponent {
-  mesh: AbstractMesh;
+  node: TransformNode;
   scene: Scene;
   floatAnimatable: Animatable | null;
 }

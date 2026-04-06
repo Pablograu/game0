@@ -1,20 +1,23 @@
-import { AnimationGroup, TransformNode } from '@babylonjs/core';
+import { AnimationGroup, TransformNode } from "@babylonjs/core";
 
 export const PLAYER_ANIMATION_NAMES = [
-  'idle',
-  'run',
-  'jump',
-  'punch_L',
-  'punch_R',
-  'macarena',
-  'dash',
-  'dead',
-  'falling',
-  'hit',
-  'land',
-  'walk',
-  'flying_kick',
-  'stumble_back',
+  "idle",
+  "run",
+  "jump",
+  "punch_L",
+  "punch_R",
+  "macarena",
+  "dash",
+  "dead",
+  "falling",
+  "hit",
+  "land",
+  "walk",
+  "flying_kick",
+  "stumble_back",
+  "idle_assault_rifle",
+  "run_assault_rifle",
+  "aim_assault_rifle",
 ] as const;
 
 export type PlayerAnimationName = (typeof PLAYER_ANIMATION_NAMES)[number];

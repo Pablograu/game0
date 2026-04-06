@@ -6,11 +6,13 @@ import {
   PlayerLifeState,
   PlayerRagdollMode,
 } from "../PlayerStateEnums.ts";
+import { CarriedWeaponType } from "../../weapons/WeaponDefinitions.ts";
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
   PlayerGroundingStateComponent,
   PlayerHealthStateComponent,
+  PlayerInventoryComponent,
   PlayerLocomotionStateComponent,
   PlayerPhysicsViewRefsComponent,
   PlayerRagdollStateComponent,
@@ -51,6 +53,7 @@ export class PlayerAnimationSystem implements EcsSystem {
         PlayerPhysicsViewRefsComponent,
       );
       const ragdoll = world.getComponent(entityId, PlayerRagdollStateComponent);
+      const inventory = world.getComponent(entityId, PlayerInventoryComponent);
 
       if (
         !animation ||
@@ -93,6 +96,7 @@ export class PlayerAnimationSystem implements EcsSystem {
         locomotion,
         ragdoll,
         velocity.y,
+        inventory,
       );
 
       this.playAnimation(
@@ -179,6 +183,7 @@ export class PlayerAnimationSystem implements EcsSystem {
     locomotion: PlayerLocomotionStateComponent,
     ragdoll: PlayerRagdollStateComponent,
     velocityY: number,
+    inventory?: PlayerInventoryComponent,
   ) {
     if (ragdoll.mode === PlayerRagdollMode.ACTIVE) {
       return { name: "dead", loop: false, forceReset: false, speedRatio: 1 };
@@ -233,6 +238,37 @@ export class PlayerAnimationSystem implements EcsSystem {
       }
 
       return { name: "jump", loop: true, forceReset: false, speedRatio: 0.3 };
+    }
+
+    const armed =
+      inventory !== undefined &&
+      inventory.activeWeaponType !== CarriedWeaponType.NONE;
+
+    if (armed && inventory?.isAiming) {
+      return {
+        name: "aim_assault_rifle",
+        loop: true,
+        forceReset: false,
+        speedRatio: 1,
+      };
+    }
+
+    if (armed && locomotion.isMoving) {
+      return {
+        name: "run_assault_rifle",
+        loop: true,
+        forceReset: false,
+        speedRatio: 1,
+      };
+    }
+
+    if (armed) {
+      return {
+        name: "idle_assault_rifle",
+        loop: true,
+        forceReset: false,
+        speedRatio: 1,
+      };
     }
 
     if (locomotion.isMoving) {
