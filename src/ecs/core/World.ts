@@ -1,7 +1,7 @@
-import type { ComponentType } from './Component.ts';
-import type { EntityId } from './Entity.ts';
-import { SystemRunner } from './SystemRunner.ts';
-import type { EcsSystem } from './System.ts';
+import type { ComponentType } from "./Component.ts";
+import type { EntityId } from "./Entity.ts";
+import type { EcsSystem } from "./System.ts";
+import { SystemRunner } from "./SystemRunner.ts";
 
 export class World {
   private nextEntityId = 1;

@@ -8,12 +8,12 @@ import {
   type Skeleton,
   TransformNode,
   Vector3,
-} from '@babylonjs/core';
-import type { EnemyConfig } from './EnemySpawner.ts';
-import LootManager from '../../LootManager.ts';
-import { Ragdoll } from '../../ragdoll_copy.js';
-import type { EntityId } from '../core/Entity.ts';
-import type { World } from '../core/World.ts';
+} from "@babylonjs/core";
+import type { EnemyConfig } from "./EnemySpawner.ts";
+import LootManager from "../../LootManager.ts";
+import { Ragdoll } from "../../ragdoll_copy.js";
+import type { EntityId } from "../core/Entity.ts";
+import type { World } from "../core/World.ts";
 import {
   EnemyAiStateComponent,
   EnemyAnimationStateComponent,
@@ -28,15 +28,15 @@ import {
   EnemySpawnStateComponent,
   EnemyStatsComponent,
   EnemyStuckStateComponent,
-} from './components/index.ts';
+} from "./components/index.ts";
 import {
   EnemyBehaviorState,
   EnemyCombatMode,
   EnemyLifeState,
   EnemyRagdollMode,
   EnemySpawnState,
-} from './EnemyStateEnums.ts';
-import { HitboxSystem } from '../../HitboxSystem.ts';
+} from "./EnemyStateEnums.ts";
+import { HitboxSystem } from "../../HitboxSystem.ts";
 
 export interface CreateEnemyEntityOptions {
   world: World;
@@ -63,10 +63,10 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
     options.scene,
     options.config.debug,
   );
-  lootManager.init(options.scene);
+  lootManager.init(options.scene, options.world);
 
   options.world.addComponent(entityId, EnemyIdentityComponent, {
-    kind: 'enemy',
+    kind: "enemy",
     modelPath: options.modelPath,
     debugLabel: options.debugLabel,
   });
@@ -79,7 +79,7 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
     body: options.mesh.physicsBody ?? null,
     physicsAggregate: options.physicsAggregate,
     physicsEngine:
-      options.scene.getPhysicsEngine() as unknown as EnemyPhysicsViewRefsComponent['physicsEngine'],
+      options.scene.getPhysicsEngine() as unknown as EnemyPhysicsViewRefsComponent["physicsEngine"],
     animationGroups: options.animationGroups,
     skeleton: options.skeleton,
     armatureNode: options.armatureNode,
@@ -88,7 +88,7 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
   });
 
   options.world.addComponent(entityId, EnemyAnimationStateComponent, {
-    currentAnimation: '',
+    currentAnimation: "",
     animationGroups: initializeEnemyAnimationGroups(options.animationGroups),
     blendingSpeed: 4,
   });
@@ -215,9 +215,9 @@ function createEnemyRagdoll(
   armatureNode.scaling = new Vector3(0.017, 0.017, 0.017);
 
   const ragdoll = new Ragdoll(skeleton, armatureNode, [
-    { bones: ['mixamorig7:Hips'], size: 0.45, boxOffset: 0.01 },
+    { bones: ["mixamorig7:Hips"], size: 0.45, boxOffset: 0.01 },
     {
-      bones: ['mixamorig7:Spine2'],
+      bones: ["mixamorig7:Spine2"],
       size: 0.4,
       height: 0.6,
       boxOffset: 0.05,
@@ -226,7 +226,7 @@ function createEnemyRagdoll(
       max: 1,
     },
     {
-      bones: ['mixamorig7:LeftArm', 'mixamorig7:RightArm'],
+      bones: ["mixamorig7:LeftArm", "mixamorig7:RightArm"],
       depth: 0.1,
       size: 0.1,
       width: 0.5,
@@ -234,7 +234,7 @@ function createEnemyRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ['mixamorig7:LeftForeArm', 'mixamorig7:RightForeArm'],
+      bones: ["mixamorig7:LeftForeArm", "mixamorig7:RightForeArm"],
       depth: 0.1,
       size: 0.1,
       width: 0.5,
@@ -244,7 +244,7 @@ function createEnemyRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ['mixamorig7:LeftUpLeg', 'mixamorig7:RightUpLeg'],
+      bones: ["mixamorig7:LeftUpLeg", "mixamorig7:RightUpLeg"],
       depth: 0.1,
       size: 0.2,
       width: 0.08,
@@ -254,7 +254,7 @@ function createEnemyRagdoll(
       boxOffset: 0.2,
     },
     {
-      bones: ['mixamorig7:LeftLeg', 'mixamorig7:RightLeg'],
+      bones: ["mixamorig7:LeftLeg", "mixamorig7:RightLeg"],
       depth: 0.08,
       size: 0.3,
       width: 0.1,
@@ -265,7 +265,7 @@ function createEnemyRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ['mixamorig7:LeftHand', 'mixamorig7:RightHand'],
+      bones: ["mixamorig7:LeftHand", "mixamorig7:RightHand"],
       depth: 0.2,
       size: 0.2,
       width: 0.2,
@@ -275,7 +275,7 @@ function createEnemyRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ['mixamorig7:Head'],
+      bones: ["mixamorig7:Head"],
       size: 0.4,
       boxOffset: 0,
       boneOffsetAxis: Axis.Y,
@@ -283,7 +283,7 @@ function createEnemyRagdoll(
       max: 1,
     },
     {
-      bones: ['mixamorig7:LeftFoot', 'mixamorig7:RightFoot'],
+      bones: ["mixamorig7:LeftFoot", "mixamorig7:RightFoot"],
       depth: 0.1,
       size: 0.1,
       width: 0.2,

@@ -1,58 +1,38 @@
-import {
-  Scene,
-  MeshBuilder,
-  StandardMaterial,
-  Color3,
-  Animation,
-  Vector3,
-} from '@babylonjs/core';
+import { Scene, Vector3 } from '@babylonjs/core';
+import type { World } from './ecs/core/World.ts';
+import { createDroppedWeaponEntity } from './ecs/weapons/createDroppedWeaponEntity.ts';
+import { CarriedWeaponType } from './ecs/weapons/WeaponDefinitions.ts';
+
+const DROPPABLE_WEAPON_TYPES = [
+  CarriedWeaponType.PISTOL,
+  CarriedWeaponType.MACHINE_GUN,
+] as const;
 
 class LootManager {
-  scene: Scene;
-  isInitialized: boolean = false;
+  private scene!: Scene;
+  private world: World | null = null;
+  isInitialized = false;
 
-  constructor() {}
-
-  init(scene: Scene) {
+  init(scene: Scene, world?: World) {
     if (this.isInitialized) {
       return;
     }
     this.scene = scene;
+    this.world = world ?? null;
     this.isInitialized = true;
   }
 
   spawnLoot(position: Vector3) {
-    if (!this.isInitialized) {
+    if (!this.isInitialized || !this.world) {
       return;
     }
-    console.log('<<< loot spawned >>>');
-    const loot = MeshBuilder.CreateBox(
-      'loot',
-      { width: 0.2, height: 1.5, depth: 0.2 },
-      this.scene,
-    );
-    loot.position = position.clone().add(new Vector3(0, 1, 0)); // Spawn slightly above the ground
-    loot.material = new StandardMaterial('lootMat', this.scene);
-    (loot.material as StandardMaterial).diffuseColor = new Color3(1, 0.84, 0); // Gold colorw
 
-    // Add a simple floating animation
-    const anim = new Animation(
-      'floatAnim',
-      'position.y',
-      30,
-      Animation.ANIMATIONTYPE_FLOAT,
-      Animation.ANIMATIONLOOPMODE_CYCLE,
-    );
+    const weaponType =
+      DROPPABLE_WEAPON_TYPES[
+        Math.floor(Math.random() * DROPPABLE_WEAPON_TYPES.length)
+      ];
 
-    const keys = [
-      { frame: 0, value: loot.position.y },
-      { frame: 30, value: loot.position.y + 0.5 },
-      { frame: 60, value: loot.position.y },
-    ];
-
-    anim.setKeys(keys);
-    loot.animations = [anim];
-    this.scene.beginAnimation(loot, 0, 60, true);
+    createDroppedWeaponEntity(this.world, this.scene, position, weaponType);
   }
 }
 
