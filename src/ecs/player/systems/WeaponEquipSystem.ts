@@ -8,11 +8,15 @@ import { PlayerInventoryComponent } from "../components/PlayerInventoryComponent
 import { PlayerPhysicsViewRefsComponent } from "../components/PlayerPhysicsViewRefsComponent.ts";
 
 const HAND_BONE_NAME = "mixamorig:RightHand";
-const GRIP_POSITION = new Vector3(0, 0.05, 0.0);
-// const GRIP_ROTATION_EULER = new Vector3(0, Math.PI / 2, 0);
 
-// Y no es
-const GRIP_ROTATION_EULER = new Vector3(Math.PI / 2, 0, Math.PI / 2);
+export const gripConfig = {
+  positionX: 0,
+  positionY: 0.05,
+  positionZ: 0,
+  rotationX: Math.PI / 2,
+  rotationY: 0,
+  rotationZ: Math.PI / 2,
+};
 
 export class WeaponEquipSystem implements EcsSystem {
   readonly name = "WeaponEquipSystem";
@@ -91,20 +95,22 @@ export class WeaponEquipSystem implements EcsSystem {
         1.0 / handWorldScale.y,
         1.0 / handWorldScale.z,
       );
-      weaponNode.position.copyFrom(GRIP_POSITION);
-      weaponNode.rotationQuaternion = Quaternion.FromEulerAngles(
-        GRIP_ROTATION_EULER.x,
-        GRIP_ROTATION_EULER.y,
-        GRIP_ROTATION_EULER.z,
-      );
-
-      console.log("[WeaponEquipSystem] Weapon attached:", {
-        handWorldScale: handWorldScale.toString(),
-        weaponScaleSet: weaponNode.scaling.toString(),
-        handWorldPos: handWorldPos.toString(),
-      });
 
       inv.equippedWeaponNode = weaponNode;
+    }
+
+    // Apply grip offset every frame so debug slider changes take effect immediately
+    if (inv.equippedWeaponNode) {
+      inv.equippedWeaponNode.position.set(
+        gripConfig.positionX,
+        gripConfig.positionY,
+        gripConfig.positionZ,
+      );
+      inv.equippedWeaponNode.rotationQuaternion = Quaternion.FromEulerAngles(
+        gripConfig.rotationX,
+        gripConfig.rotationY,
+        gripConfig.rotationZ,
+      );
     }
   }
 }
