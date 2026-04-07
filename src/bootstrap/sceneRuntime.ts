@@ -16,10 +16,10 @@ import {
   type AbstractMesh,
   type TransformNode,
   Vector3,
-} from "@babylonjs/core";
-import HavokPhysics from "@babylonjs/havok";
-import { AudioManager } from "../AudioManager.ts";
-import { EffectManager } from "../EffectManager.ts";
+} from '@babylonjs/core';
+import HavokPhysics from '@babylonjs/havok';
+import { AudioManager } from '../AudioManager.ts';
+import { EffectManager } from '../EffectManager.ts';
 
 export const COL_ENVIRONMENT = 0x0001;
 export const COL_PLAYER = 0x0002;
@@ -33,7 +33,7 @@ export interface SceneRuntime {
 }
 
 export async function createSceneRuntime(
-  canvasId: string = "renderCanvas",
+  canvasId: string = 'renderCanvas',
 ): Promise<SceneRuntime> {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
 
@@ -61,7 +61,7 @@ export async function createSceneRuntime(
 
 export function createFollowCamera(scene: Scene, target: Mesh) {
   const camera = new ArcRotateCamera(
-    "camera",
+    'camera',
     -Math.PI / 2,
     Math.PI / 2.5,
     25,
@@ -84,20 +84,20 @@ export function createWorldEnvironment(
   playerMesh: Mesh,
   enemyMeshes: AbstractMesh[],
 ) {
-  const hdrTexture = new HDRCubeTexture("/hdr/skybox.hdr", scene, 1024);
+  const hdrTexture = new HDRCubeTexture('/hdr/skybox.hdr', scene, 1024);
   scene.environmentTexture = hdrTexture;
   scene.environmentIntensity = 1;
   scene.createDefaultSkybox(hdrTexture, true, 1000, 0);
 
   const ambientLight = new HemisphericLight(
-    "light",
+    'light',
     new Vector3(0, 1, 0),
     scene,
   );
   ambientLight.intensity = 0.3;
 
   const ground = MeshBuilder.CreateGround(
-    "ground",
+    'ground',
     { width: 500, height: 500 },
     scene,
   );
@@ -105,7 +105,7 @@ export function createWorldEnvironment(
   ground.checkCollisions = true;
   ground.receiveShadows = true;
 
-  const groundMaterial = new StandardMaterial("groundMat", scene);
+  const groundMaterial = new StandardMaterial('groundMat', scene);
   groundMaterial.diffuseColor = new Color3(0.2, 0.8, 0.2);
   ground.material = groundMaterial;
 
@@ -120,7 +120,7 @@ export function createWorldEnvironment(
     scene,
   );
 
-  const sun = new DirectionalLight("sun", new Vector3(-1, -2, -1), scene);
+  const sun = new DirectionalLight('sun', new Vector3(-1, -2, -1), scene);
   sun.position = new Vector3(20, 40, 20);
   sun.intensity = 0.5;
 
@@ -130,7 +130,7 @@ export function createWorldEnvironment(
   shadowGenerator.useExponentialShadowMap = true;
 
   scene.fogMode = Scene.FOGMODE_EXP2;
-  scene.fogDensity = 0.05;
+  scene.fogDensity = 0.009;
 }
 
 export function showPhysicsBodies(scene: Scene) {
@@ -139,7 +139,7 @@ export function showPhysicsBodies(scene: Scene) {
     ...scene.transformNodes,
   ];
 
-  void import("@babylonjs/core").then(({ PhysicsViewer }) => {
+  void import('@babylonjs/core').then(({ PhysicsViewer }) => {
     const viewer = new PhysicsViewer(scene);
 
     nodes.forEach((node) => {

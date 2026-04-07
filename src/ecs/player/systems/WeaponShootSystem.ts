@@ -26,12 +26,11 @@ import {
 import { PlayerLifeState } from '../PlayerStateEnums.ts';
 
 const MAX_RAY_DISTANCE = 200;
-const TRACER_LIFETIME = 0.25; // seconds — long enough to clearly see
+const TRACER_LIFETIME = 5; // seconds
 const DOT_HALF_SIZE = 6; // half of 12px
-// How far in front of the player eye the ray origin is placed,
-// to guarantee it starts outside the player capsule/geometry.
-const EYE_HEIGHT = 13.5;
-const EYE_FORWARD_OFFSET = 5;
+// Offset above the player center used only for crosshair projection.
+// Higher = crosshair appears further in front, better for top-down aiming feel.
+const CROSSHAIR_EYE_HEIGHT = 10;
 
 interface Tracer {
   lines: LinesMesh;
@@ -97,25 +96,29 @@ export class WeaponShootSystem implements EcsSystem {
       const showCrosshair =
         armed && ranged.isAiming && health.lifeState === PlayerLifeState.ALIVE;
 
-      // Update crosshair position every frame while aiming
-      if (showCrosshair && this.crosshair && refs.camera) {
+      // Always compute the aim target point so the shoot ray can reuse it.
+      let aimTargetPoint: Vector3 | null = null;
+      if (refs.camera) {
         const aimScene = refs.scene;
-        const aimEngine = aimScene.getEngine();
-        const aimW = aimEngine.getRenderWidth();
-        const aimH = aimEngine.getRenderHeight();
-
         const aimRay = this.buildAimRay(refs.mesh, refs.camera, aimScene);
         const aimHit = aimScene.pickWithRay(
           aimRay,
           (mesh) => mesh !== refs.mesh && !mesh.isDescendantOf(refs.mesh),
         );
-
-        const targetPoint =
+        aimTargetPoint =
           aimHit?.pickedPoint ??
           aimRay.origin.add(aimRay.direction.scale(MAX_RAY_DISTANCE));
+      }
+
+      // Update crosshair position every frame while aiming
+      if (showCrosshair && this.crosshair && aimTargetPoint) {
+        const aimScene = refs.scene;
+        const aimEngine = aimScene.getEngine();
+        const aimW = aimEngine.getRenderWidth();
+        const aimH = aimEngine.getRenderHeight();
 
         const projected = Vector3.Project(
-          targetPoint,
+          aimTargetPoint,
           Matrix.Identity(),
           aimScene.getTransformMatrix(),
           new Viewport(0, 0, aimW, aimH),
@@ -190,14 +193,18 @@ export class WeaponShootSystem implements EcsSystem {
       }
 
       const scene = refs.scene;
-      const engine = scene.getEngine();
-      const w = engine.getRenderWidth();
-      const h = engine.getRenderHeight();
 
-      // Ray starts from player eye offset forward — never from the camera,
-      // so it cannot hit the player's own geometry or the floor at their feet.
+      // Shoot from the player's chest toward the aim target point so the ray
+      // travels roughly horizontally regardless of how steep the camera angle is.
       const playerMesh = refs.mesh;
-      const shootRay = this.buildAimRay(playerMesh, refs.camera, scene);
+      const chestOrigin = playerMesh
+        .getAbsolutePosition()
+        .add(new Vector3(0, 1.1, 0));
+      const shootTarget =
+        aimTargetPoint ??
+        chestOrigin.add(playerMesh.forward.scale(MAX_RAY_DISTANCE));
+      const shootDir = shootTarget.subtract(chestOrigin).normalize();
+      const shootRay = new Ray(chestOrigin, shootDir, MAX_RAY_DISTANCE);
 
       const hit = scene.pickWithRay(
         shootRay,
@@ -226,7 +233,7 @@ export class WeaponShootSystem implements EcsSystem {
       // Consume ammo and set fire cooldown
       ranged.currentAmmo -= 1;
       ranged.fireTimer = 1 / weaponDef.fireRate;
-      console.log('hit.pickedMesh', hit.pickedMesh);
+
       // Damage enemy if hit
       if (!hit?.pickedMesh) {
         continue;
@@ -264,10 +271,8 @@ export class WeaponShootSystem implements EcsSystem {
     }
   }
   /**
-   * Builds a Ray that starts from the player's eye level, stepped slightly
-   * forward along the camera's aim direction. This ensures the ray never
-   * originates inside the player capsule or behind the player model, which
-   * would cause immediate self-hits and broken hit detection.
+   * Aim ray used ONLY for crosshair projection. Originates above the player
+   * so the projected hit point appears naturally in front from a top-down camera.
    */
   private buildAimRay(
     playerMesh: PlayerPhysicsViewRefsComponent['mesh'],
@@ -279,10 +284,9 @@ export class WeaponShootSystem implements EcsSystem {
     const h = engine.getRenderHeight();
     const cameraRay = scene.createPickingRay(w / 2, h / 2, null, camera);
     const dir = cameraRay.direction.normalize();
-    const eyeOrigin = playerMesh
+    const origin = playerMesh
       .getAbsolutePosition()
-      .add(new Vector3(0, EYE_HEIGHT, 0))
-      .addInPlace(dir.scale(EYE_FORWARD_OFFSET));
-    return new Ray(eyeOrigin, dir, MAX_RAY_DISTANCE);
+      .add(new Vector3(0, CROSSHAIR_EYE_HEIGHT, 0));
+    return new Ray(origin, dir, MAX_RAY_DISTANCE);
   }
 }

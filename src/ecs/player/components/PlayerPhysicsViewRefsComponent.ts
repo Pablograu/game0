@@ -10,7 +10,12 @@ import type { CameraShaker } from '../../../CameraShaker.ts';
 import { createComponentType } from '../../core/Component.ts';
 
 interface PhysicsEngineRaycastApi {
-  raycastToRef(from: Vector3, to: Vector3, result: PhysicsRaycastResult): void;
+  raycastToRef(
+    from: Vector3,
+    to: Vector3,
+    result: PhysicsRaycastResult,
+    query?: { membership?: number; collideWith?: number },
+  ): void;
 }
 
 export interface PlayerPhysicsViewRefsComponent {
