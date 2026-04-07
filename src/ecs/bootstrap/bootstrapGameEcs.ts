@@ -1,6 +1,6 @@
-import type { Scene } from "@babylonjs/core";
-import type { EntityId } from "../core/Entity.ts";
-import { World } from "../core/World.ts";
+import type { Scene } from '@babylonjs/core';
+import type { EntityId } from '../core/Entity.ts';
+import { World } from '../core/World.ts';
 import {
   EnemyAnimationSystem,
   EnemyAttackSystem,
@@ -12,7 +12,7 @@ import {
   EnemyMovementSystem,
   EnemyStuckSystem,
   EnemySurvivabilitySystem,
-} from "../enemy/index.ts";
+} from '../enemy/index.ts';
 import {
   createGameFlowControllerApi,
   createGameFlowEntity,
@@ -22,7 +22,7 @@ import {
   GameFlowUiSystem,
   type GameFlowControllerApi,
   type GameFlowEngineControl,
-} from "../game/index.ts";
+} from '../game/index.ts';
 import {
   createPlayerEntity,
   PlayerAnimationSystem,
@@ -41,8 +41,9 @@ import {
   WeaponEquipSystem,
   WeaponPickupSystem,
   WeaponProximitySystem,
-} from "../player/index.ts";
-import type { PlayerBootstrapRuntime } from "../player/runtime/playerRuntime.ts";
+  WeaponShootSystem,
+} from '../player/index.ts';
+import type { PlayerBootstrapRuntime } from '../player/runtime/playerRuntime.ts';
 
 export interface BootstrapGameEcsOptions extends PlayerBootstrapRuntime {
   engine?: GameFlowEngineControl | null;
@@ -99,6 +100,7 @@ export function bootstrapGameEcs(
     world.registerSystem(new PlayerGameOverSystem());
     world.registerSystem(new PlayerGroundProbeSystem());
     world.registerSystem(new PlayerCombatSystem());
+    world.registerSystem(new WeaponShootSystem());
     world.registerSystem(new PlayerDashSystem());
     world.registerSystem(new PlayerJumpSystem());
     world.registerSystem(new PlayerMovementSystem());

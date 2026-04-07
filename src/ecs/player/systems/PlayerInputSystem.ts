@@ -4,11 +4,11 @@ import {
   type KeyboardInfo,
   type Observer,
   type PointerInfo,
-} from "@babylonjs/core";
-import type { EntityId } from "../../core/Entity.ts";
-import type { EcsSystem } from "../../core/System.ts";
-import type { World } from "../../core/World.ts";
-import { CarriedWeaponType } from "../../weapons/WeaponDefinitions.ts";
+} from '@babylonjs/core';
+import type { EntityId } from '../../core/Entity.ts';
+import type { EcsSystem } from '../../core/System.ts';
+import type { World } from '../../core/World.ts';
+import { CarriedWeaponType } from '../../weapons/WeaponDefinitions.ts';
 import {
   PlayerCombatStateComponent,
   PlayerControlStateComponent,
@@ -16,8 +16,9 @@ import {
   PlayerHealthStateComponent,
   PlayerInventoryComponent,
   PlayerPhysicsViewRefsComponent,
-} from "../components/index.ts";
-import { PlayerCombatMode, PlayerLifeState } from "../PlayerStateEnums.ts";
+  PlayerRangedStateComponent,
+} from '../components/index.ts';
+import { PlayerCombatMode, PlayerLifeState } from '../PlayerStateEnums.ts';
 
 interface PlayerInputObserverHandles {
   keyboardObserver: Observer<KeyboardInfo>;
@@ -25,7 +26,7 @@ interface PlayerInputObserverHandles {
 }
 
 export class PlayerInputSystem implements EcsSystem {
-  readonly name = "PlayerInputSystem";
+  readonly name = 'PlayerInputSystem';
   readonly order = 10;
 
   private readonly observers = new Map<EntityId, PlayerInputObserverHandles>();
@@ -60,6 +61,11 @@ export class PlayerInputSystem implements EcsSystem {
         control.dashRequested = false;
         control.attackRequested = false;
         control.danceToggleRequested = false;
+        const rangedOnDisable = world.getComponent(
+          entityId,
+          PlayerRangedStateComponent,
+        );
+        if (rangedOnDisable) rangedOnDisable.isAiming = false;
         continue;
       }
 
@@ -114,21 +120,21 @@ export class PlayerInputSystem implements EcsSystem {
         if (kbInfo.type === KeyboardEventTypes.KEYDOWN) {
           control.inputMap[key] = true;
 
-          if (key === " ") {
+          if (key === ' ') {
             grounding.jumpBufferTimer = grounding.jumpBufferTime;
             control.jumpBufferTimer = grounding.jumpBufferTimer;
             control.jumpKeyReleased = false;
           }
 
-          if (key === "shift") {
+          if (key === 'shift') {
             control.dashRequested = true;
           }
 
-          if (key === "k") {
+          if (key === 'k') {
             control.danceToggleRequested = true;
           }
 
-          if (key === "g") {
+          if (key === 'g') {
             const inv = world.getComponent(entityId, PlayerInventoryComponent);
             if (inv) inv.pickupRequested = true;
           }
@@ -139,7 +145,7 @@ export class PlayerInputSystem implements EcsSystem {
         if (kbInfo.type === KeyboardEventTypes.KEYUP) {
           control.inputMap[key] = false;
 
-          if (key === " ") {
+          if (key === ' ') {
             control.jumpKeyReleased = true;
           }
         }
@@ -156,6 +162,7 @@ export class PlayerInputSystem implements EcsSystem {
           entityId,
           PlayerInventoryComponent,
         );
+        const ranged = world.getComponent(entityId, PlayerRangedStateComponent);
 
         if (!control || !control.inputEnabled) {
           return;
@@ -164,19 +171,13 @@ export class PlayerInputSystem implements EcsSystem {
         if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
           if (pointerInfo.event.button === 0) {
             if (inventory?.activeWeaponType !== CarriedWeaponType.NONE) {
-              if (inventory) inventory.fireRequested = true;
+              if (ranged) ranged.fireRequested = true;
             } else {
               control.attackRequested = true;
             }
           }
           if (pointerInfo.event.button === 2) {
-            if (inventory) inventory.isAiming = true;
-          }
-        }
-
-        if (pointerInfo.type === PointerEventTypes.POINTERUP) {
-          if (pointerInfo.event.button === 2) {
-            if (inventory) inventory.isAiming = false;
+            if (ranged) ranged.isAiming = !ranged.isAiming;
           }
         }
       },
