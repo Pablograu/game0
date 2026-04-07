@@ -386,14 +386,6 @@ export class Ragdoll {
       },
     );
     this._syncBonesToPhysics();
-    console.log('<< init', {
-      rootTransform: this._rootTransformNode,
-      skeleton: this._skeleton,
-      bones: this._bones,
-      transforms: this._transforms,
-      aggregates: this._aggregates,
-      constraints: this._constraints,
-    });
   }
   /**
    * Enable ragdoll mode. Create physics objects and make them dynamic.

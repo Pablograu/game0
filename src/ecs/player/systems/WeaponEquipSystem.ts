@@ -1,25 +1,25 @@
-import { Quaternion, Vector3 } from "@babylonjs/core";
-import type { EntityId } from "../../core/Entity.ts";
-import type { EcsSystem } from "../../core/System.ts";
-import type { World } from "../../core/World.ts";
-import { spawnEquippedWeaponNode } from "../../weapons/createDroppedWeaponEntity.ts";
-import { CarriedWeaponType } from "../../weapons/WeaponDefinitions.ts";
-import { PlayerInventoryComponent } from "../components/PlayerInventoryComponent.ts";
-import { PlayerPhysicsViewRefsComponent } from "../components/PlayerPhysicsViewRefsComponent.ts";
+import { Quaternion, Vector3 } from '@babylonjs/core';
+import type { EntityId } from '../../core/Entity.ts';
+import type { EcsSystem } from '../../core/System.ts';
+import type { World } from '../../core/World.ts';
+import { spawnEquippedWeaponNode } from '../../weapons/createDroppedWeaponEntity.ts';
+import { CarriedWeaponType } from '../../weapons/WeaponDefinitions.ts';
+import { PlayerInventoryComponent } from '../components/PlayerInventoryComponent.ts';
+import { PlayerPhysicsViewRefsComponent } from '../components/PlayerPhysicsViewRefsComponent.ts';
 
-const HAND_BONE_NAME = "mixamorig:RightHand";
+const HAND_BONE_NAME = 'mixamorig:RightHand';
 
 export const gripConfig = {
   positionX: 0,
   positionY: 0.05,
   positionZ: 0,
-  rotationX: Math.PI / 2,
+  rotationX: 0,
   rotationY: 0,
   rotationZ: Math.PI / 2,
 };
 
 export class WeaponEquipSystem implements EcsSystem {
-  readonly name = "WeaponEquipSystem";
+  readonly name = 'WeaponEquipSystem';
   readonly order = 14;
 
   private readonly prevWeaponType = new Map<EntityId, CarriedWeaponType>();
@@ -36,6 +36,20 @@ export class WeaponEquipSystem implements EcsSystem {
         playerId,
         PlayerPhysicsViewRefsComponent,
       )!;
+
+      // Apply grip offset every frame so debug slider changes take effect immediately
+      if (inv.equippedWeaponNode) {
+        inv.equippedWeaponNode.position.set(
+          gripConfig.positionX,
+          gripConfig.positionY,
+          gripConfig.positionZ,
+        );
+        inv.equippedWeaponNode.rotationQuaternion = Quaternion.FromEulerAngles(
+          gripConfig.rotationX,
+          gripConfig.rotationY,
+          gripConfig.rotationZ,
+        );
+      }
 
       const curr = inv.activeWeaponType;
       const prev = this.prevWeaponType.get(playerId) ?? CarriedWeaponType.NONE;
@@ -62,7 +76,7 @@ export class WeaponEquipSystem implements EcsSystem {
       if (!handTN) {
         console.warn(
           `[WeaponEquipSystem] TransformNode "${HAND_BONE_NAME}" not found.`,
-          "Available names:",
+          'Available names:',
           allChildTNs.map((n) => n.name),
         );
         continue;
@@ -71,7 +85,7 @@ export class WeaponEquipSystem implements EcsSystem {
       const weaponNode = spawnEquippedWeaponNode();
       if (!weaponNode) {
         console.warn(
-          "[WeaponEquipSystem] spawnEquippedWeaponNode returned null — assets not preloaded?",
+          '[WeaponEquipSystem] spawnEquippedWeaponNode returned null — assets not preloaded?',
         );
         continue;
       }
@@ -83,34 +97,22 @@ export class WeaponEquipSystem implements EcsSystem {
       // Decompose the hand's world matrix and apply the inverse so the weapon
       // renders at proper world size regardless of the rig's inherited scale.
       handTN.computeWorldMatrix(true);
+
       const handWorldScale = new Vector3();
       const handWorldRot = new Quaternion();
       const handWorldPos = new Vector3();
+
       handTN
         .getWorldMatrix()
         .decompose(handWorldScale, handWorldRot, handWorldPos);
 
       weaponNode.scaling = new Vector3(
-        1.0 / handWorldScale.x,
-        1.0 / handWorldScale.y,
-        1.0 / handWorldScale.z,
+        0.5 / handWorldScale.x,
+        0.5 / handWorldScale.y,
+        0.5 / handWorldScale.z,
       );
 
       inv.equippedWeaponNode = weaponNode;
-    }
-
-    // Apply grip offset every frame so debug slider changes take effect immediately
-    if (inv.equippedWeaponNode) {
-      inv.equippedWeaponNode.position.set(
-        gripConfig.positionX,
-        gripConfig.positionY,
-        gripConfig.positionZ,
-      );
-      inv.equippedWeaponNode.rotationQuaternion = Quaternion.FromEulerAngles(
-        gripConfig.rotationX,
-        gripConfig.rotationY,
-        gripConfig.rotationZ,
-      );
     }
   }
 }
