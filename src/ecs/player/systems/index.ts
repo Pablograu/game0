@@ -1,4 +1,5 @@
 export * from './PlayerAnimationSystem.ts';
+export * from './PlayerCameraAimSystem.ts';
 export * from './PlayerCombatSystem.ts';
 export * from './PlayerDashSystem.ts';
 export * from './PlayerDamageSystem.ts';

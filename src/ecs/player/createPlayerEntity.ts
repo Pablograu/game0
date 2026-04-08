@@ -87,6 +87,7 @@ export function createPlayerEntity(
     cameraShaker: options.cameraShaker ?? null,
     physicsEngine:
       scene.getPhysicsEngine() as unknown as PlayerPhysicsViewRefsComponent['physicsEngine'],
+    shoulderAnchor: options.shoulderAnchor ?? null,
   });
 
   world.addComponent(entityId, PlayerLocomotionStateComponent, {
@@ -239,6 +240,7 @@ export function createPlayerEntity(
     isAiming: false,
     fireRequested: false,
     fireTimer: 0,
+    shootTimer: 0,
     isReloading: false,
     reloadTimer: 0,
     currentAmmo: 0,

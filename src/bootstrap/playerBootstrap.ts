@@ -58,7 +58,6 @@ export async function loadPlayerCharacter(
     (node) => node.name === 'Armature',
   ) as Mesh | undefined;
   const animationGroups = result.animationGroups;
-
   const physicsCapsule = MeshBuilder.CreateCapsule(
     'player',
     {
@@ -110,6 +109,9 @@ export async function loadPlayerCharacter(
     aim_assault_rifle: animationGroups.find(
       (ag) => ag.name.toLowerCase() === 'aim_assault_rifle',
     ),
+    shoot_assault_rifle: animationGroups.find(
+      (ag) => ag.name.toLowerCase() === 'assault_rifle',
+    ),
   });
 
   if (Object.keys(animationRegistry).length === 0) {
@@ -158,6 +160,7 @@ export function bootstrapPlayerEcsRuntime(options: {
   playerAnimations: PlayerAnimationRegistry;
   playerMesh: RuntimePlayerMesh;
   scene: Scene;
+  shoulderAnchor: TransformNode;
 }): PlayerEcsBootstrap {
   const cameraShaker = new CameraShaker(options.camera, options.scene);
   const healthUi = createPlayerHealthUi(
@@ -196,6 +199,7 @@ export function bootstrapPlayerEcsRuntime(options: {
     spawnPoint: options.playerMesh.position.clone(),
     ragdollSkeleton: options.playerMesh.skeleton ?? null,
     ragdollArmatureNode: options.playerMesh.armatureNode ?? null,
+    shoulderAnchor: options.shoulderAnchor,
     gameplayConfig: {
       moveSpeed: 8,
       jumpForce: 12,

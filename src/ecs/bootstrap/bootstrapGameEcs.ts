@@ -26,6 +26,7 @@ import {
 import {
   createPlayerEntity,
   PlayerAnimationSystem,
+  PlayerCameraAimSystem,
   PlayerCombatSystem,
   PlayerDashSystem,
   PlayerDamageSystem,
@@ -106,6 +107,7 @@ export function bootstrapGameEcs(
     world.registerSystem(new PlayerMovementSystem());
     world.registerSystem(new PlayerWeaponHitSystem());
     world.registerSystem(new PlayerAnimationSystem());
+    world.registerSystem(new PlayerCameraAimSystem());
     world.registerSystem(new PlayerPresentationSystem());
     world.registerSystem(new PlayerUiSyncSystem());
   }

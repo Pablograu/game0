@@ -4,6 +4,7 @@ import type {
   PhysicsBody,
   PhysicsRaycastResult,
   Scene,
+  TransformNode,
   Vector3,
 } from '@babylonjs/core';
 import type { CameraShaker } from '../../../CameraShaker.ts';
@@ -25,6 +26,7 @@ export interface PlayerPhysicsViewRefsComponent {
   camera: Camera | null;
   cameraShaker: CameraShaker | null;
   physicsEngine: PhysicsEngineRaycastApi | null;
+  shoulderAnchor: TransformNode | null;
 }
 
 export const PlayerPhysicsViewRefsComponent =

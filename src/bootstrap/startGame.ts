@@ -54,6 +54,7 @@ export async function startGame() {
     playerAnimations,
     playerMesh,
     scene,
+    shoulderAnchor,
   });
 
   const enemies = EnemySpawner.spawnMultiple(

@@ -250,6 +250,15 @@ export class PlayerAnimationSystem implements EcsSystem {
 
     const armed = inventory.activeWeaponType !== CarriedWeaponType.NONE;
 
+    if (armed && ranged.shootTimer > 0) {
+      return {
+        name: 'shoot_assault_rifle',
+        loop: false,
+        forceReset: false,
+        speedRatio: 1,
+      };
+    }
+
     if (armed && ranged.isAiming) {
       return {
         name: 'aim_assault_rifle',

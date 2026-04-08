@@ -5,6 +5,7 @@ import {
   Mesh,
   type Scene,
   Skeleton,
+  type TransformNode,
   Vector3,
 } from '@babylonjs/core';
 import { AdvancedDynamicTexture, Control, TextBlock } from '@babylonjs/gui';
@@ -56,6 +57,7 @@ export interface PlayerBootstrapRuntime {
   playerMesh: Mesh;
   camera?: Camera | null;
   cameraShaker?: CameraShaker | null;
+  shoulderAnchor?: TransformNode | null;
   playerAnimations: PlayerAnimationRegistry;
   weaponSystem?: WeaponSystem | null;
   healthUI?: AdvancedDynamicTexture | null;

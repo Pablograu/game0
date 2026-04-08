@@ -4,6 +4,7 @@ export interface PlayerRangedStateComponent {
   isAiming: boolean;
   fireRequested: boolean;
   fireTimer: number;
+  shootTimer: number;
   isReloading: boolean;
   reloadTimer: number;
   currentAmmo: number;

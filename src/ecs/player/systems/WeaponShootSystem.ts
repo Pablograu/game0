@@ -105,6 +105,9 @@ export class WeaponShootSystem implements EcsSystem {
       if (ranged.fireTimer > 0)
         ranged.fireTimer = Math.max(0, ranged.fireTimer - deltaTime);
 
+      if (ranged.shootTimer > 0)
+        ranged.shootTimer = Math.max(0, ranged.shootTimer - deltaTime);
+
       if (ranged.isReloading) {
         ranged.reloadTimer = Math.max(0, ranged.reloadTimer - deltaTime);
         if (ranged.reloadTimer <= 0) {
@@ -174,6 +177,7 @@ export class WeaponShootSystem implements EcsSystem {
       // Consume ammo and set fire cooldown
       ranged.currentAmmo -= 1;
       ranged.fireTimer = 1 / weaponDef.fireRate;
+      ranged.shootTimer = 0.2;
 
       // Damage logic
       if (!aimHit?.pickedMesh) continue;
