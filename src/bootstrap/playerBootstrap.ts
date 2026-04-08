@@ -3,6 +3,7 @@ import {
   PhysicsAggregate,
   PhysicsShapeType,
   Quaternion,
+  TransformNode,
   Vector3,
   type ArcRotateCamera,
   type Engine,
@@ -38,6 +39,7 @@ export type RuntimePlayerMesh = Mesh & {
 export interface LoadedPlayerCharacter {
   playerAnimations: PlayerAnimationRegistry;
   playerMesh: RuntimePlayerMesh;
+  shoulderAnchor: TransformNode;
 }
 
 export interface PlayerEcsBootstrap {
@@ -139,9 +141,14 @@ export async function loadPlayerCharacter(
     capsuleAggregate.shape.filterCollideMask = COL_ENVIRONMENT | COL_ENEMY;
   }
 
+  const shoulderAnchor = new TransformNode('shoulderAnchor', scene);
+  shoulderAnchor.parent = physicsCapsule;
+  shoulderAnchor.position = new Vector3(0.5, 1.5, 0);
+
   return {
     playerAnimations: animationRegistry,
     playerMesh: physicsCapsule,
+    shoulderAnchor,
   };
 }
 

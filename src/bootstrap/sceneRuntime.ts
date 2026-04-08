@@ -59,20 +59,22 @@ export async function createSceneRuntime(
   };
 }
 
-export function createFollowCamera(scene: Scene, target: Mesh) {
+export function createFollowCamera(scene: Scene, target: TransformNode) {
   const camera = new ArcRotateCamera(
     'camera',
     -Math.PI / 2,
     Math.PI / 2.5,
-    25,
+    20,
     Vector3.Zero(),
     scene,
   );
 
-  camera.lockedTarget = target;
+  camera.lockedTarget = target as unknown as AbstractMesh;
   camera.attachControl();
   camera.lowerRadiusLimit = 3;
   camera.upperRadiusLimit = 20;
+  camera.lowerBetaLimit = 0.3;
+  camera.upperBetaLimit = Math.PI / 2 + 0.2;
   camera.checkCollisions = true;
   camera.collisionRadius = new Vector3(0.5, 0.5, 0.5);
 

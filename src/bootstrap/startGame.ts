@@ -1,23 +1,23 @@
-import "@babylonjs/core/Cameras/Inputs";
-import "@babylonjs/loaders/glTF";
-import { Vector3 } from "@babylonjs/core";
-import { EnemySpawner, type PlayerDebugApi } from "../ecs/index.ts";
-import { preloadDroppedWeaponAssets } from "../ecs/weapons/createDroppedWeaponEntity.ts";
-import type { EnemyRuntimeFacade } from "../ecs/enemy/EnemyRuntimeFacade.ts";
-import type { RuntimePlayerMesh } from "./playerBootstrap.ts";
-import { createGameFlowUi } from "./createGameFlowUi.ts";
+import '@babylonjs/core/Cameras/Inputs';
+import '@babylonjs/loaders/glTF';
+import { Vector3 } from '@babylonjs/core';
+import { EnemySpawner, type PlayerDebugApi } from '../ecs/index.ts';
+import { preloadDroppedWeaponAssets } from '../ecs/weapons/createDroppedWeaponEntity.ts';
+import type { EnemyRuntimeFacade } from '../ecs/enemy/EnemyRuntimeFacade.ts';
+import type { RuntimePlayerMesh } from './playerBootstrap.ts';
+import { createGameFlowUi } from './createGameFlowUi.ts';
 import {
   bootstrapPlayerEcsRuntime,
   loadPlayerCharacter,
-} from "./playerBootstrap.ts";
+} from './playerBootstrap.ts';
 import {
   createFollowCamera,
   createSceneRuntime,
   createWorldEnvironment,
   showPhysicsBodies,
-} from "./sceneRuntime.ts";
+} from './sceneRuntime.ts';
 
-const ENEMY_MODEL_PATH = "/models/ladron.glb";
+const ENEMY_MODEL_PATH = '/models/ladron.glb';
 const INITIAL_ENEMY_POSITIONS = [
   new Vector3(3, 40, 13),
   new Vector3(-3, 40, 15),
@@ -45,8 +45,9 @@ export async function startGame() {
     preloadDroppedWeaponAssets(scene),
   ]);
 
-  const { playerAnimations, playerMesh } = await loadPlayerCharacter(scene);
-  const camera = createFollowCamera(scene, playerMesh);
+  const { playerAnimations, playerMesh, shoulderAnchor } =
+    await loadPlayerCharacter(scene);
+  const camera = createFollowCamera(scene, shoulderAnchor);
   const { ecsRuntime, playerDebugApi } = bootstrapPlayerEcsRuntime({
     camera,
     engine,
@@ -76,7 +77,7 @@ export async function startGame() {
     scene.render();
   });
 
-  window.addEventListener("resize", () => {
+  window.addEventListener('resize', () => {
     engine.resize();
   });
 }
@@ -89,11 +90,11 @@ async function setupOptionalDebugTools(
 ) {
   const searchParams = new URLSearchParams(window.location.search);
 
-  if (!searchParams.has("debug")) {
+  if (!searchParams.has('debug')) {
     return;
   }
 
-  const [{ DebugGUI }] = await Promise.all([import("../DebugGUI.ts")]);
+  const [{ DebugGUI }] = await Promise.all([import('../DebugGUI.ts')]);
 
   const debugGui = new DebugGUI();
   debugGui.setupPlayerControls(playerDebugApi);
@@ -103,7 +104,7 @@ async function setupOptionalDebugTools(
   debugGui.setupCameraControls(camera);
   debugGui.setupSceneControls(camera.getScene());
 
-  if (searchParams.has("physics")) {
+  if (searchParams.has('physics')) {
     showPhysicsBodies(camera.getScene());
   }
 }
