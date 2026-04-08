@@ -15,7 +15,7 @@ export const gripConfig = {
   positionZ: 0,
   rotationX: 0,
   rotationY: 0,
-  rotationZ: Math.PI / 2,
+  rotationZ: 1.74,
 };
 
 export class WeaponEquipSystem implements EcsSystem {
