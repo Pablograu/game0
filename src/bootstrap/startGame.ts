@@ -18,11 +18,23 @@ import {
 } from './sceneRuntime.ts';
 
 const ENEMY_MODEL_PATH = '/models/ladron.glb';
-const INITIAL_ENEMY_POSITIONS = [
-  new Vector3(3, 40, 13),
-  new Vector3(-3, 40, 15),
-  new Vector3(0, 40, -15),
-];
+const ENEMY_COUNT = 20;
+const ENEMY_MIN_DISTANCE = 5;
+const ENEMY_MAX_DISTANCE = 25;
+
+function generateEnemyPositions(count: number): Vector3[] {
+  const positions: Vector3[] = [];
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance =
+      ENEMY_MIN_DISTANCE +
+      Math.random() * (ENEMY_MAX_DISTANCE - ENEMY_MIN_DISTANCE);
+    positions.push(
+      new Vector3(Math.cos(angle) * distance, 40, Math.sin(angle) * distance),
+    );
+  }
+  return positions;
+}
 const INITIAL_ENEMY_CONFIG = {
   hp: 1,
   mass: 2,
@@ -61,7 +73,7 @@ export async function startGame() {
     ecsRuntime.world,
     ENEMY_MODEL_PATH,
     scene,
-    INITIAL_ENEMY_POSITIONS,
+    generateEnemyPositions(ENEMY_COUNT),
     INITIAL_ENEMY_CONFIG,
   );
 
