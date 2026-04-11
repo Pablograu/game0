@@ -24,11 +24,9 @@ import {
   createPlayerAnimationRegistry,
   type PlayerAnimationRegistry,
 } from "../ecs/player/runtime/PlayerAnimations.ts";
-import {
-  DEFAULT_PLAYER_GAMEPLAY_CONFIG,
-  createPlayerHealthUi,
-} from "../ecs/player/runtime/playerRuntime.ts";
+import { DEFAULT_PLAYER_GAMEPLAY_CONFIG } from "../ecs/player/runtime/playerRuntime.ts";
 import { COL_ENEMY, COL_ENVIRONMENT, COL_PLAYER } from "./sceneRuntime.ts";
+import { HudManager } from "../HudManager.ts";
 
 export type RuntimePlayerMesh = Mesh & {
   animationModels?: PlayerAnimationRegistry;
@@ -164,10 +162,8 @@ export function bootstrapPlayerEcsRuntime(options: {
   shoulderAnchor: TransformNode;
 }): PlayerEcsBootstrap {
   const cameraShaker = new CameraShaker(options.camera, options.scene);
-  const healthUi = createPlayerHealthUi(
-    options.scene,
-    DEFAULT_PLAYER_GAMEPLAY_CONFIG.maxHealth,
-  );
+
+  HudManager.init(DEFAULT_PLAYER_GAMEPLAY_CONFIG.maxHealth, "NONE");
 
   const weaponSystem = new WeaponSystem(
     {
@@ -195,8 +191,6 @@ export function bootstrapPlayerEcsRuntime(options: {
     cameraShaker,
     playerAnimations: options.playerAnimations,
     weaponSystem,
-    healthUI: healthUi.healthUI,
-    healthText: healthUi.healthText,
     spawnPoint: options.playerMesh.position.clone(),
     ragdollSkeleton: options.playerMesh.skeleton ?? null,
     ragdollArmatureNode: options.playerMesh.armatureNode ?? null,

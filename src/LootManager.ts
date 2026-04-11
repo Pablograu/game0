@@ -1,11 +1,11 @@
-import { Scene, Vector3 } from '@babylonjs/core';
-import type { World } from './ecs/core/World.ts';
-import { createDroppedWeaponEntity } from './ecs/weapons/createDroppedWeaponEntity.ts';
-import { CarriedWeaponType } from './ecs/weapons/WeaponDefinitions.ts';
+import { Scene, Vector3 } from "@babylonjs/core";
+import type { World } from "./ecs/core/World.ts";
+import { createDroppedWeaponEntity } from "./ecs/weapons/createDroppedWeaponEntity.ts";
+import { CarriedWeaponType } from "./ecs/weapons/WeaponDefinitions.ts";
 
 const DROPPABLE_WEAPON_TYPES = [
   CarriedWeaponType.PISTOL,
-  CarriedWeaponType.MACHINE_GUN,
+  CarriedWeaponType.ASSAULT_RIFLE,
 ] as const;
 
 class LootManager {

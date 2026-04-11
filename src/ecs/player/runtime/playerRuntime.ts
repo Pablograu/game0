@@ -8,7 +8,6 @@ import {
   type TransformNode,
   Vector3,
 } from "@babylonjs/core";
-import { AdvancedDynamicTexture, Control, TextBlock } from "@babylonjs/gui";
 import type { CameraShaker } from "../../../CameraShaker.ts";
 import type { WeaponSystem } from "../../../WeaponSystem.ts";
 import { Ragdoll } from "../../../ragdoll_copy.js";
@@ -47,11 +46,6 @@ export interface PlayerGameplayConfig {
   groundLostGrace: number;
 }
 
-export interface PlayerUiRefs {
-  healthUI: AdvancedDynamicTexture | null;
-  healthText: TextBlock | null;
-}
-
 export interface PlayerBootstrapRuntime {
   scene: Scene;
   playerMesh: Mesh;
@@ -60,8 +54,6 @@ export interface PlayerBootstrapRuntime {
   shoulderAnchor?: TransformNode | null;
   playerAnimations: PlayerAnimationRegistry;
   weaponSystem?: WeaponSystem | null;
-  healthUI?: AdvancedDynamicTexture | null;
-  healthText?: TextBlock | null;
   spawnPoint?: Vector3 | null;
   ragdollSkeleton?: Skeleton | null;
   ragdollArmatureNode?: Mesh | null;
@@ -86,7 +78,7 @@ export const DEFAULT_PLAYER_GAMEPLAY_CONFIG: PlayerGameplayConfig = {
   knockbackDuration: 0.3,
   playerHeight: 2,
   playerRadius: 0.5,
-  maxHealth: 1000,
+  maxHealth: 10,
   invulnerabilityDuration: 1.5,
   respawnDelay: 2,
   punchSpeed: 2,
@@ -107,36 +99,6 @@ export function resolvePlayerGameplayConfig(
   return {
     ...DEFAULT_PLAYER_GAMEPLAY_CONFIG,
     ...overrides,
-  };
-}
-
-export function createPlayerHealthUi(
-  scene: Scene,
-  initialHealth: number,
-): PlayerUiRefs {
-  const healthUI = AdvancedDynamicTexture.CreateFullscreenUI(
-    "healthUI",
-    true,
-    scene,
-  );
-
-  const healthText = new TextBlock("healthText");
-  healthText.text = `Vidas: ${initialHealth}`;
-  healthText.color = "white";
-  healthText.fontSize = 32;
-  healthText.fontFamily = "Arial";
-  healthText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-  healthText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-  healthText.left = "20px";
-  healthText.top = "20px";
-  healthText.outlineWidth = 2;
-  healthText.outlineColor = "black";
-
-  healthUI.addControl(healthText);
-
-  return {
-    healthUI,
-    healthText,
   };
 }
 

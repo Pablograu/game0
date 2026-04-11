@@ -1,15 +1,16 @@
-import type { EcsSystem } from '../../core/System.ts';
-import type { World } from '../../core/World.ts';
-import { DroppedWeaponDataComponent } from '../../weapons/components/DroppedWeaponDataComponent.ts';
-import { DroppedWeaponMeshComponent } from '../../weapons/components/DroppedWeaponMeshComponent.ts';
-import { createDroppedWeaponEntity } from '../../weapons/createDroppedWeaponEntity.ts';
-import { CarriedWeaponType } from '../../weapons/WeaponDefinitions.ts';
-import { PlayerInventoryComponent } from '../components/PlayerInventoryComponent.ts';
-import { PlayerPhysicsViewRefsComponent } from '../components/PlayerPhysicsViewRefsComponent.ts';
-import { PlayerRangedStateComponent } from '../components/PlayerRangedStateComponent.ts';
+import type { EcsSystem } from "../../core/System.ts";
+import type { World } from "../../core/World.ts";
+import { DroppedWeaponDataComponent } from "../../weapons/components/DroppedWeaponDataComponent.ts";
+import { DroppedWeaponMeshComponent } from "../../weapons/components/DroppedWeaponMeshComponent.ts";
+import { createDroppedWeaponEntity } from "../../weapons/createDroppedWeaponEntity.ts";
+import { CarriedWeaponType } from "../../weapons/WeaponDefinitions.ts";
+import { PlayerInventoryComponent } from "../components/PlayerInventoryComponent.ts";
+import { PlayerPhysicsViewRefsComponent } from "../components/PlayerPhysicsViewRefsComponent.ts";
+import { PlayerRangedStateComponent } from "../components/PlayerRangedStateComponent.ts";
+import { HudManager } from "../../../HudManager.ts";
 
 export class WeaponPickupSystem implements EcsSystem {
-  readonly name = 'WeaponPickupSystem';
+  readonly name = "WeaponPickupSystem";
   readonly order = 13;
 
   update(world: World): void {
@@ -43,11 +44,13 @@ export class WeaponPickupSystem implements EcsSystem {
           const def = dataComp.definition;
           inv.slots[def.type] = def;
           inv.activeWeaponType = def.type;
+          HudManager.setWeapon(def.type);
           if (ranged) {
             ranged.currentAmmo = def.maxAmmo;
             ranged.fireTimer = 0;
             ranged.isReloading = false;
             ranged.reloadTimer = 0;
+            HudManager.setAmmo(ranged.currentAmmo);
           }
           world.destroyEntity(nearId);
           inv.nearbyWeaponEntityId = null;
@@ -66,9 +69,11 @@ export class WeaponPickupSystem implements EcsSystem {
           );
           delete inv.slots[inv.activeWeaponType];
           inv.activeWeaponType = CarriedWeaponType.NONE;
+          HudManager.setWeapon(CarriedWeaponType.NONE);
           if (ranged) {
             ranged.currentAmmo = 0;
             ranged.isAiming = false;
+            HudManager.setAmmo(0);
           }
         }
         inv.dropRequested = false;

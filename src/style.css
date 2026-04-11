@@ -19,3 +19,87 @@ html, body {
   display: block;
   outline: none;
 }
+
+/* ─── HUD ────────────────────────────────────────────────────────── */
+#game-hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  font-family: 'Arial', sans-serif;
+}
+
+/* Player panel — top-left */
+#hud-player-panel {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#hud-portrait {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.7);
+}
+
+#hud-health-bar-wrap {
+  width: 200px;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+}
+
+#hud-health-bar {
+  height: 100%;
+  width: 100%;
+  background: #2ecc71;
+  border-radius: 8px;
+  transition: width 0.35s ease-out, background-color 0.35s ease-out;
+}
+
+#hud-health-bar.hud-health--orange {
+  background: #e67e22;
+}
+
+#hud-health-bar.hud-health--red {
+  background: #e74c3c;
+}
+
+/* Weapon panel — bottom-right */
+#hud-weapon-panel {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+#hud-weapon-img {
+  width: 150px;
+  height: auto;
+  image-rendering: auto;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+}
+
+#hud-ammo-text {
+  color: #ffffff;
+  font-size: 22px;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  letter-spacing: 1px;
+}

@@ -23,6 +23,7 @@ import {
   PlayerRangedStateComponent,
 } from "../components/index.ts";
 import { AudioManager } from "../../../AudioManager.ts";
+import { HudManager } from "../../../HudManager.ts";
 import { PlayerLifeState } from "../PlayerStateEnums.ts";
 
 const MAX_RAY_DISTANCE = 200;
@@ -115,12 +116,15 @@ export class WeaponShootSystem implements EcsSystem {
           const weaponDef = inv.slots[inv.activeWeaponType];
           ranged.currentAmmo = weaponDef?.maxAmmo ?? 0;
           ranged.isReloading = false;
+          HudManager.setAmmo(ranged.currentAmmo);
         }
       }
-
       // Auto-reload
       if (!ranged.isReloading && ranged.currentAmmo <= 0 && armed) {
-        const weaponDef = inv.slots[inv.activeWeaponType];
+        const weaponDef =
+          inv.slots[inv.activeWeaponType] ??
+          WEAPON_DEFINITIONS[inv.activeWeaponType];
+        console.log("weaponDef :>> ", weaponDef);
         if (weaponDef) {
           ranged.isReloading = true;
           ranged.reloadTimer = weaponDef.reloadTime;
@@ -180,6 +184,7 @@ export class WeaponShootSystem implements EcsSystem {
 
       // Consume ammo and set fire cooldown
       ranged.currentAmmo -= 1;
+      HudManager.setAmmo(ranged.currentAmmo);
       ranged.fireTimer = 1 / weaponDef.fireRate;
       ranged.shootTimer = 0.2;
       AudioManager.play("weapon_shoot");

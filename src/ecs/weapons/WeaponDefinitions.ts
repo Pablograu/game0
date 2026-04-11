@@ -1,7 +1,7 @@
 export enum CarriedWeaponType {
   NONE = "NONE",
   PISTOL = "PISTOL",
-  MACHINE_GUN = "MACHINE_GUN",
+  ASSAULT_RIFLE = "ASSAULT_RIFLE",
 }
 
 export interface WeaponDefinition {
@@ -26,8 +26,8 @@ export const WEAPON_DEFINITIONS: Record<
     reloadTime: 1.5,
     projectileSpeed: 40,
   },
-  [CarriedWeaponType.MACHINE_GUN]: {
-    type: CarriedWeaponType.MACHINE_GUN,
+  [CarriedWeaponType.ASSAULT_RIFLE]: {
+    type: CarriedWeaponType.ASSAULT_RIFLE,
     damage: 2,
     fireRate: 10,
     maxAmmo: 30,
