@@ -1,6 +1,19 @@
-import { Vector3 } from '@babylonjs/core';
-import type { Scene } from '@babylonjs/core';
-import { HitboxSystem } from './HitboxSystem';
+import { Vector3 } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core";
+import { HitboxSystem } from "./HitboxSystem";
+
+type options = {
+  attackCooldown?: number;
+  attackDuration?: number;
+  cameraShaker?: {
+    shake: (intensity: number, duration: number) => void;
+  };
+  damage?: number;
+  debug?: boolean;
+  hitboxOffset?: number;
+  hitboxSize?: Vector3;
+  playerKnockback?: number;
+};
 
 export class WeaponSystem {
   attackCooldown: number;
@@ -13,9 +26,8 @@ export class WeaponSystem {
   playerKnockback: number;
   scene: Scene;
 
-  constructor(_runtimeRefs: unknown, scene: Scene, options: any = {}) {
+  constructor(_runtimeRefs: unknown, scene: Scene, options: options = {}) {
     this.scene = scene;
-
     this.damage = options.damage || 1;
     this.attackDuration = options.attackDuration || 0.2;
     this.attackCooldown = options.attackCooldown || 0.4;
@@ -30,7 +42,7 @@ export class WeaponSystem {
 
   createHitbox() {
     this.hitboxSystem = new HitboxSystem(
-      'playerWeaponHitbox',
+      "playerWeaponHitbox",
       this.hitboxSize,
       this.scene,
       this.debugMode,

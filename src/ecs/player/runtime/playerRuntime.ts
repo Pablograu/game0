@@ -7,12 +7,12 @@ import {
   Skeleton,
   type TransformNode,
   Vector3,
-} from '@babylonjs/core';
-import { AdvancedDynamicTexture, Control, TextBlock } from '@babylonjs/gui';
-import type { CameraShaker } from '../../../CameraShaker.ts';
-import type { WeaponSystem } from '../../../WeaponSystem.ts';
-import { Ragdoll } from '../../../ragdoll_copy.js';
-import type { PlayerAnimationRegistry } from './PlayerAnimations.ts';
+} from "@babylonjs/core";
+import { AdvancedDynamicTexture, Control, TextBlock } from "@babylonjs/gui";
+import type { CameraShaker } from "../../../CameraShaker.ts";
+import type { WeaponSystem } from "../../../WeaponSystem.ts";
+import { Ragdoll } from "../../../ragdoll_copy.js";
+import type { PlayerAnimationRegistry } from "./PlayerAnimations.ts";
 
 export interface PlayerGameplayConfig {
   moveSpeed: number;
@@ -115,22 +115,22 @@ export function createPlayerHealthUi(
   initialHealth: number,
 ): PlayerUiRefs {
   const healthUI = AdvancedDynamicTexture.CreateFullscreenUI(
-    'healthUI',
+    "healthUI",
     true,
     scene,
   );
 
-  const healthText = new TextBlock('healthText');
+  const healthText = new TextBlock("healthText");
   healthText.text = `Vidas: ${initialHealth}`;
-  healthText.color = 'white';
+  healthText.color = "white";
   healthText.fontSize = 32;
-  healthText.fontFamily = 'Arial';
+  healthText.fontFamily = "Arial";
   healthText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
   healthText.textVerticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-  healthText.left = '20px';
-  healthText.top = '20px';
+  healthText.left = "20px";
+  healthText.top = "20px";
   healthText.outlineWidth = 2;
-  healthText.outlineColor = 'black';
+  healthText.outlineColor = "black";
 
   healthUI.addControl(healthText);
 
@@ -174,9 +174,9 @@ export function createPlayerRagdoll(
   armatureNode.scaling = new Vector3(0.017, 0.017, 0.017);
 
   const config = [
-    { bones: ['mixamorig:Hips'], size: 0.45, boxOffset: 0.01 },
+    { bones: ["mixamorig:Hips"], size: 0.45, boxOffset: 0.01 },
     {
-      bones: ['mixamorig:Spine2'],
+      bones: ["mixamorig:Spine2"],
       size: 0.4,
       height: 0.6,
       boxOffset: 0.05,
@@ -186,7 +186,7 @@ export function createPlayerRagdoll(
       rotationAxis: Axis.Z,
     },
     {
-      bones: ['mixamorig:LeftArm', 'mixamorig:RightArm'],
+      bones: ["mixamorig:LeftArm", "mixamorig:RightArm"],
       depth: 0.1,
       size: 0.1,
       width: 0.5,
@@ -195,7 +195,7 @@ export function createPlayerRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ['mixamorig:LeftForeArm', 'mixamorig:RightForeArm'],
+      bones: ["mixamorig:LeftForeArm", "mixamorig:RightForeArm"],
       depth: 0.1,
       size: 0.1,
       width: 0.5,
@@ -206,7 +206,7 @@ export function createPlayerRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ['mixamorig:LeftUpLeg', 'mixamorig:RightUpLeg'],
+      bones: ["mixamorig:LeftUpLeg", "mixamorig:RightUpLeg"],
       depth: 0.1,
       size: 0.2,
       width: 0.08,
@@ -218,7 +218,7 @@ export function createPlayerRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ['mixamorig:LeftLeg', 'mixamorig:RightLeg'],
+      bones: ["mixamorig:LeftLeg", "mixamorig:RightLeg"],
       depth: 0.08,
       size: 0.3,
       width: 0.1,
@@ -230,7 +230,7 @@ export function createPlayerRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ['mixamorig:LeftHand', 'mixamorig:RightHand'],
+      bones: ["mixamorig:LeftHand", "mixamorig:RightHand"],
       depth: 0.2,
       size: 0.2,
       width: 0.2,
@@ -241,7 +241,7 @@ export function createPlayerRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ['mixamorig:Head'],
+      bones: ["mixamorig:Head"],
       size: 0.4,
       boxOffset: 0,
       boneOffsetAxis: Axis.Y,
@@ -250,7 +250,7 @@ export function createPlayerRagdoll(
       rotationAxis: Axis.Z,
     },
     {
-      bones: ['mixamorig:LeftFoot', 'mixamorig:RightFoot'],
+      bones: ["mixamorig:LeftFoot", "mixamorig:RightFoot"],
       depth: 0.1,
       size: 0.1,
       width: 0.2,

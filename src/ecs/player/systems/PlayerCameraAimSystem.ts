@@ -1,8 +1,8 @@
-import { ArcRotateCamera, Scalar } from '@babylonjs/core';
-import type { EcsSystem } from '../../core/System.ts';
-import type { World } from '../../core/World.ts';
-import { PlayerPhysicsViewRefsComponent } from '../components/index.ts';
-import { PlayerRangedStateComponent } from '../components/index.ts';
+import { ArcRotateCamera, Scalar } from "@babylonjs/core";
+import type { EcsSystem } from "../../core/System.ts";
+import type { World } from "../../core/World.ts";
+import { PlayerPhysicsViewRefsComponent } from "../components/index.ts";
+import { PlayerRangedStateComponent } from "../components/index.ts";
 
 const IDLE_RADIUS = 4.0;
 const IDLE_FOV = 1.2;
@@ -15,7 +15,7 @@ const AIM_PIVOT_X = 1.2;
 const LERP_SPEED = 10;
 
 export class PlayerCameraAimSystem implements EcsSystem {
-  readonly name = 'PlayerCameraAimSystem';
+  readonly name = "PlayerCameraAimSystem";
   readonly order = 62;
 
   update(world: World, deltaTime: number): void {

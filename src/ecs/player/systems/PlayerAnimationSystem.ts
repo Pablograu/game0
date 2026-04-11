@@ -1,12 +1,12 @@
-import { AudioManager } from '../../../AudioManager.ts';
-import type { EcsSystem } from '../../core/System.ts';
-import type { World } from '../../core/World.ts';
+import { AudioManager } from "../../../AudioManager.ts";
+import type { EcsSystem } from "../../core/System.ts";
+import type { World } from "../../core/World.ts";
 import {
   PlayerJumpPhaseState,
   PlayerLifeState,
   PlayerRagdollMode,
-} from '../PlayerStateEnums.ts';
-import { CarriedWeaponType } from '../../weapons/WeaponDefinitions.ts';
+} from "../PlayerStateEnums.ts";
+import { CarriedWeaponType } from "../../weapons/WeaponDefinitions.ts";
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
@@ -17,10 +17,10 @@ import {
   PlayerPhysicsViewRefsComponent,
   PlayerRagdollStateComponent,
   PlayerRangedStateComponent,
-} from '../components/index.ts';
+} from "../components/index.ts";
 
 export class PlayerAnimationSystem implements EcsSystem {
-  readonly name = 'PlayerAnimationSystem';
+  readonly name = "PlayerAnimationSystem";
   readonly order = 60;
 
   update(world: World, deltaTime: number): void {
@@ -114,10 +114,10 @@ export class PlayerAnimationSystem implements EcsSystem {
         playback.speedRatio,
       );
 
-      if (playback.name === 'run' && grounding.isGrounded) {
-        AudioManager.playLoop('player_walk');
+      if (playback.name === "run" && grounding.isGrounded) {
+        AudioManager.playLoop("player_walk");
       } else {
-        AudioManager.stopLoop('player_walk');
+        AudioManager.stopLoop("player_walk");
       }
     }
   }
@@ -140,7 +140,7 @@ export class PlayerAnimationSystem implements EcsSystem {
       grounding.airTime = 0;
       if (
         grounding.jumpPhase !== PlayerJumpPhaseState.PRE_LANDING ||
-        animation.overrideAnimation !== 'land'
+        animation.overrideAnimation !== "land"
       ) {
         grounding.jumpPhase = PlayerJumpPhaseState.GROUNDED;
       }
@@ -194,7 +194,7 @@ export class PlayerAnimationSystem implements EcsSystem {
     ranged: PlayerRangedStateComponent,
   ) {
     if (ragdoll.mode === PlayerRagdollMode.ACTIVE) {
-      return { name: 'dead', loop: false, forceReset: false, speedRatio: 1 };
+      return { name: "dead", loop: false, forceReset: false, speedRatio: 1 };
     }
 
     if (animation.overrideAnimation) {
@@ -216,16 +216,16 @@ export class PlayerAnimationSystem implements EcsSystem {
     }
 
     if (locomotion.isDashing) {
-      return { name: 'dash', loop: false, forceReset: false, speedRatio: 1.5 };
+      return { name: "dash", loop: false, forceReset: false, speedRatio: 1.5 };
     }
 
     if (health.lifeState !== PlayerLifeState.ALIVE) {
-      return { name: 'dead', loop: false, forceReset: false, speedRatio: 1 };
+      return { name: "dead", loop: false, forceReset: false, speedRatio: 1 };
     }
 
     if (grounding.jumpPhase === PlayerJumpPhaseState.RISING) {
       return {
-        name: 'jump',
+        name: "jump",
         loop: true,
         forceReset: false,
         speedRatio: Math.max(
@@ -238,21 +238,31 @@ export class PlayerAnimationSystem implements EcsSystem {
     if (grounding.jumpPhase === PlayerJumpPhaseState.FALLING) {
       if (grounding.airTime >= grounding.fallingAnimDelay) {
         return {
-          name: 'falling',
+          name: "falling",
           loop: true,
           forceReset: false,
           speedRatio: Math.min(1, Math.abs(velocityY) / 10),
         };
       }
 
-      return { name: 'jump', loop: true, forceReset: false, speedRatio: 0.3 };
+      return { name: "jump", loop: true, forceReset: false, speedRatio: 0.3 };
     }
 
     const armed = inventory.activeWeaponType !== CarriedWeaponType.NONE;
 
     if (armed && ranged.shootTimer > 0) {
       return {
-        name: 'shoot_assault_rifle',
+        name: "shoot_assault_rifle",
+        loop: false,
+        forceReset: false,
+        speedRatio: 1,
+      };
+    }
+
+    if (armed && ranged.isReloading) {
+      console.log("<<< reload!!");
+      return {
+        name: "reload",
         loop: false,
         forceReset: false,
         speedRatio: 1,
@@ -261,7 +271,7 @@ export class PlayerAnimationSystem implements EcsSystem {
 
     if (armed && ranged.isAiming) {
       return {
-        name: 'aim_assault_rifle',
+        name: "aim_assault_rifle",
         loop: true,
         forceReset: false,
         speedRatio: 1,
@@ -270,7 +280,7 @@ export class PlayerAnimationSystem implements EcsSystem {
 
     if (armed && locomotion.isMoving) {
       return {
-        name: 'run_assault_rifle',
+        name: "run_assault_rifle",
         loop: true,
         forceReset: false,
         speedRatio: 1,
@@ -279,7 +289,7 @@ export class PlayerAnimationSystem implements EcsSystem {
 
     if (armed) {
       return {
-        name: 'idle_assault_rifle',
+        name: "idle_assault_rifle",
         loop: true,
         forceReset: false,
         speedRatio: 1,
@@ -287,14 +297,14 @@ export class PlayerAnimationSystem implements EcsSystem {
     }
 
     if (locomotion.isMoving) {
-      return { name: 'run', loop: true, forceReset: false, speedRatio: 1 };
+      return { name: "run", loop: true, forceReset: false, speedRatio: 1 };
     }
 
     if (combat.isDancing) {
-      return { name: 'macarena', loop: true, forceReset: false, speedRatio: 1 };
+      return { name: "macarena", loop: true, forceReset: false, speedRatio: 1 };
     }
 
-    return { name: 'idle', loop: true, forceReset: false, speedRatio: 1 };
+    return { name: "idle", loop: true, forceReset: false, speedRatio: 1 };
   }
 
   private playAnimation(

@@ -4,25 +4,26 @@ import {
   Ray,
   type LinesMesh,
   Vector3,
-} from '@babylonjs/core';
-import { AdvancedDynamicTexture, Control, Ellipse } from '@babylonjs/gui';
+} from "@babylonjs/core";
+import { AdvancedDynamicTexture, Control, Ellipse } from "@babylonjs/gui";
 import {
   EnemyLifecycleRequestComponent,
   EnemyPhysicsViewRefsComponent,
-} from '../../enemy/components/index.ts';
-import type { EcsSystem } from '../../core/System.ts';
-import type { World } from '../../core/World.ts';
+} from "../../enemy/components/index.ts";
+import type { EcsSystem } from "../../core/System.ts";
+import type { World } from "../../core/World.ts";
 import {
   CarriedWeaponType,
   WEAPON_DEFINITIONS,
-} from '../../weapons/WeaponDefinitions.ts';
+} from "../../weapons/WeaponDefinitions.ts";
 import {
   PlayerHealthStateComponent,
   PlayerInventoryComponent,
   PlayerPhysicsViewRefsComponent,
   PlayerRangedStateComponent,
-} from '../components/index.ts';
-import { PlayerLifeState } from '../PlayerStateEnums.ts';
+} from "../components/index.ts";
+import { AudioManager } from "../../../AudioManager.ts";
+import { PlayerLifeState } from "../PlayerStateEnums.ts";
 
 const MAX_RAY_DISTANCE = 200;
 const TRACER_LIFETIME = 5; // seconds
@@ -34,7 +35,7 @@ interface Tracer {
 }
 
 export class WeaponShootSystem implements EcsSystem {
-  readonly name = 'WeaponShootSystem';
+  readonly name = "WeaponShootSystem";
   readonly order = 27;
 
   private tracers: Tracer[] = [];
@@ -71,15 +72,15 @@ export class WeaponShootSystem implements EcsSystem {
       // 1. CROSSHAIR ESTÁTICO (En el centro de la pantalla)
       if (!this.crosshairAdt) {
         this.crosshairAdt = AdvancedDynamicTexture.CreateFullscreenUI(
-          'crosshairUI',
+          "crosshairUI",
           true,
           refs.scene,
         );
-        const dot = new Ellipse('crosshair');
+        const dot = new Ellipse("crosshair");
         dot.width = `${DOT_HALF_SIZE * 2}px`;
         dot.height = `${DOT_HALF_SIZE * 2}px`;
-        dot.color = 'rgba(255,60,60,0.9)';
-        dot.background = 'rgba(255,60,60,0.75)';
+        dot.color = "rgba(255,60,60,0.9)";
+        dot.background = "rgba(255,60,60,0.75)";
         dot.thickness = 1.5;
         // Centrado absoluto
         dot.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
@@ -123,6 +124,7 @@ export class WeaponShootSystem implements EcsSystem {
         if (weaponDef) {
           ranged.isReloading = true;
           ranged.reloadTimer = weaponDef.reloadTime;
+          AudioManager.play("weapon_reload");
         }
       }
 
@@ -151,9 +153,11 @@ export class WeaponShootSystem implements EcsSystem {
       const aimRay = this.buildAimRay(refs.camera, scene);
       const aimHit = scene.pickWithRay(
         aimRay,
-        (mesh) => mesh !== playerMesh && !mesh.isDescendantOf(playerMesh),
+        (mesh) =>
+          mesh.isPickable &&
+          mesh !== playerMesh &&
+          !mesh.isDescendantOf(playerMesh),
       );
-
       // Si no golpea nada, el objetivo es un punto lejano en el horizonte
       const hitPoint =
         aimHit?.pickedPoint ??
@@ -166,7 +170,7 @@ export class WeaponShootSystem implements EcsSystem {
 
       // Spawn tracer line (Desde el arma hasta donde miraba la cámara)
       const tracer = CreateLines(
-        'tracer',
+        "tracer",
         { points: [muzzleOrigin.clone(), hitPoint.clone()], updatable: false },
         scene,
       );
@@ -178,6 +182,7 @@ export class WeaponShootSystem implements EcsSystem {
       ranged.currentAmmo -= 1;
       ranged.fireTimer = 1 / weaponDef.fireRate;
       ranged.shootTimer = 0.2;
+      AudioManager.play("weapon_shoot");
 
       // Damage logic
       if (!aimHit?.pickedMesh) continue;
@@ -216,8 +221,8 @@ export class WeaponShootSystem implements EcsSystem {
    * Esto garantiza que donde esté el punto de mira de la UI (centro de pantalla), irá la bala.
    */
   private buildAimRay(
-    camera: NonNullable<PlayerPhysicsViewRefsComponent['camera']>,
-    scene: PlayerPhysicsViewRefsComponent['scene'],
+    camera: NonNullable<PlayerPhysicsViewRefsComponent["camera"]>,
+    scene: PlayerPhysicsViewRefsComponent["scene"],
   ): Ray {
     const engine = scene.getEngine();
     const w = engine.getRenderWidth();
