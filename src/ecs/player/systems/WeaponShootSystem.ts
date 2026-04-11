@@ -124,7 +124,9 @@ export class WeaponShootSystem implements EcsSystem {
         const weaponDef =
           inv.slots[inv.activeWeaponType] ??
           WEAPON_DEFINITIONS[inv.activeWeaponType];
+
         console.log("weaponDef :>> ", weaponDef);
+
         if (weaponDef) {
           ranged.isReloading = true;
           ranged.reloadTimer = weaponDef.reloadTime;
