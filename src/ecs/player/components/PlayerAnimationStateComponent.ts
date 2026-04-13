@@ -13,6 +13,10 @@ export interface PlayerAnimationStateComponent {
   overrideForceReset: boolean;
   overrideSpeedRatio: number;
   overrideTimer: number;
+  /** Tracks the active lower-body group key when in layered mode (null if not layered). */
+  currentLayerLower: string | null;
+  /** Tracks the active upper-body group key when in layered mode (null if not layered). */
+  currentLayerUpper: string | null;
 }
 
 export const PlayerAnimationStateComponent =

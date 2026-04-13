@@ -7,11 +7,36 @@ import {
   Skeleton,
   type TransformNode,
   Vector3,
-} from "@babylonjs/core";
-import type { CameraShaker } from "../../../CameraShaker.ts";
-import type { WeaponSystem } from "../../../WeaponSystem.ts";
-import { Ragdoll } from "../../../ragdoll_copy.js";
-import type { PlayerAnimationRegistry } from "./PlayerAnimations.ts";
+} from '@babylonjs/core';
+import type { CameraShaker } from '../../../CameraShaker.ts';
+import type { WeaponSystem } from '../../../WeaponSystem.ts';
+import { Ragdoll } from '../../../ragdoll_copy.js';
+import type { PlayerAnimationRegistry } from './PlayerAnimations.ts';
+
+/** Bone-name matchers for the two animation layers */
+const LOWER_BODY_BONE_RE = /Hips|Spine$|Spine1$|UpLeg|(?<!\w)Leg|Foot|Toe/i;
+const UPPER_BODY_BONE_RE = /Spine2|Shoulder|Arm|ForeArm|Hand|Neck|Head|Finger/i;
+
+/**
+ * Creates a new AnimationGroup that only contains targeted animations whose
+ * target node name matches `nameMatcher`. Useful for building upper/lower-body
+ * masked copies of a full-body animation group.
+ */
+function createMaskedAnimationGroup(
+  scene: Scene,
+  sourceGroup: AnimationGroup,
+  nameMatcher: RegExp,
+  newName: string,
+): AnimationGroup {
+  const masked = new AnimationGroup(newName, scene);
+  for (const ta of sourceGroup.targetedAnimations) {
+    const targetName: string = (ta.target as { name?: string }).name ?? '';
+    if (nameMatcher.test(targetName)) {
+      masked.addTargetedAnimation(ta.animation, ta.target);
+    }
+  }
+  return masked;
+}
 
 export interface PlayerGameplayConfig {
   moveSpeed: number;
@@ -105,6 +130,7 @@ export function resolvePlayerGameplayConfig(
 export function initializePlayerAnimationGroups(
   playerAnimations: PlayerAnimationRegistry,
   blendingSpeed: number,
+  scene: Scene,
 ): Map<string, AnimationGroup> {
   const animationGroups = new Map<string, AnimationGroup>();
 
@@ -122,6 +148,36 @@ export function initializePlayerAnimationGroups(
     animationGroups.set(animationName, animationGroup);
   }
 
+  // Build masked (partial-skeleton) groups for the aim+walk layered blend.
+  const walkGroup = animationGroups.get('walk');
+  const aimGroup = animationGroups.get('aim_assault_rifle');
+
+  if (walkGroup) {
+    const walkLower = createMaskedAnimationGroup(
+      scene,
+      walkGroup,
+      LOWER_BODY_BONE_RE,
+      'walk_lower',
+    );
+    walkLower.enableBlending = true;
+    walkLower.blendingSpeed = blendingSpeed;
+    walkLower.normalize(0, walkGroup.to);
+    animationGroups.set('walk_lower', walkLower);
+  }
+
+  if (aimGroup) {
+    const aimUpper = createMaskedAnimationGroup(
+      scene,
+      aimGroup,
+      UPPER_BODY_BONE_RE,
+      'aim_assault_rifle_upper',
+    );
+    aimUpper.enableBlending = true;
+    aimUpper.blendingSpeed = blendingSpeed;
+    aimUpper.normalize(0, aimGroup.to);
+    animationGroups.set('aim_assault_rifle_upper', aimUpper);
+  }
+
   return animationGroups;
 }
 
@@ -136,9 +192,9 @@ export function createPlayerRagdoll(
   armatureNode.scaling = new Vector3(0.017, 0.017, 0.017);
 
   const config = [
-    { bones: ["mixamorig:Hips"], size: 0.45, boxOffset: 0.01 },
+    { bones: ['mixamorig:Hips'], size: 0.45, boxOffset: 0.01 },
     {
-      bones: ["mixamorig:Spine2"],
+      bones: ['mixamorig:Spine2'],
       size: 0.4,
       height: 0.6,
       boxOffset: 0.05,
@@ -148,7 +204,7 @@ export function createPlayerRagdoll(
       rotationAxis: Axis.Z,
     },
     {
-      bones: ["mixamorig:LeftArm", "mixamorig:RightArm"],
+      bones: ['mixamorig:LeftArm', 'mixamorig:RightArm'],
       depth: 0.1,
       size: 0.1,
       width: 0.5,
@@ -157,7 +213,7 @@ export function createPlayerRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ["mixamorig:LeftForeArm", "mixamorig:RightForeArm"],
+      bones: ['mixamorig:LeftForeArm', 'mixamorig:RightForeArm'],
       depth: 0.1,
       size: 0.1,
       width: 0.5,
@@ -168,7 +224,7 @@ export function createPlayerRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ["mixamorig:LeftUpLeg", "mixamorig:RightUpLeg"],
+      bones: ['mixamorig:LeftUpLeg', 'mixamorig:RightUpLeg'],
       depth: 0.1,
       size: 0.2,
       width: 0.08,
@@ -180,7 +236,7 @@ export function createPlayerRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ["mixamorig:LeftLeg", "mixamorig:RightLeg"],
+      bones: ['mixamorig:LeftLeg', 'mixamorig:RightLeg'],
       depth: 0.08,
       size: 0.3,
       width: 0.1,
@@ -192,7 +248,7 @@ export function createPlayerRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ["mixamorig:LeftHand", "mixamorig:RightHand"],
+      bones: ['mixamorig:LeftHand', 'mixamorig:RightHand'],
       depth: 0.2,
       size: 0.2,
       width: 0.2,
@@ -203,7 +259,7 @@ export function createPlayerRagdoll(
       boneOffsetAxis: Axis.Y,
     },
     {
-      bones: ["mixamorig:Head"],
+      bones: ['mixamorig:Head'],
       size: 0.4,
       boxOffset: 0,
       boneOffsetAxis: Axis.Y,
@@ -212,7 +268,7 @@ export function createPlayerRagdoll(
       rotationAxis: Axis.Z,
     },
     {
-      bones: ["mixamorig:LeftFoot", "mixamorig:RightFoot"],
+      bones: ['mixamorig:LeftFoot', 'mixamorig:RightFoot'],
       depth: 0.1,
       size: 0.1,
       width: 0.2,

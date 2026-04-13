@@ -1,15 +1,15 @@
-import { PhysicsRaycastResult, Quaternion, Vector3 } from "@babylonjs/core";
-import { PlayerTagComponent } from "../components/PlayerTagComponent.ts";
-import type { EntityId } from "../core/Entity.ts";
-import type { World } from "../core/World.ts";
-import { CarriedWeaponType } from "../weapons/WeaponDefinitions.ts";
+import { PhysicsRaycastResult, Quaternion, Vector3 } from '@babylonjs/core';
+import { PlayerTagComponent } from '../components/PlayerTagComponent.ts';
+import type { EntityId } from '../core/Entity.ts';
+import type { World } from '../core/World.ts';
+import { CarriedWeaponType } from '../weapons/WeaponDefinitions.ts';
 import {
   createPlayerRagdoll,
   initializePlayerAnimationGroups,
   resolvePlayerGameplayConfig,
   type PlayerBootstrapRuntime,
-} from "./runtime/playerRuntime.ts";
-import { PlayerSurvivabilityRequestComponent } from "./components/PlayerSurvivabilityRequestComponent.ts";
+} from './runtime/playerRuntime.ts';
+import { PlayerSurvivabilityRequestComponent } from './components/PlayerSurvivabilityRequestComponent.ts';
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
@@ -24,7 +24,7 @@ import {
   PlayerRangedStateComponent,
   PlayerSpawnStateComponent,
   PlayerWeaponStateComponent,
-} from "./components/index.ts";
+} from './components/index.ts';
 import {
   PlayerCombatMode,
   PlayerJumpPhaseState,
@@ -32,7 +32,7 @@ import {
   PlayerLocomotionMode,
   PlayerRagdollMode,
   PlayerWeaponPhase,
-} from "./PlayerStateEnums.ts";
+} from './PlayerStateEnums.ts';
 
 export interface CreatePlayerEntityOptions extends PlayerBootstrapRuntime {
   world: World;
@@ -49,6 +49,7 @@ export function createPlayerEntity(
   const animationGroups = initializePlayerAnimationGroups(
     options.playerAnimations,
     gameplayConfig.blendingSpeed,
+    scene,
   );
   const ragdoll = createPlayerRagdoll(
     options.ragdollSkeleton ?? null,
@@ -59,7 +60,7 @@ export function createPlayerEntity(
   weaponHitbox?.setEnabled(false);
 
   world.addComponent(entityId, PlayerTagComponent, {
-    kind: "player",
+    kind: 'player',
   });
 
   world.addComponent(entityId, PlayerGameplayConfigComponent, {
@@ -86,7 +87,7 @@ export function createPlayerEntity(
     camera: options.camera ?? null,
     cameraShaker: options.cameraShaker ?? null,
     physicsEngine:
-      scene.getPhysicsEngine() as unknown as PlayerPhysicsViewRefsComponent["physicsEngine"],
+      scene.getPhysicsEngine() as unknown as PlayerPhysicsViewRefsComponent['physicsEngine'],
     shoulderAnchor: options.shoulderAnchor ?? null,
   });
 
@@ -190,7 +191,7 @@ export function createPlayerEntity(
   });
 
   world.addComponent(entityId, PlayerAnimationStateComponent, {
-    currentAnimation: "idle",
+    currentAnimation: 'idle',
     blendingSpeed: gameplayConfig.blendingSpeed,
     activeSpeedRatio: 1,
     animationGroups,
@@ -200,6 +201,8 @@ export function createPlayerEntity(
     overrideForceReset: false,
     overrideSpeedRatio: 1,
     overrideTimer: 0,
+    currentLayerLower: null,
+    currentLayerUpper: null,
   });
 
   world.addComponent(entityId, PlayerSpawnStateComponent, {

@@ -1,12 +1,12 @@
-import { AudioManager } from "../../../AudioManager.ts";
-import type { EcsSystem } from "../../core/System.ts";
-import type { World } from "../../core/World.ts";
+import { AudioManager } from '../../../AudioManager.ts';
+import type { EcsSystem } from '../../core/System.ts';
+import type { World } from '../../core/World.ts';
 import {
   PlayerJumpPhaseState,
   PlayerLifeState,
   PlayerRagdollMode,
-} from "../PlayerStateEnums.ts";
-import { CarriedWeaponType } from "../../weapons/WeaponDefinitions.ts";
+} from '../PlayerStateEnums.ts';
+import { CarriedWeaponType } from '../../weapons/WeaponDefinitions.ts';
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
@@ -17,10 +17,32 @@ import {
   PlayerPhysicsViewRefsComponent,
   PlayerRagdollStateComponent,
   PlayerRangedStateComponent,
-} from "../components/index.ts";
+} from '../components/index.ts';
+
+// ---------------------------------------------------------------------------
+// Discriminated union for animation playback
+// ---------------------------------------------------------------------------
+
+interface SingleAnimSpec {
+  name: string;
+  loop: boolean;
+  speedRatio: number;
+}
+
+type AnimPlayback =
+  | {
+      mode: 'single';
+      name: string;
+      loop: boolean;
+      forceReset: boolean;
+      speedRatio: number;
+    }
+  | { mode: 'layered'; lower: SingleAnimSpec; upper: SingleAnimSpec };
+
+// ---------------------------------------------------------------------------
 
 export class PlayerAnimationSystem implements EcsSystem {
-  readonly name = "PlayerAnimationSystem";
+  readonly name = 'PlayerAnimationSystem';
   readonly order = 60;
 
   update(world: World, deltaTime: number): void {
@@ -106,18 +128,16 @@ export class PlayerAnimationSystem implements EcsSystem {
         ranged,
       );
 
-      this.playAnimation(
-        animation,
-        playback.name,
-        playback.loop,
-        playback.forceReset,
-        playback.speedRatio,
-      );
+      this.applyPlayback(animation, playback);
 
-      if (playback.name === "run" && grounding.isGrounded) {
-        AudioManager.playLoop("player_walk");
+      const isRunning =
+        playback.mode === 'single' &&
+        playback.name === 'run' &&
+        grounding.isGrounded;
+      if (isRunning) {
+        AudioManager.playLoop('player_walk');
       } else {
-        AudioManager.stopLoop("player_walk");
+        AudioManager.stopLoop('player_walk');
       }
     }
   }
@@ -140,7 +160,7 @@ export class PlayerAnimationSystem implements EcsSystem {
       grounding.airTime = 0;
       if (
         grounding.jumpPhase !== PlayerJumpPhaseState.PRE_LANDING ||
-        animation.overrideAnimation !== "land"
+        animation.overrideAnimation !== 'land'
       ) {
         grounding.jumpPhase = PlayerJumpPhaseState.GROUNDED;
       }
@@ -182,6 +202,23 @@ export class PlayerAnimationSystem implements EcsSystem {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Types
+  // ---------------------------------------------------------------------------
+
+  private static single(
+    name: string,
+    loop: boolean,
+    forceReset = false,
+    speedRatio = 1,
+  ): AnimPlayback {
+    return { mode: 'single', name, loop, forceReset, speedRatio };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Playback resolution
+  // ---------------------------------------------------------------------------
+
   private resolvePlayback(
     animation: PlayerAnimationStateComponent,
     combat: PlayerCombatStateComponent,
@@ -192,122 +229,116 @@ export class PlayerAnimationSystem implements EcsSystem {
     velocityY: number,
     inventory: PlayerInventoryComponent,
     ranged: PlayerRangedStateComponent,
-  ) {
+  ): AnimPlayback {
+    const s = PlayerAnimationSystem.single;
+
     if (ragdoll.mode === PlayerRagdollMode.ACTIVE) {
-      return { name: "dead", loop: false, forceReset: false, speedRatio: 1 };
+      return s('dead', false);
     }
 
     if (animation.overrideAnimation) {
-      return {
-        name: animation.overrideAnimation,
-        loop: animation.overrideLoop,
-        forceReset: animation.overrideForceReset,
-        speedRatio: animation.overrideSpeedRatio,
-      };
+      return s(
+        animation.overrideAnimation,
+        animation.overrideLoop,
+        animation.overrideForceReset,
+        animation.overrideSpeedRatio,
+      );
     }
 
     if (combat.isAttacking && combat.activeAttackAnimation) {
-      return {
-        name: combat.activeAttackAnimation,
-        loop: false,
-        forceReset: false,
-        speedRatio: combat.punchSpeed,
-      };
+      return s(combat.activeAttackAnimation, false, false, combat.punchSpeed);
     }
 
     if (locomotion.isDashing) {
-      return { name: "dash", loop: false, forceReset: false, speedRatio: 1.5 };
+      return s('dash', false, false, 1.5);
     }
 
     if (health.lifeState !== PlayerLifeState.ALIVE) {
-      return { name: "dead", loop: false, forceReset: false, speedRatio: 1 };
+      return s('dead', false);
     }
 
     if (grounding.jumpPhase === PlayerJumpPhaseState.RISING) {
-      return {
-        name: "jump",
-        loop: true,
-        forceReset: false,
-        speedRatio: Math.max(
-          0.5,
-          (velocityY / Math.max(grounding.jumpForce, 0.01)) * 1.2,
-        ),
-      };
+      return s(
+        'jump',
+        true,
+        false,
+        Math.max(0.5, (velocityY / Math.max(grounding.jumpForce, 0.01)) * 1.2),
+      );
     }
 
     if (grounding.jumpPhase === PlayerJumpPhaseState.FALLING) {
       if (grounding.airTime >= grounding.fallingAnimDelay) {
-        return {
-          name: "falling",
-          loop: true,
-          forceReset: false,
-          speedRatio: Math.min(1, Math.abs(velocityY) / 10),
-        };
+        return s('falling', true, false, Math.min(1, Math.abs(velocityY) / 10));
       }
-
-      return { name: "jump", loop: true, forceReset: false, speedRatio: 0.3 };
+      return s('jump', true, false, 0.3);
     }
 
     const armed = inventory.activeWeaponType !== CarriedWeaponType.NONE;
 
     if (armed && ranged.shootTimer > 0) {
-      return {
-        name: "shoot_assault_rifle",
-        loop: false,
-        forceReset: false,
-        speedRatio: 1,
-      };
+      return s('shoot_assault_rifle', false);
     }
 
     if (armed && ranged.isReloading) {
-      console.log("<<< reload!!");
+      console.log('<<< reload!!');
+      return s('reload', false);
+    }
+
+    // Aim + move → layered blend (lower: walk, upper: aim)
+    if (armed && ranged.isAiming && locomotion.isMoving) {
       return {
-        name: "reload",
-        loop: false,
-        forceReset: false,
-        speedRatio: 1,
+        mode: 'layered',
+        lower: { name: 'walk_lower', loop: true, speedRatio: 1 },
+        upper: { name: 'aim_assault_rifle_upper', loop: true, speedRatio: 1 },
       };
     }
 
+    // Aim standing still → full-body aim
     if (armed && ranged.isAiming) {
-      return {
-        name: "aim_assault_rifle",
-        loop: true,
-        forceReset: false,
-        speedRatio: 1,
-      };
+      return s('aim_assault_rifle', true);
     }
 
     if (armed && locomotion.isMoving) {
-      return {
-        name: "run_assault_rifle",
-        loop: true,
-        forceReset: false,
-        speedRatio: 1,
-      };
+      return s('run_assault_rifle', true);
     }
 
     if (armed) {
-      return {
-        name: "idle_assault_rifle",
-        loop: true,
-        forceReset: false,
-        speedRatio: 1,
-      };
+      return s('idle_assault_rifle', true);
     }
 
     if (locomotion.isMoving) {
-      return { name: "run", loop: true, forceReset: false, speedRatio: 1 };
+      return s('run', true);
     }
 
     if (combat.isDancing) {
-      return { name: "macarena", loop: true, forceReset: false, speedRatio: 1 };
+      return s('macarena', true);
     }
 
-    return { name: "idle", loop: true, forceReset: false, speedRatio: 1 };
+    return s('idle', true);
   }
 
-  private playAnimation(
+  // ---------------------------------------------------------------------------
+  // Playback application
+  // ---------------------------------------------------------------------------
+
+  private applyPlayback(
+    animation: PlayerAnimationStateComponent,
+    playback: AnimPlayback,
+  ) {
+    if (playback.mode === 'layered') {
+      this.applyLayeredPlayback(animation, playback);
+    } else {
+      this.applySinglePlayback(
+        animation,
+        playback.name,
+        playback.loop,
+        playback.forceReset,
+        playback.speedRatio,
+      );
+    }
+  }
+
+  private applySinglePlayback(
     animation: PlayerAnimationStateComponent,
     name: string,
     loop: boolean,
@@ -324,6 +355,7 @@ export class PlayerAnimationSystem implements EcsSystem {
       forceReset ||
       !animationGroup.isPlaying
     ) {
+      // Stop every group except the target, including any active layered groups
       for (const [
         otherName,
         otherAnimationGroup,
@@ -342,10 +374,68 @@ export class PlayerAnimationSystem implements EcsSystem {
         true,
       );
       animation.currentAnimation = name;
+      animation.currentLayerLower = null;
+      animation.currentLayerUpper = null;
     }
 
     animationGroup.speedRatio = speedRatio;
     animation.activeSpeedRatio = speedRatio;
+  }
+
+  private applyLayeredPlayback(
+    animation: PlayerAnimationStateComponent,
+    playback: Extract<AnimPlayback, { mode: 'layered' }>,
+  ) {
+    const { lower, upper } = playback;
+    const lowerGroup = animation.animationGroups.get(lower.name);
+    const upperGroup = animation.animationGroups.get(upper.name);
+
+    if (!lowerGroup || !upperGroup) {
+      return;
+    }
+
+    const keepKeys = new Set([lower.name, upper.name]);
+    const layerChanged =
+      animation.currentLayerLower !== lower.name ||
+      animation.currentLayerUpper !== upper.name;
+
+    if (layerChanged) {
+      // Stop anything not part of this layered pair
+      for (const [key, group] of animation.animationGroups) {
+        if (!keepKeys.has(key) && group.isPlaying) {
+          group.stop();
+        }
+      }
+
+      if (!lowerGroup.isPlaying) {
+        lowerGroup.loopAnimation = lower.loop;
+        lowerGroup.start(
+          lower.loop,
+          lower.speedRatio,
+          lowerGroup.from,
+          lowerGroup.to,
+          true,
+        );
+      }
+
+      if (!upperGroup.isPlaying) {
+        upperGroup.loopAnimation = upper.loop;
+        upperGroup.start(
+          upper.loop,
+          upper.speedRatio,
+          upperGroup.from,
+          upperGroup.to,
+          true,
+        );
+      }
+
+      animation.currentAnimation = '__layered__';
+      animation.currentLayerLower = lower.name;
+      animation.currentLayerUpper = upper.name;
+    }
+
+    lowerGroup.speedRatio = lower.speedRatio;
+    upperGroup.speedRatio = upper.speedRatio;
   }
 
   private startOverride(
