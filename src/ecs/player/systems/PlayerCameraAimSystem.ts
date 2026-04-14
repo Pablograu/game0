@@ -8,9 +8,9 @@ const IDLE_RADIUS = 4.0;
 const IDLE_FOV = 1.2;
 const IDLE_PIVOT_X = 0.5;
 
-const AIM_RADIUS = 1.5;
+const AIM_RADIUS = 3.5;
 const AIM_FOV = 0.8;
-const AIM_PIVOT_X = 1.2;
+const AIM_PIVOT_X = 1.5;
 
 const LERP_SPEED = 10;
 
