@@ -4,12 +4,10 @@ import type { World } from '../../core/World.ts';
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
-  PlayerInventoryComponent,
   PlayerLocomotionStateComponent,
   PlayerPhysicsViewRefsComponent,
   PlayerRangedStateComponent,
 } from '../components/index.ts';
-import { CarriedWeaponType } from '../../weapons/WeaponDefinitions.ts';
 
 export class PlayerPresentationSystem implements EcsSystem {
   readonly name = 'PlayerPresentationSystem';
@@ -19,7 +17,6 @@ export class PlayerPresentationSystem implements EcsSystem {
     const entityIds = world.query(
       PlayerAnimationStateComponent,
       PlayerCombatStateComponent,
-      PlayerInventoryComponent,
       PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
       PlayerRangedStateComponent,
@@ -31,7 +28,6 @@ export class PlayerPresentationSystem implements EcsSystem {
         PlayerAnimationStateComponent,
       );
       const combat = world.getComponent(entityId, PlayerCombatStateComponent);
-      const inventory = world.getComponent(entityId, PlayerInventoryComponent);
       const locomotion = world.getComponent(
         entityId,
         PlayerLocomotionStateComponent,
@@ -42,25 +38,11 @@ export class PlayerPresentationSystem implements EcsSystem {
       );
       const ranged = world.getComponent(entityId, PlayerRangedStateComponent);
 
-      if (
-        !animation ||
-        !combat ||
-        !inventory ||
-        !locomotion ||
-        !physicsRefs ||
-        !ranged
-      ) {
+      if (!animation || !combat || !locomotion || !physicsRefs || !ranged) {
         continue;
       }
 
-      this.applyRotation(
-        animation,
-        physicsRefs,
-        locomotion,
-        ranged,
-        inventory,
-        deltaTime,
-      );
+      this.applyRotation(animation, physicsRefs, locomotion, ranged, deltaTime);
       this.applyScale(physicsRefs, locomotion, deltaTime);
       this.applyArmScale(physicsRefs, combat);
     }
@@ -71,13 +53,11 @@ export class PlayerPresentationSystem implements EcsSystem {
     physicsRefs: PlayerPhysicsViewRefsComponent,
     locomotion: PlayerLocomotionStateComponent,
     ranged: PlayerRangedStateComponent,
-    inventory: PlayerInventoryComponent,
     deltaTime: number,
   ) {
-    const isArmedAndAiming =
-      inventory.activeWeaponType !== CarriedWeaponType.NONE && ranged.isAiming;
+    const isAiming = ranged.isAiming;
 
-    if (!isArmedAndAiming && locomotion.moveDirection.length() <= 0.1) {
+    if (!isAiming && locomotion.moveDirection.length() <= 0.1) {
       return;
     }
 
@@ -94,14 +74,20 @@ export class PlayerPresentationSystem implements EcsSystem {
 
     let rotationTarget = locomotion.targetRotation;
 
-    if (isArmedAndAiming && physicsRefs.camera) {
+    if (isAiming && physicsRefs.camera) {
       const forward = physicsRefs.camera.getDirection(Vector3.Forward());
       forward.y = 0;
-      if (forward.length() > 0.01) {
+
+      if (forward.lengthSquared() > 0.0001) {
         forward.normalize();
         const aimAngle = Math.atan2(forward.x, forward.z);
         rotationTarget = Quaternion.FromEulerAngles(0, aimAngle, 0);
       }
+    }
+
+    if (isAiming) {
+      rotationRoot.rotationQuaternion.copyFrom(rotationTarget);
+      return;
     }
 
     const slerpFactor = Math.min(1, locomotion.rotationSpeed * deltaTime);

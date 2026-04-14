@@ -1,7 +1,8 @@
-import { ArcRotateCamera, Scalar } from '@babylonjs/core';
+import { ArcRotateCamera, Quaternion, Scalar, Vector3 } from '@babylonjs/core';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
 import { PlayerPhysicsViewRefsComponent } from '../components/index.ts';
+import { PlayerLocomotionStateComponent } from '../components/index.ts';
 import { PlayerRangedStateComponent } from '../components/index.ts';
 
 const IDLE_RADIUS = 4.0;
@@ -20,11 +21,16 @@ export class PlayerCameraAimSystem implements EcsSystem {
 
   update(world: World, deltaTime: number): void {
     const entityIds = world.query(
+      PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
       PlayerRangedStateComponent,
     );
 
     for (const entityId of entityIds) {
+      const locomotion = world.getComponent(
+        entityId,
+        PlayerLocomotionStateComponent,
+      )!;
       const refs = world.getComponent(
         entityId,
         PlayerPhysicsViewRefsComponent,
@@ -49,6 +55,24 @@ export class PlayerCameraAimSystem implements EcsSystem {
         targetPivotX,
         transition,
       );
+
+      if (!targeting) {
+        continue;
+      }
+
+      const forward = camera.getDirection(Vector3.Forward());
+      forward.y = 0;
+
+      if (forward.lengthSquared() <= 0.0001) {
+        continue;
+      }
+
+      forward.normalize();
+
+      const aimYaw = Math.atan2(forward.x, forward.z);
+      locomotion.targetAngle = aimYaw;
+      locomotion.targetRotation = Quaternion.FromEulerAngles(0, aimYaw, 0);
+      locomotion.lastFacingDirection.copyFrom(forward);
     }
   }
 }
