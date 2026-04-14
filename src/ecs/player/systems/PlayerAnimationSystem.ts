@@ -245,10 +245,7 @@ export class PlayerAnimationSystem implements EcsSystem {
       ranged.isAiming &&
       !ranged.isReloading &&
       ranged.shootTimer <= 0 &&
-      (locomotion.isMoving ||
-        hasMoveIntent ||
-        horizontalSpeed > 0.35 ||
-        isLayeredAimWalkActive) &&
+      hasMoveIntent &&
       this.canMaintainAimWalkLayer(
         grounding,
         velocityY,

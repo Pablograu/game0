@@ -15,7 +15,12 @@ interface PhysicsEngineRaycastApi {
     from: Vector3,
     to: Vector3,
     result: PhysicsRaycastResult,
-    query?: { membership?: number; collideWith?: number },
+    query?: {
+      membership?: number;
+      collideWith?: number;
+      shouldHitTriggers?: boolean;
+      ignoreBody?: PhysicsBody;
+    },
   ): void;
 }
 
