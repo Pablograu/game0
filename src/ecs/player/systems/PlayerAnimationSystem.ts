@@ -1,3 +1,4 @@
+import type { Vector3 } from '@babylonjs/core';
 import { AudioManager } from '../../../AudioManager.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
@@ -123,7 +124,7 @@ export class PlayerAnimationSystem implements EcsSystem {
         health,
         locomotion,
         ragdoll,
-        velocity.y,
+        velocity,
         inventory,
         ranged,
       );
@@ -226,11 +227,34 @@ export class PlayerAnimationSystem implements EcsSystem {
     health: PlayerHealthStateComponent,
     locomotion: PlayerLocomotionStateComponent,
     ragdoll: PlayerRagdollStateComponent,
-    velocityY: number,
+    velocity: Vector3,
     inventory: PlayerInventoryComponent,
     ranged: PlayerRangedStateComponent,
   ): AnimPlayback {
+    // s stands
     const s = PlayerAnimationSystem.single;
+    const velocityY = velocity.y;
+    const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+    const armed = inventory.activeWeaponType !== CarriedWeaponType.NONE;
+    const hasMoveIntent = locomotion.moveDirection.length() > 0.1;
+    const isLayeredAimWalkActive =
+      animation.currentLayerLower === 'walk_lower' &&
+      animation.currentLayerUpper === 'aim_assault_rifle_upper';
+    const shouldUseAimWalkLayer =
+      armed &&
+      ranged.isAiming &&
+      !ranged.isReloading &&
+      ranged.shootTimer <= 0 &&
+      (locomotion.isMoving ||
+        hasMoveIntent ||
+        horizontalSpeed > 0.35 ||
+        isLayeredAimWalkActive) &&
+      this.canMaintainAimWalkLayer(
+        grounding,
+        velocityY,
+        horizontalSpeed,
+        isLayeredAimWalkActive,
+      );
 
     if (ragdoll.mode === PlayerRagdollMode.ACTIVE) {
       return s('dead', false);
@@ -257,6 +281,14 @@ export class PlayerAnimationSystem implements EcsSystem {
       return s('dead', false);
     }
 
+    if (shouldUseAimWalkLayer) {
+      return {
+        mode: 'layered',
+        lower: { name: 'walk_lower', loop: true, speedRatio: 1 },
+        upper: { name: 'aim_assault_rifle_upper', loop: true, speedRatio: 1 },
+      };
+    }
+
     if (grounding.jumpPhase === PlayerJumpPhaseState.RISING) {
       return s(
         'jump',
@@ -273,24 +305,12 @@ export class PlayerAnimationSystem implements EcsSystem {
       return s('jump', true, false, 0.3);
     }
 
-    const armed = inventory.activeWeaponType !== CarriedWeaponType.NONE;
-
     if (armed && ranged.shootTimer > 0) {
       return s('shoot_assault_rifle', false);
     }
 
     if (armed && ranged.isReloading) {
-      console.log('<<< reload!!');
       return s('reload', false);
-    }
-
-    // Aim + move → layered blend (lower: walk, upper: aim)
-    if (armed && ranged.isAiming && locomotion.isMoving) {
-      return {
-        mode: 'layered',
-        lower: { name: 'walk_lower', loop: true, speedRatio: 1 },
-        upper: { name: 'aim_assault_rifle_upper', loop: true, speedRatio: 1 },
-      };
     }
 
     // Aim standing still → full-body aim
@@ -315,6 +335,36 @@ export class PlayerAnimationSystem implements EcsSystem {
     }
 
     return s('idle', true);
+  }
+
+  private canMaintainAimWalkLayer(
+    grounding: PlayerGroundingStateComponent,
+    velocityY: number,
+    horizontalSpeed: number,
+    isLayeredAimWalkActive: boolean,
+  ): boolean {
+    if (grounding.jumpPhase === PlayerJumpPhaseState.RISING) {
+      return false;
+    }
+
+    if (grounding.isGrounded) {
+      return true;
+    }
+
+    const withinGroundGrace =
+      grounding.groundLostTimer < grounding.groundLostGrace && velocityY > -1;
+
+    if (withinGroundGrace) {
+      return true;
+    }
+
+    return (
+      isLayeredAimWalkActive &&
+      grounding.jumpPhase === PlayerJumpPhaseState.FALLING &&
+      grounding.airTime < grounding.fallingAnimDelay &&
+      horizontalSpeed > 0.35 &&
+      velocityY > -1.5
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -395,47 +445,46 @@ export class PlayerAnimationSystem implements EcsSystem {
     }
 
     const keepKeys = new Set([lower.name, upper.name]);
-    const layerChanged =
-      animation.currentLayerLower !== lower.name ||
-      animation.currentLayerUpper !== upper.name;
 
-    if (layerChanged) {
-      // Stop anything not part of this layered pair
-      for (const [key, group] of animation.animationGroups) {
-        if (!keepKeys.has(key) && group.isPlaying) {
-          group.stop();
-        }
+    // Layered aim-walk must be authoritative while active.
+    for (const [key, group] of animation.animationGroups) {
+      if (!keepKeys.has(key) && group.isPlaying) {
+        group.stop();
       }
+    }
 
-      if (!lowerGroup.isPlaying) {
-        lowerGroup.loopAnimation = lower.loop;
-        lowerGroup.start(
-          lower.loop,
-          lower.speedRatio,
-          lowerGroup.from,
-          lowerGroup.to,
-          true,
-        );
-      }
+    animation.currentAnimation = '__layered__';
+    animation.currentLayerLower = lower.name;
+    animation.currentLayerUpper = upper.name;
 
-      if (!upperGroup.isPlaying) {
-        upperGroup.loopAnimation = upper.loop;
-        upperGroup.start(
-          upper.loop,
-          upper.speedRatio,
-          upperGroup.from,
-          upperGroup.to,
-          true,
-        );
-      }
+    // Always ensure both groups are playing — Babylon briefly sets isPlaying=false
+    // at each loop boundary, which would leave the pair stopped on frames where
+    // layerChanged is false. Restart them unconditionally if they have stopped.
+    if (!lowerGroup.isPlaying) {
+      lowerGroup.loopAnimation = lower.loop;
+      lowerGroup.start(
+        lower.loop,
+        lower.speedRatio,
+        lowerGroup.from,
+        lowerGroup.to,
+        true,
+      );
+    }
 
-      animation.currentAnimation = '__layered__';
-      animation.currentLayerLower = lower.name;
-      animation.currentLayerUpper = upper.name;
+    if (!upperGroup.isPlaying) {
+      upperGroup.loopAnimation = upper.loop;
+      upperGroup.start(
+        upper.loop,
+        upper.speedRatio,
+        upperGroup.from,
+        upperGroup.to,
+        true,
+      );
     }
 
     lowerGroup.speedRatio = lower.speedRatio;
     upperGroup.speedRatio = upper.speedRatio;
+    animation.activeSpeedRatio = Math.max(lower.speedRatio, upper.speedRatio);
   }
 
   private startOverride(

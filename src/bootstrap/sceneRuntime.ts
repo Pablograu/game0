@@ -91,6 +91,13 @@ export function createWorldEnvironment(
   scene.environmentIntensity = 1;
   scene.createDefaultSkybox(hdrTexture, true, 1000, 0);
 
+  // get player bone names
+  console.log(
+    scene.getMeshByName('player').skeleton.bones.map((bone) => {
+      return bone.name;
+    }),
+  );
+
   const ambientLight = new HemisphericLight(
     'light',
     new Vector3(0, 1, 0),

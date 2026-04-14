@@ -14,8 +14,11 @@ import { Ragdoll } from '../../../ragdoll_copy.js';
 import type { PlayerAnimationRegistry } from './PlayerAnimations.ts';
 
 /** Bone-name matchers for the two animation layers */
-const LOWER_BODY_BONE_RE = /Hips|Spine$|Spine1$|UpLeg|(?<!\w)Leg|Foot|Toe/i;
-const UPPER_BODY_BONE_RE = /Spine2|Shoulder|Arm|ForeArm|Hand|Neck|Head|Finger/i;
+// Lower: only drives legs/feet — no Hips or Spine so the entire torso parent chain
+// is owned by the upper (aim) group, keeping Spine1/Spine2 local rotations correct.
+const LOWER_BODY_BONE_RE = /UpLeg|(?<!\w)Leg|Foot|Toe/i;
+const UPPER_BODY_BONE_RE =
+  /Hips|Spine|Shoulder|Arm|ForeArm|Hand|Neck|Head|Finger/i;
 
 /**
  * Creates a new AnimationGroup that only contains targeted animations whose

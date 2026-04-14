@@ -1,6 +1,6 @@
-import { Quaternion, Vector3 } from "@babylonjs/core";
-import type { EcsSystem } from "../../core/System.ts";
-import type { World } from "../../core/World.ts";
+import { Quaternion, Vector3 } from '@babylonjs/core';
+import type { EcsSystem } from '../../core/System.ts';
+import type { World } from '../../core/World.ts';
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
@@ -8,11 +8,11 @@ import {
   PlayerLocomotionStateComponent,
   PlayerPhysicsViewRefsComponent,
   PlayerRangedStateComponent,
-} from "../components/index.ts";
-import { CarriedWeaponType } from "../../weapons/WeaponDefinitions.ts";
+} from '../components/index.ts';
+import { CarriedWeaponType } from '../../weapons/WeaponDefinitions.ts';
 
 export class PlayerPresentationSystem implements EcsSystem {
-  readonly name = "PlayerPresentationSystem";
+  readonly name = 'PlayerPresentationSystem';
   readonly order = 65;
 
   update(world: World, deltaTime: number): void {
@@ -81,10 +81,11 @@ export class PlayerPresentationSystem implements EcsSystem {
       return;
     }
 
+    // '__layered__' has no registry entry; fall back to any entry to get the shared character root node
     const animationEntry =
       animation.animationRegistry[
         animation.currentAnimation as keyof typeof animation.animationRegistry
-      ];
+      ] ?? Object.values(animation.animationRegistry).find(Boolean);
     const rotationRoot = animationEntry?.root ?? physicsRefs.mesh;
 
     if (!rotationRoot.rotationQuaternion) {
