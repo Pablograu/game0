@@ -8,3 +8,4 @@ export * from './EnemyLootSystem.ts';
 export * from './EnemyMovementSystem.ts';
 export * from './EnemyStuckSystem.ts';
 export * from './EnemySurvivabilitySystem.ts';
+export * from './EnemyUiSyncSystem.ts';

@@ -12,6 +12,8 @@ import {
   EnemyMovementSystem,
   EnemyStuckSystem,
   EnemySurvivabilitySystem,
+  EnemyUiSyncSystem,
+  type EnemyUiApi,
 } from '../enemy/index.ts';
 import {
   createGameFlowControllerApi,
@@ -48,6 +50,7 @@ import type { PlayerBootstrapRuntime } from '../player/runtime/playerRuntime.ts'
 
 export interface BootstrapGameEcsOptions extends PlayerBootstrapRuntime {
   engine?: GameFlowEngineControl | null;
+  enemyUi?: EnemyUiApi | null;
   reloadGame?: (() => void) | null;
 }
 
@@ -85,6 +88,10 @@ export function bootstrapGameEcs(
   world.registerSystem(new EnemyLootSystem());
   world.registerSystem(new EnemyDespawnSystem());
   world.registerSystem(new EnemyAnimationSystem());
+
+  if (options.enemyUi) {
+    world.registerSystem(new EnemyUiSyncSystem(options.enemyUi));
+  }
 
   if (options.playerMesh) {
     playerEntityId = createPlayerEntity({

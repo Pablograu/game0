@@ -1,7 +1,11 @@
 import '@babylonjs/core/Cameras/Inputs';
 import '@babylonjs/loaders/glTF';
 import { Vector3 } from '@babylonjs/core';
-import { EnemySpawner, type PlayerDebugApi } from '../ecs/index.ts';
+import {
+  EnemySpawner,
+  EnemyUiManager,
+  type PlayerDebugApi,
+} from '../ecs/index.ts';
 import { preloadDroppedWeaponAssets } from '../ecs/weapons/createDroppedWeaponEntity.ts';
 import type { EnemyRuntimeFacade } from '../ecs/enemy/EnemyRuntimeFacade.ts';
 import type { RuntimePlayerMesh } from './playerBootstrap.ts';
@@ -36,7 +40,7 @@ function generateEnemyPositions(count: number): Vector3[] {
   return positions;
 }
 const INITIAL_ENEMY_CONFIG = {
-  hp: 1,
+  hp: 15,
   mass: 2,
   knockbackForce: 5,
   contactDamage: 1,
@@ -46,11 +50,17 @@ const INITIAL_ENEMY_CONFIG = {
   chaseGiveUpRange: 14,
   attackRange: 2,
   attackCooldown: 1.5,
+  displayName: 'Bandit',
   debug: true,
 };
 
 export async function startGame() {
   const { engine, scene } = await createSceneRuntime();
+  const enemyUi = new EnemyUiManager(scene);
+
+  scene.onDisposeObservable.add(() => {
+    enemyUi.dispose();
+  });
 
   await Promise.all([
     EnemySpawner.preload(ENEMY_MODEL_PATH, scene),
@@ -62,6 +72,7 @@ export async function startGame() {
   const camera = createFollowCamera(scene, shoulderAnchor);
   const { ecsRuntime, playerDebugApi } = bootstrapPlayerEcsRuntime({
     camera,
+    enemyUi,
     engine,
     playerAnimations,
     playerMesh,

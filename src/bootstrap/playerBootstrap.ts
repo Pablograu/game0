@@ -17,6 +17,7 @@ import { WeaponSystem } from '../WeaponSystem.ts';
 import {
   bootstrapGameEcs,
   createPlayerDebugApi,
+  type EnemyUiApi,
   type GameEcsRuntime,
   type PlayerDebugApi,
 } from '../ecs/index.ts';
@@ -156,6 +157,7 @@ export async function loadPlayerCharacter(
 
 export function bootstrapPlayerEcsRuntime(options: {
   camera: ArcRotateCamera;
+  enemyUi?: EnemyUiApi | null;
   engine: Engine;
   playerAnimations: PlayerAnimationRegistry;
   playerMesh: RuntimePlayerMesh;
@@ -186,6 +188,7 @@ export function bootstrapPlayerEcsRuntime(options: {
   const ecsRuntime = bootstrapGameEcs({
     scene: options.scene,
     engine: options.engine,
+    enemyUi: options.enemyUi ?? null,
     reloadGame: () => location.reload(),
     playerMesh: options.playerMesh,
     camera: options.camera,

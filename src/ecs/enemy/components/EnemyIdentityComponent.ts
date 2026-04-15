@@ -4,6 +4,7 @@ export interface EnemyIdentityComponent {
   kind: 'enemy';
   modelPath: string;
   debugLabel: string;
+  displayName: string;
 }
 
 export const EnemyIdentityComponent =

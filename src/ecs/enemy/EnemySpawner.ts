@@ -21,6 +21,7 @@ export interface EnemyConfig {
   chaseSpeed?: number;
   contactDamage?: number;
   debug?: boolean;
+  displayName?: string;
   hp?: number;
   knockbackForce?: number;
   mass?: number;
@@ -28,6 +29,10 @@ export interface EnemyConfig {
   modelScale?: number;
   patrolSpeed?: number;
   stunDuration?: number;
+  uiBaseScale?: number;
+  uiDamageRevealDuration?: number;
+  uiLinkOffsetY?: number;
+  uiMaxVisibleDistance?: number;
   visionRange?: number;
 }
 
@@ -38,6 +43,7 @@ export const DEFAULT_ENEMY_CONFIG: Required<EnemyConfig> = {
   chaseSpeed: 5,
   contactDamage: 1,
   debug: false,
+  displayName: 'Enemy',
   hp: 3,
   knockbackForce: 15,
   mass: 2,
@@ -45,6 +51,10 @@ export const DEFAULT_ENEMY_CONFIG: Required<EnemyConfig> = {
   modelScale: 1.6,
   patrolSpeed: 2,
   stunDuration: 0.5,
+  uiBaseScale: 1,
+  uiDamageRevealDuration: 1.75,
+  uiLinkOffsetY: -120,
+  uiMaxVisibleDistance: 16,
   visionRange: 8,
 };
 

@@ -11,3 +11,4 @@ export * from './EnemyRagdollStateComponent.ts';
 export * from './EnemySpawnStateComponent.ts';
 export * from './EnemyStatsComponent.ts';
 export * from './EnemyStuckStateComponent.ts';
+export * from './EnemyUiPresentationComponent.ts';
