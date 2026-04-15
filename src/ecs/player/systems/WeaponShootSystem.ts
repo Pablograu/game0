@@ -4,27 +4,27 @@ import {
   Ray,
   type LinesMesh,
   Vector3,
-} from "@babylonjs/core";
-import { AdvancedDynamicTexture, Control, Ellipse } from "@babylonjs/gui";
+} from '@babylonjs/core';
+import { AdvancedDynamicTexture, Control, Ellipse } from '@babylonjs/gui';
 import {
   EnemyLifecycleRequestComponent,
   EnemyPhysicsViewRefsComponent,
-} from "../../enemy/components/index.ts";
-import type { EcsSystem } from "../../core/System.ts";
-import type { World } from "../../core/World.ts";
-import {
-  CarriedWeaponType,
-  WEAPON_DEFINITIONS,
-} from "../../weapons/WeaponDefinitions.ts";
+} from '../../enemy/components/index.ts';
+import type { EcsSystem } from '../../core/System.ts';
+import type { World } from '../../core/World.ts';
 import {
   PlayerHealthStateComponent,
   PlayerInventoryComponent,
   PlayerPhysicsViewRefsComponent,
   PlayerRangedStateComponent,
-} from "../components/index.ts";
-import { AudioManager } from "../../../AudioManager.ts";
-import { HudManager } from "../../../HudManager.ts";
-import { PlayerLifeState } from "../PlayerStateEnums.ts";
+} from '../components/index.ts';
+import { AudioManager } from '../../../AudioManager.ts';
+import { HudManager } from '../../../HudManager.ts';
+import {
+  getActiveWeaponDefinition,
+  getActiveWeaponItem,
+} from '../inventory/inventoryHelpers.ts';
+import { PlayerLifeState } from '../PlayerStateEnums.ts';
 
 const MAX_RAY_DISTANCE = 200;
 const TRACER_LIFETIME = 5; // seconds
@@ -36,7 +36,7 @@ interface Tracer {
 }
 
 export class WeaponShootSystem implements EcsSystem {
-  readonly name = "WeaponShootSystem";
+  readonly name = 'WeaponShootSystem';
   readonly order = 27;
 
   private tracers: Tracer[] = [];
@@ -73,15 +73,15 @@ export class WeaponShootSystem implements EcsSystem {
       // 1. CROSSHAIR ESTÁTICO (En el centro de la pantalla)
       if (!this.crosshairAdt) {
         this.crosshairAdt = AdvancedDynamicTexture.CreateFullscreenUI(
-          "crosshairUI",
+          'crosshairUI',
           true,
           refs.scene,
         );
-        const dot = new Ellipse("crosshair");
+        const dot = new Ellipse('crosshair');
         dot.width = `${DOT_HALF_SIZE * 2}px`;
         dot.height = `${DOT_HALF_SIZE * 2}px`;
-        dot.color = "rgba(255,60,60,0.9)";
-        dot.background = "rgba(255,60,60,0.75)";
+        dot.color = 'rgba(255,60,60,0.9)';
+        dot.background = 'rgba(255,60,60,0.75)';
         dot.thickness = 1.5;
         // Centrado absoluto
         dot.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
@@ -91,7 +91,8 @@ export class WeaponShootSystem implements EcsSystem {
         this.crosshair = dot;
       }
 
-      const armed = inv.activeWeaponType !== CarriedWeaponType.NONE;
+      const activeWeaponItem = getActiveWeaponItem(inv);
+      const armed = activeWeaponItem !== null;
       const isAlive = health.lifeState === PlayerLifeState.ALIVE;
 
       if (this.crosshair) {
@@ -113,24 +114,23 @@ export class WeaponShootSystem implements EcsSystem {
       if (ranged.isReloading) {
         ranged.reloadTimer = Math.max(0, ranged.reloadTimer - deltaTime);
         if (ranged.reloadTimer <= 0) {
-          const weaponDef = inv.slots[inv.activeWeaponType];
+          const weaponDef = getActiveWeaponDefinition(inv);
           ranged.currentAmmo = weaponDef?.maxAmmo ?? 0;
+          if (activeWeaponItem) {
+            activeWeaponItem.currentAmmo = ranged.currentAmmo;
+          }
           ranged.isReloading = false;
           HudManager.setAmmo(ranged.currentAmmo);
         }
       }
       // Auto-reload
       if (!ranged.isReloading && ranged.currentAmmo <= 0 && armed) {
-        const weaponDef =
-          inv.slots[inv.activeWeaponType] ??
-          WEAPON_DEFINITIONS[inv.activeWeaponType];
-
-        console.log("weaponDef :>> ", weaponDef);
+        const weaponDef = getActiveWeaponDefinition(inv);
 
         if (weaponDef) {
           ranged.isReloading = true;
           ranged.reloadTimer = weaponDef.reloadTime;
-          AudioManager.play("weapon_reload");
+          AudioManager.play('weapon_reload');
         }
       }
 
@@ -147,9 +147,7 @@ export class WeaponShootSystem implements EcsSystem {
         continue;
       }
 
-      const weaponDef =
-        inv.slots[inv.activeWeaponType] ??
-        WEAPON_DEFINITIONS[inv.activeWeaponType];
+      const weaponDef = getActiveWeaponDefinition(inv);
       if (!weaponDef || !refs.camera) continue;
 
       const scene = refs.scene;
@@ -176,7 +174,7 @@ export class WeaponShootSystem implements EcsSystem {
 
       // Spawn tracer line (Desde el arma hasta donde miraba la cámara)
       const tracer = CreateLines(
-        "tracer",
+        'tracer',
         { points: [muzzleOrigin.clone(), hitPoint.clone()], updatable: false },
         scene,
       );
@@ -186,10 +184,13 @@ export class WeaponShootSystem implements EcsSystem {
 
       // Consume ammo and set fire cooldown
       ranged.currentAmmo -= 1;
+      if (activeWeaponItem) {
+        activeWeaponItem.currentAmmo = ranged.currentAmmo;
+      }
       HudManager.setAmmo(ranged.currentAmmo);
       ranged.fireTimer = 1 / weaponDef.fireRate;
       ranged.shootTimer = 0.2;
-      AudioManager.play("weapon_shoot");
+      AudioManager.play('weapon_shoot');
 
       // Damage logic
       if (!aimHit?.pickedMesh) continue;
@@ -228,8 +229,8 @@ export class WeaponShootSystem implements EcsSystem {
    * Esto garantiza que donde esté el punto de mira de la UI (centro de pantalla), irá la bala.
    */
   private buildAimRay(
-    camera: NonNullable<PlayerPhysicsViewRefsComponent["camera"]>,
-    scene: PlayerPhysicsViewRefsComponent["scene"],
+    camera: NonNullable<PlayerPhysicsViewRefsComponent['camera']>,
+    scene: PlayerPhysicsViewRefsComponent['scene'],
   ): Ray {
     const engine = scene.getEngine();
     const w = engine.getRenderWidth();

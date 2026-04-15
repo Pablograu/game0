@@ -2,7 +2,6 @@ import { PhysicsRaycastResult, Quaternion, Vector3 } from '@babylonjs/core';
 import { PlayerTagComponent } from '../components/PlayerTagComponent.ts';
 import type { EntityId } from '../core/Entity.ts';
 import type { World } from '../core/World.ts';
-import { CarriedWeaponType } from '../weapons/WeaponDefinitions.ts';
 import {
   createPlayerRagdoll,
   initializePlayerAnimationGroups,
@@ -10,6 +9,10 @@ import {
   type PlayerBootstrapRuntime,
 } from './runtime/playerRuntime.ts';
 import { PlayerSurvivabilityRequestComponent } from './components/PlayerSurvivabilityRequestComponent.ts';
+import {
+  PLAYER_INVENTORY_CAPACITY,
+  createStarterInventory,
+} from './inventory/InventoryItemDefinitions.ts';
 import {
   PlayerAnimationStateComponent,
   PlayerCombatStateComponent,
@@ -229,12 +232,14 @@ export function createPlayerEntity(
   });
 
   world.addComponent(entityId, PlayerInventoryComponent, {
-    activeWeaponType: CarriedWeaponType.NONE,
-    slots: {},
-    nearbyWeaponEntityId: null,
+    backpack: createStarterInventory(),
+    capacity: PLAYER_INVENTORY_CAPACITY,
+    activeWeaponItemId: null,
+    nearbyPickupEntityId: null,
     pickupRequested: false,
-    dropRequested: false,
+    actionRequest: null,
     equippedWeaponNode: null,
+    isDirty: true,
   });
 
   world.addComponent(entityId, PlayerRangedStateComponent, {

@@ -13,6 +13,8 @@ import {
 } from '@babylonjs/core';
 import { ImportMeshAsync } from '@babylonjs/core/Loading';
 import { CameraShaker } from '../CameraShaker.ts';
+import { HudManager } from '../HudManager.ts';
+import { InventoryUiManager } from '../InventoryUiManager.ts';
 import { WeaponSystem } from '../WeaponSystem.ts';
 import {
   bootstrapGameEcs,
@@ -21,13 +23,13 @@ import {
   type GameEcsRuntime,
   type PlayerDebugApi,
 } from '../ecs/index.ts';
+import { PlayerInventoryComponent } from '../ecs/player/components/index.ts';
 import {
   createPlayerAnimationRegistry,
   type PlayerAnimationRegistry,
 } from '../ecs/player/runtime/PlayerAnimations.ts';
 import { DEFAULT_PLAYER_GAMEPLAY_CONFIG } from '../ecs/player/runtime/playerRuntime.ts';
 import { COL_ENEMY, COL_ENVIRONMENT, COL_PLAYER } from './sceneRuntime.ts';
-import { HudManager } from '../HudManager.ts';
 
 export type RuntimePlayerMesh = Mesh & {
   animationModels?: PlayerAnimationRegistry;
@@ -165,8 +167,10 @@ export function bootstrapPlayerEcsRuntime(options: {
   shoulderAnchor: TransformNode;
 }): PlayerEcsBootstrap {
   const cameraShaker = new CameraShaker(options.camera, options.scene);
+  const inventoryUi = new InventoryUiManager();
 
   HudManager.init(DEFAULT_PLAYER_GAMEPLAY_CONFIG.maxHealth, 'NONE');
+  inventoryUi.init();
 
   const weaponSystem = new WeaponSystem(
     {
@@ -189,6 +193,7 @@ export function bootstrapPlayerEcsRuntime(options: {
     scene: options.scene,
     engine: options.engine,
     enemyUi: options.enemyUi ?? null,
+    inventoryUi,
     reloadGame: () => location.reload(),
     playerMesh: options.playerMesh,
     camera: options.camera,
@@ -208,6 +213,46 @@ export function bootstrapPlayerEcsRuntime(options: {
   if (!ecsRuntime.playerEntityId) {
     throw new Error('Failed to create player ECS entity.');
   }
+
+  options.scene.onDisposeObservable.add(() => {
+    inventoryUi.destroy();
+  });
+
+  inventoryUi.bindCallbacks({
+    onToggleInventory: () => {
+      ecsRuntime.gameFlow?.requestToggleInventoryFromGesture();
+    },
+    onUseItem: (itemId) => {
+      const inventory = ecsRuntime.world.getComponent(
+        ecsRuntime.playerEntityId,
+        PlayerInventoryComponent,
+      );
+
+      if (!inventory) {
+        return;
+      }
+
+      inventory.actionRequest = {
+        kind: 'use',
+        itemId,
+      };
+    },
+    onDropItem: (itemId) => {
+      const inventory = ecsRuntime.world.getComponent(
+        ecsRuntime.playerEntityId,
+        PlayerInventoryComponent,
+      );
+
+      if (!inventory) {
+        return;
+      }
+
+      inventory.actionRequest = {
+        kind: 'drop',
+        itemId,
+      };
+    },
+  });
 
   const playerDebugApi = createPlayerDebugApi(
     ecsRuntime.world,

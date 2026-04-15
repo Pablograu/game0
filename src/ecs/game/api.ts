@@ -35,6 +35,9 @@ export interface GameFlowControllerApi {
   requestResumeFromGesture(): void;
   requestTogglePauseFromGesture(): void;
   requestRestart(): void;
+  requestOpenInventory(): void;
+  requestCloseInventoryFromGesture(): void;
+  requestToggleInventoryFromGesture(): void;
   requestGameOver(reason?: string | null): void;
   onEnemyDefeated(): void;
   resetEnemyDefeatedCount(): void;
@@ -191,6 +194,38 @@ export function createGameFlowControllerApi(
       const requests = getRequestComponent();
       requests.resumeRequested = true;
       requestPointerLockFromGesture();
+    },
+    requestOpenInventory() {
+      const state = getStateComponent().current;
+
+      if (state !== GameFlowState.PLAYING) {
+        return;
+      }
+
+      getRequestComponent().openInventoryRequested = true;
+    },
+    requestCloseInventoryFromGesture() {
+      const state = getStateComponent().current;
+
+      if (state !== GameFlowState.INVENTORY) {
+        return;
+      }
+
+      const requests = getRequestComponent();
+      requests.closeInventoryRequested = true;
+      requestPointerLockFromGesture();
+    },
+    requestToggleInventoryFromGesture() {
+      const state = getStateComponent().current;
+
+      if (state === GameFlowState.PLAYING) {
+        this.requestOpenInventory();
+        return;
+      }
+
+      if (state === GameFlowState.INVENTORY) {
+        this.requestCloseInventoryFromGesture();
+      }
     },
     requestTogglePauseFromGesture() {
       const state = getStateComponent().current;

@@ -8,13 +8,13 @@
  */
 
 const WEAPON_IMAGE_MAP: Record<string, string> = {
-  none: "/hud/weapons/fist.png",
-  "assault-rifle": "/hud/weapons/assault-rifle.png",
+  none: '/hud/weapons/fist.png',
+  'assault-rifle': '/hud/weapons/assault-rifle.png',
 };
 
 /** Derives the image-map key from a CarriedWeaponType enum value, e.g. "ASSAULT_RIFLE" → "assault-rifle". */
 function weaponEnumToKey(enumValue: string): string {
-  return enumValue.toLowerCase().replace(/_/g, "-");
+  return enumValue.toLowerCase().replace(/_/g, '-');
 }
 
 class HudManagerClass {
@@ -29,24 +29,24 @@ class HudManagerClass {
     }
 
     // ── Root overlay ───────────────────────────────────────────────
-    const root = document.createElement("div");
-    root.id = "game-hud";
+    const root = document.createElement('div');
+    root.id = 'game-hud';
     this.root = root;
 
     // ── Player panel (top-left) ────────────────────────────────────
-    const playerPanel = document.createElement("div");
-    playerPanel.id = "hud-player-panel";
+    const playerPanel = document.createElement('div');
+    playerPanel.id = 'hud-player-panel';
 
-    const portrait = document.createElement("img");
-    portrait.id = "hud-portrait";
-    portrait.src = "/hud/player/player.png";
-    portrait.alt = "Player";
+    const portrait = document.createElement('img');
+    portrait.id = 'hud-portrait';
+    portrait.src = '/hud/player/player.png';
+    portrait.alt = 'Player';
 
-    const barWrap = document.createElement("div");
-    barWrap.id = "hud-health-bar-wrap";
+    const barWrap = document.createElement('div');
+    barWrap.id = 'hud-health-bar-wrap';
 
-    const bar = document.createElement("div");
-    bar.id = "hud-health-bar";
+    const bar = document.createElement('div');
+    bar.id = 'hud-health-bar';
     this.healthBar = bar;
 
     barWrap.appendChild(bar);
@@ -54,17 +54,17 @@ class HudManagerClass {
     playerPanel.appendChild(barWrap);
 
     // ── Weapon panel (bottom-right) ────────────────────────────────
-    const weaponPanel = document.createElement("div");
-    weaponPanel.id = "hud-weapon-panel";
+    const weaponPanel = document.createElement('div');
+    weaponPanel.id = 'hud-weapon-panel';
 
-    const weaponImg = document.createElement("img");
-    weaponImg.id = "hud-weapon-img";
-    weaponImg.alt = "Weapon";
+    const weaponImg = document.createElement('img');
+    weaponImg.id = 'hud-weapon-img';
+    weaponImg.alt = 'Weapon';
     this.weaponImg = weaponImg;
 
-    const ammoText = document.createElement("div");
-    ammoText.id = "hud-ammo-text";
-    ammoText.textContent = "—";
+    const ammoText = document.createElement('div');
+    ammoText.id = 'hud-ammo-text';
+    ammoText.textContent = '—';
     this.ammoText = ammoText;
 
     weaponPanel.appendChild(weaponImg);
@@ -86,11 +86,11 @@ class HudManagerClass {
     this.healthBar.style.width = `${pct}%`;
 
     // Color thresholds
-    this.healthBar.classList.remove("hud-health--orange", "hud-health--red");
+    this.healthBar.classList.remove('hud-health--orange', 'hud-health--red');
     if (pct <= 25) {
-      this.healthBar.classList.add("hud-health--red");
+      this.healthBar.classList.add('hud-health--red');
     } else if (pct <= 50) {
-      this.healthBar.classList.add("hud-health--orange");
+      this.healthBar.classList.add('hud-health--orange');
     }
   }
 
@@ -103,13 +103,18 @@ class HudManagerClass {
     if (!this.weaponImg || !this.ammoText) return;
 
     const key = weaponEnumToKey(weaponEnum);
-    const src = WEAPON_IMAGE_MAP[key] ?? WEAPON_IMAGE_MAP["none"];
+    const src = WEAPON_IMAGE_MAP[key] ?? WEAPON_IMAGE_MAP['none'];
     this.weaponImg.src = src;
-    this.weaponImg.style.display = "";
+    this.weaponImg.style.display = '';
 
-    if (weaponEnum === "NONE") {
-      this.ammoText.textContent = "";
+    if (weaponEnum === 'NONE') {
+      this.ammoText.textContent = '';
     }
+  }
+
+  setVisible(visible: boolean): void {
+    if (!this.root) return;
+    this.root.style.display = visible ? '' : 'none';
   }
 
   destroy(): void {

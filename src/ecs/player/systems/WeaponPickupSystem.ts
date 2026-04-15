@@ -1,35 +1,30 @@
-import type { EcsSystem } from "../../core/System.ts";
-import type { World } from "../../core/World.ts";
-import { DroppedWeaponDataComponent } from "../../weapons/components/DroppedWeaponDataComponent.ts";
-import { DroppedWeaponMeshComponent } from "../../weapons/components/DroppedWeaponMeshComponent.ts";
-import { createDroppedWeaponEntity } from "../../weapons/createDroppedWeaponEntity.ts";
-import { CarriedWeaponType } from "../../weapons/WeaponDefinitions.ts";
-import { PlayerInventoryComponent } from "../components/PlayerInventoryComponent.ts";
-import { PlayerPhysicsViewRefsComponent } from "../components/PlayerPhysicsViewRefsComponent.ts";
-import { PlayerRangedStateComponent } from "../components/PlayerRangedStateComponent.ts";
-import { HudManager } from "../../../HudManager.ts";
+import type { EcsSystem } from '../../core/System.ts';
+import type { World } from '../../core/World.ts';
+import { DroppedWeaponDataComponent } from '../../weapons/components/DroppedWeaponDataComponent.ts';
+import { DroppedWeaponMeshComponent } from '../../weapons/components/DroppedWeaponMeshComponent.ts';
+import { HudManager } from '../../../HudManager.ts';
+import { PlayerInventoryComponent } from '../components/PlayerInventoryComponent.ts';
+import { PlayerRangedStateComponent } from '../components/PlayerRangedStateComponent.ts';
+import { createWeaponInventoryItem } from '../inventory/InventoryItemDefinitions.ts';
+import {
+  addInventoryItem,
+  setActiveWeaponItemId,
+} from '../inventory/inventoryHelpers.ts';
 
 export class WeaponPickupSystem implements EcsSystem {
-  readonly name = "WeaponPickupSystem";
+  readonly name = 'WeaponPickupSystem';
   readonly order = 13;
 
   update(world: World): void {
-    const players = world.query(
-      PlayerInventoryComponent,
-      PlayerPhysicsViewRefsComponent,
-    );
+    const players = world.query(PlayerInventoryComponent);
 
     for (const playerId of players) {
       const inv = world.getComponent(playerId, PlayerInventoryComponent)!;
-      const refs = world.getComponent(
-        playerId,
-        PlayerPhysicsViewRefsComponent,
-      )!;
       const ranged = world.getComponent(playerId, PlayerRangedStateComponent);
 
       // ── Pickup ──
       if (inv.pickupRequested) {
-        const nearId = inv.nearbyWeaponEntityId;
+        const nearId = inv.nearbyPickupEntityId;
         if (nearId !== null && world.hasEntity(nearId)) {
           const meshComp = world.getComponent(
             nearId,
@@ -39,44 +34,27 @@ export class WeaponPickupSystem implements EcsSystem {
             nearId,
             DroppedWeaponDataComponent,
           )!;
-          meshComp.floatAnimatable?.stop();
-          meshComp.node.dispose();
           const def = dataComp.definition;
-          inv.slots[def.type] = def;
-          inv.activeWeaponType = def.type;
-          HudManager.setWeapon(def.type);
-          if (ranged) {
-            ranged.currentAmmo = def.maxAmmo;
-            ranged.fireTimer = 0;
-            ranged.isReloading = false;
-            ranged.reloadTimer = 0;
-            HudManager.setAmmo(ranged.currentAmmo);
+          const pickupItem = createWeaponInventoryItem(def.type, def.maxAmmo);
+          const storedItem = addInventoryItem(inv, pickupItem);
+
+          if (storedItem) {
+            meshComp.floatAnimatable?.stop();
+            meshComp.node.dispose();
+            setActiveWeaponItemId(inv, storedItem.id);
+            HudManager.setWeapon(def.type);
+            if (ranged) {
+              ranged.currentAmmo = pickupItem.currentAmmo;
+              ranged.fireTimer = 0;
+              ranged.isReloading = false;
+              ranged.reloadTimer = 0;
+              HudManager.setAmmo(ranged.currentAmmo);
+            }
+            world.destroyEntity(nearId);
+            inv.nearbyPickupEntityId = null;
           }
-          world.destroyEntity(nearId);
-          inv.nearbyWeaponEntityId = null;
         }
         inv.pickupRequested = false;
-      }
-
-      // ── Drop ──
-      if (inv.dropRequested) {
-        if (inv.activeWeaponType !== CarriedWeaponType.NONE) {
-          createDroppedWeaponEntity(
-            world,
-            refs.scene,
-            refs.mesh.getAbsolutePosition(),
-            inv.activeWeaponType,
-          );
-          delete inv.slots[inv.activeWeaponType];
-          inv.activeWeaponType = CarriedWeaponType.NONE;
-          HudManager.setWeapon(CarriedWeaponType.NONE);
-          if (ranged) {
-            ranged.currentAmmo = 0;
-            ranged.isAiming = false;
-            HudManager.setAmmo(0);
-          }
-        }
-        inv.dropRequested = false;
       }
     }
   }

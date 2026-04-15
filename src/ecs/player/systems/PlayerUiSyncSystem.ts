@@ -1,14 +1,15 @@
-import { HudManager } from "../../../HudManager.ts";
-import { CarriedWeaponType } from "../../weapons/WeaponDefinitions.ts";
-import type { EcsSystem } from "../../core/System.ts";
-import type { World } from "../../core/World.ts";
+import { HudManager } from '../../../HudManager.ts';
+import { CarriedWeaponType } from '../../weapons/WeaponDefinitions.ts';
+import type { EcsSystem } from '../../core/System.ts';
+import type { World } from '../../core/World.ts';
 import {
   PlayerHealthStateComponent,
   PlayerInventoryComponent,
-} from "../components/index.ts";
+} from '../components/index.ts';
+import { getActiveWeaponType } from '../inventory/inventoryHelpers.ts';
 
 export class PlayerUiSyncSystem implements EcsSystem {
-  readonly name = "PlayerUiSyncSystem";
+  readonly name = 'PlayerUiSyncSystem';
   readonly order = 70;
 
   private lastWeaponType: CarriedWeaponType = CarriedWeaponType.NONE;
@@ -26,9 +27,11 @@ export class PlayerUiSyncSystem implements EcsSystem {
 
       HudManager.setHealth(health.currentHealth, health.maxHealth);
 
-      if (inv.activeWeaponType !== this.lastWeaponType) {
-        this.lastWeaponType = inv.activeWeaponType;
-        HudManager.setWeapon(inv.activeWeaponType);
+      const activeWeaponType = getActiveWeaponType(inv);
+
+      if (activeWeaponType !== this.lastWeaponType) {
+        this.lastWeaponType = activeWeaponType;
+        HudManager.setWeapon(activeWeaponType);
       }
     }
   }

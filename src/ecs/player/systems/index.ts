@@ -1,3 +1,5 @@
+export * from './InventoryActionSystem.ts';
+export * from './InventoryUiSyncSystem.ts';
 export * from './PlayerAnimationSystem.ts';
 export * from './PlayerCameraAimSystem.ts';
 export * from './PlayerCombatSystem.ts';

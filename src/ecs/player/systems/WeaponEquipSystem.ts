@@ -1,13 +1,14 @@
-import { Quaternion, Vector3 } from "@babylonjs/core";
-import type { EntityId } from "../../core/Entity.ts";
-import type { EcsSystem } from "../../core/System.ts";
-import type { World } from "../../core/World.ts";
-import { spawnEquippedWeaponNode } from "../../weapons/createDroppedWeaponEntity.ts";
-import { CarriedWeaponType } from "../../weapons/WeaponDefinitions.ts";
-import { PlayerInventoryComponent } from "../components/PlayerInventoryComponent.ts";
-import { PlayerPhysicsViewRefsComponent } from "../components/PlayerPhysicsViewRefsComponent.ts";
+import { Quaternion, Vector3 } from '@babylonjs/core';
+import type { EntityId } from '../../core/Entity.ts';
+import type { EcsSystem } from '../../core/System.ts';
+import type { World } from '../../core/World.ts';
+import { spawnEquippedWeaponNode } from '../../weapons/createDroppedWeaponEntity.ts';
+import { CarriedWeaponType } from '../../weapons/WeaponDefinitions.ts';
+import { PlayerInventoryComponent } from '../components/PlayerInventoryComponent.ts';
+import { PlayerPhysicsViewRefsComponent } from '../components/PlayerPhysicsViewRefsComponent.ts';
+import { getActiveWeaponType } from '../inventory/inventoryHelpers.ts';
 
-const HAND_BONE_NAME = "mixamorig:RightHand";
+const HAND_BONE_NAME = 'mixamorig:RightHand';
 
 export const gripConfig = {
   positionX: 0,
@@ -19,7 +20,7 @@ export const gripConfig = {
 };
 
 export class WeaponEquipSystem implements EcsSystem {
-  readonly name = "WeaponEquipSystem";
+  readonly name = 'WeaponEquipSystem';
   readonly order = 14;
 
   private readonly prevWeaponType = new Map<EntityId, CarriedWeaponType>();
@@ -51,7 +52,7 @@ export class WeaponEquipSystem implements EcsSystem {
         );
       }
 
-      const curr = inv.activeWeaponType;
+      const curr = getActiveWeaponType(inv);
       const prev = this.prevWeaponType.get(playerId) ?? CarriedWeaponType.NONE;
 
       if (curr === prev) continue;
@@ -76,7 +77,7 @@ export class WeaponEquipSystem implements EcsSystem {
       if (!handTN) {
         console.warn(
           `[WeaponEquipSystem] TransformNode "${HAND_BONE_NAME}" not found.`,
-          "Available names:",
+          'Available names:',
           allChildTNs.map((n) => n.name),
         );
         continue;
@@ -85,7 +86,7 @@ export class WeaponEquipSystem implements EcsSystem {
       const weaponNode = spawnEquippedWeaponNode();
       if (!weaponNode) {
         console.warn(
-          "[WeaponEquipSystem] spawnEquippedWeaponNode returned null — assets not preloaded?",
+          '[WeaponEquipSystem] spawnEquippedWeaponNode returned null — assets not preloaded?',
         );
         continue;
       }

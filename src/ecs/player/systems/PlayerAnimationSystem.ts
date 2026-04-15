@@ -19,6 +19,7 @@ import {
   PlayerRagdollStateComponent,
   PlayerRangedStateComponent,
 } from '../components/index.ts';
+import { getActiveWeaponType } from '../inventory/inventoryHelpers.ts';
 
 // ---------------------------------------------------------------------------
 // Discriminated union for animation playback
@@ -235,7 +236,7 @@ export class PlayerAnimationSystem implements EcsSystem {
     const s = PlayerAnimationSystem.single;
     const velocityY = velocity.y;
     const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
-    const armed = inventory.activeWeaponType !== CarriedWeaponType.NONE;
+    const armed = getActiveWeaponType(inventory) !== CarriedWeaponType.NONE;
     const hasMoveIntent = locomotion.moveDirection.length() > 0.1;
     const isLayeredAimWalkActive =
       animation.currentLayerLower === 'walk_lower' &&

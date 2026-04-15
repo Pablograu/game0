@@ -18,6 +18,7 @@ import {
   PlayerPhysicsViewRefsComponent,
   PlayerRangedStateComponent,
 } from '../components/index.ts';
+import { getActiveWeaponType } from '../inventory/inventoryHelpers.ts';
 import { PlayerCombatMode, PlayerLifeState } from '../PlayerStateEnums.ts';
 
 interface PlayerInputObserverHandles {
@@ -170,14 +171,23 @@ export class PlayerInputSystem implements EcsSystem {
 
         if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
           if (pointerInfo.event.button === 0) {
-            if (inventory?.activeWeaponType !== CarriedWeaponType.NONE) {
+            if (
+              inventory &&
+              getActiveWeaponType(inventory) !== CarriedWeaponType.NONE
+            ) {
               if (ranged) ranged.fireRequested = true;
             } else {
               control.attackRequested = true;
             }
           }
           if (pointerInfo.event.button === 2) {
-            if (ranged) ranged.isAiming = !ranged.isAiming;
+            if (
+              ranged &&
+              inventory &&
+              getActiveWeaponType(inventory) !== CarriedWeaponType.NONE
+            ) {
+              ranged.isAiming = !ranged.isAiming;
+            }
           }
         }
       },

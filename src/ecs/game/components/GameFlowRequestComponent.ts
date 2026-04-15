@@ -8,6 +8,8 @@ export interface GameFlowRequestComponent {
   restartRequested: boolean;
   gameOverRequested: boolean;
   gameOverReason: string | null;
+  openInventoryRequested: boolean;
+  closeInventoryRequested: boolean;
   pointerLockRequestPending: boolean;
 }
 

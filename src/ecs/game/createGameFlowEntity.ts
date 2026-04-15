@@ -36,6 +36,8 @@ export function createGameFlowEntity(
     restartRequested: false,
     gameOverRequested: false,
     gameOverReason: null,
+    openInventoryRequested: false,
+    closeInventoryRequested: false,
     pointerLockRequestPending: false,
   });
 

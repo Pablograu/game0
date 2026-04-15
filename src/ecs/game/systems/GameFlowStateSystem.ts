@@ -46,6 +46,8 @@ export class GameFlowStateSystem implements EcsSystem {
       requests.startRequested = false;
       requests.pauseRequested = false;
       requests.resumeRequested = false;
+      requests.openInventoryRequested = false;
+      requests.closeInventoryRequested = false;
       requests.togglePauseRequested = false;
       requests.gameOverRequested = false;
 
@@ -76,6 +78,20 @@ export class GameFlowStateSystem implements EcsSystem {
       (requests.pauseRequested || requests.togglePauseRequested)
     ) {
       return GameFlowState.PAUSED;
+    }
+
+    if (
+      currentState === GameFlowState.PLAYING &&
+      requests.openInventoryRequested
+    ) {
+      return GameFlowState.INVENTORY;
+    }
+
+    if (
+      currentState === GameFlowState.INVENTORY &&
+      requests.closeInventoryRequested
+    ) {
+      return GameFlowState.PLAYING;
     }
 
     if (

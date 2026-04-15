@@ -1,4 +1,5 @@
 import type { Scene } from '@babylonjs/core';
+import type { InventoryUiManager } from '../../InventoryUiManager.ts';
 import type { EntityId } from '../core/Entity.ts';
 import { World } from '../core/World.ts';
 import {
@@ -27,6 +28,8 @@ import {
 } from '../game/index.ts';
 import {
   createPlayerEntity,
+  InventoryActionSystem,
+  InventoryUiSyncSystem,
   PlayerAnimationSystem,
   PlayerCameraAimSystem,
   PlayerCombatSystem,
@@ -51,6 +54,7 @@ import type { PlayerBootstrapRuntime } from '../player/runtime/playerRuntime.ts'
 export interface BootstrapGameEcsOptions extends PlayerBootstrapRuntime {
   engine?: GameFlowEngineControl | null;
   enemyUi?: EnemyUiApi | null;
+  inventoryUi?: InventoryUiManager | null;
   reloadGame?: (() => void) | null;
 }
 
@@ -102,6 +106,7 @@ export function bootstrapGameEcs(
     world.registerSystem(new PlayerInputSystem());
     world.registerSystem(new WeaponProximitySystem());
     world.registerSystem(new WeaponPickupSystem());
+    world.registerSystem(new InventoryActionSystem());
     world.registerSystem(new WeaponEquipSystem());
     world.registerSystem(new PlayerDamageSystem());
     world.registerSystem(new PlayerSurvivabilitySystem());
@@ -117,6 +122,10 @@ export function bootstrapGameEcs(
     world.registerSystem(new PlayerCameraAimSystem());
     world.registerSystem(new PlayerPresentationSystem());
     world.registerSystem(new PlayerUiSyncSystem());
+
+    if (options.inventoryUi) {
+      world.registerSystem(new InventoryUiSyncSystem(options.inventoryUi));
+    }
   }
 
   const updateObserver = options.scene.onBeforeRenderObservable.add(() => {

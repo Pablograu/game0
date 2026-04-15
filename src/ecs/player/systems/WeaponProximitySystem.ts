@@ -1,16 +1,16 @@
-import { Vector3 } from "@babylonjs/core";
-import type { EntityId } from "../../core/Entity.ts";
-import type { EcsSystem } from "../../core/System.ts";
-import type { World } from "../../core/World.ts";
-import { DroppedWeaponDataComponent } from "../../weapons/components/DroppedWeaponDataComponent.ts";
-import { DroppedWeaponMeshComponent } from "../../weapons/components/DroppedWeaponMeshComponent.ts";
-import { PlayerInventoryComponent } from "../components/PlayerInventoryComponent.ts";
-import { PlayerPhysicsViewRefsComponent } from "../components/PlayerPhysicsViewRefsComponent.ts";
+import { Vector3 } from '@babylonjs/core';
+import type { EntityId } from '../../core/Entity.ts';
+import type { EcsSystem } from '../../core/System.ts';
+import type { World } from '../../core/World.ts';
+import { DroppedWeaponDataComponent } from '../../weapons/components/DroppedWeaponDataComponent.ts';
+import { DroppedWeaponMeshComponent } from '../../weapons/components/DroppedWeaponMeshComponent.ts';
+import { PlayerInventoryComponent } from '../components/PlayerInventoryComponent.ts';
+import { PlayerPhysicsViewRefsComponent } from '../components/PlayerPhysicsViewRefsComponent.ts';
 
 const PICKUP_RADIUS = 2.0;
 
 export class WeaponProximitySystem implements EcsSystem {
-  readonly name = "WeaponProximitySystem";
+  readonly name = 'WeaponProximitySystem';
   readonly order = 12;
 
   update(world: World, deltaTime: number): void {
@@ -69,7 +69,7 @@ export class WeaponProximitySystem implements EcsSystem {
         }
       }
 
-      inventory.nearbyWeaponEntityId = closestId;
+      inventory.nearbyPickupEntityId = closestId;
     }
   }
 }
