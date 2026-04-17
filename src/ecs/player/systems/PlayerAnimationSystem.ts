@@ -99,6 +99,21 @@ export class PlayerAnimationSystem implements EcsSystem {
 
       const velocity =
         physicsRefs.body?.getLinearVelocity() ?? locomotion.recoilVelocity;
+
+      if (ragdoll.mode === PlayerRagdollMode.ACTIVE) {
+        for (const [, group] of animation.animationGroups) {
+          if (group.isPlaying) {
+            group.stop();
+          }
+        }
+
+        animation.currentAnimation = 'dead';
+        animation.currentLayerLower = null;
+        animation.currentLayerUpper = null;
+        AudioManager.stopLoop('player_walk');
+        continue;
+      }
+
       this.updateJumpPhase(
         animation,
         grounding,

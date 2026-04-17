@@ -5,7 +5,6 @@ import {
   PhysicsAggregate,
   PhysicsShapeType,
   type Scene,
-  type Skeleton,
   TransformNode,
   Vector3,
 } from '@babylonjs/core';
@@ -45,7 +44,7 @@ export const DEFAULT_ENEMY_CONFIG: Required<EnemyConfig> = {
   debug: false,
   displayName: 'Enemy',
   hp: 3,
-  knockbackForce: 15,
+  knockbackForce: 1,
   mass: 2,
   modelOffsetY: -1.25,
   modelScale: 1.6,

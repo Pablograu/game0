@@ -6,8 +6,10 @@ import {
   PlayerCombatStateComponent,
   PlayerLocomotionStateComponent,
   PlayerPhysicsViewRefsComponent,
+  PlayerRagdollStateComponent,
   PlayerRangedStateComponent,
 } from '../components/index.ts';
+import { PlayerRagdollMode } from '../PlayerStateEnums.ts';
 
 export class PlayerPresentationSystem implements EcsSystem {
   readonly name = 'PlayerPresentationSystem';
@@ -19,6 +21,7 @@ export class PlayerPresentationSystem implements EcsSystem {
       PlayerCombatStateComponent,
       PlayerLocomotionStateComponent,
       PlayerPhysicsViewRefsComponent,
+      PlayerRagdollStateComponent,
       PlayerRangedStateComponent,
     );
 
@@ -36,9 +39,21 @@ export class PlayerPresentationSystem implements EcsSystem {
         entityId,
         PlayerPhysicsViewRefsComponent,
       );
+      const ragdoll = world.getComponent(entityId, PlayerRagdollStateComponent);
       const ranged = world.getComponent(entityId, PlayerRangedStateComponent);
 
-      if (!animation || !combat || !locomotion || !physicsRefs || !ranged) {
+      if (
+        !animation ||
+        !combat ||
+        !locomotion ||
+        !physicsRefs ||
+        !ragdoll ||
+        !ranged
+      ) {
+        continue;
+      }
+
+      if (ragdoll.mode === PlayerRagdollMode.ACTIVE) {
         continue;
       }
 

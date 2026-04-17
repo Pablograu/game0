@@ -8,9 +8,14 @@ import {
   EnemyLocomotionStateComponent,
   EnemyPatrolStateComponent,
   EnemyPhysicsViewRefsComponent,
+  EnemyRagdollStateComponent,
   EnemyStatsComponent,
 } from '../components/index.ts';
-import { EnemyBehaviorState, EnemyLifeState } from '../EnemyStateEnums.ts';
+import {
+  EnemyBehaviorState,
+  EnemyLifeState,
+  EnemyRagdollMode,
+} from '../EnemyStateEnums.ts';
 import {
   isEnemyGameplayPaused,
   resolveEnemyPlayerCombatContext,
@@ -35,6 +40,7 @@ export class EnemyMovementSystem implements EcsSystem {
       EnemyLocomotionStateComponent,
       EnemyPatrolStateComponent,
       EnemyPhysicsViewRefsComponent,
+      EnemyRagdollStateComponent,
       EnemyStatsComponent,
     );
 
@@ -48,6 +54,7 @@ export class EnemyMovementSystem implements EcsSystem {
       );
       const patrol = world.getComponent(entityId, EnemyPatrolStateComponent);
       const refs = world.getComponent(entityId, EnemyPhysicsViewRefsComponent);
+      const ragdoll = world.getComponent(entityId, EnemyRagdollStateComponent);
       const stats = world.getComponent(entityId, EnemyStatsComponent);
 
       if (
@@ -57,8 +64,13 @@ export class EnemyMovementSystem implements EcsSystem {
         !locomotion ||
         !patrol ||
         !refs ||
+        !ragdoll ||
         !stats
       ) {
+        continue;
+      }
+
+      if (ragdoll.mode === EnemyRagdollMode.ACTIVE) {
         continue;
       }
 

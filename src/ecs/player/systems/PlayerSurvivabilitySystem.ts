@@ -23,11 +23,13 @@ import {
 
 interface EcsRagdollApi {
   ragdoll(): void;
-  getAggregates(): Array<{
+  getAggregate(index: number): {
     body?: {
       applyImpulse(impulse: Vector3, contactPoint: Vector3): void;
+      setLinearVelocity?(velocity: Vector3): void;
+      setAngularVelocity?(velocity: Vector3): void;
     };
-  }>;
+  } | null;
 }
 
 export class PlayerSurvivabilitySystem implements EcsSystem {
@@ -119,9 +121,19 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
         const ragdollApi = ragdoll.ragdoll as EcsRagdollApi;
         ragdollApi.ragdoll();
         ragdoll.mode = PlayerRagdollMode.ACTIVE;
-        ragdoll.pendingImpulse = ragdoll.lastKnockbackDir.scale(
-          locomotion.damageKnockbackForce * 5,
-        );
+        physicsRefs.body?.setLinearVelocity(Vector3.Zero());
+        physicsRefs.body?.setAngularVelocity(Vector3.Zero());
+
+        const rootAggregate = ragdollApi.getAggregate(-1);
+        rootAggregate?.body?.setLinearVelocity?.(Vector3.Zero());
+        rootAggregate?.body?.setAngularVelocity?.(Vector3.Zero());
+
+        ragdoll.pendingImpulse =
+          ragdoll.lastKnockbackDir.lengthSquared() > 0.0001
+            ? ragdoll.lastKnockbackDir.scale(
+                locomotion.damageKnockbackForce * 0.35,
+              )
+            : null;
         ragdoll.pendingImpulseDelay = Math.max(deltaTime, 1 / 60);
       }
 
@@ -135,9 +147,9 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
           const ragdollApi = ragdoll.ragdoll as EcsRagdollApi | null;
           const appPoint = physicsRefs.mesh.getAbsolutePosition();
 
-          for (const aggregate of ragdollApi?.getAggregates() ?? []) {
-            aggregate.body?.applyImpulse(ragdoll.pendingImpulse, appPoint);
-          }
+          ragdollApi
+            ?.getAggregate(-1)
+            ?.body?.applyImpulse(ragdoll.pendingImpulse, appPoint);
 
           ragdoll.pendingImpulse = null;
         }

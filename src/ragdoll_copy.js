@@ -1,66 +1,121 @@
 import {
-  Vector3,
-  Matrix,
-  TmpVectors,
-  Quaternion,
-  PhysicsAggregate,
-  PhysicsConstraint,
   Axis,
-  TransformNode,
   Logger,
+  Matrix,
+  Physics6DoFConstraint,
+  PhysicsAggregate,
+  PhysicsConstraintAxis,
+  PhysicsMotionType,
+  PhysicsShapeType,
+  Quaternion,
+  Space,
+  TransformNode,
+  Vector3,
 } from '@babylonjs/core';
+
+const DEFAULT_LINEAR_DAMPING = 0.05;
+const DEFAULT_ANGULAR_DAMPING = 0.25;
+const MIN_AXIS_EPSILON = 1e-6;
+
+function cloneVector3(value) {
+  return value?.clone?.() ?? new Vector3(value.x, value.y, value.z);
+}
+
+function cloneQuaternion(value) {
+  return value?.clone?.() ?? Quaternion.Identity();
+}
+
+function ensureRotationQuaternion(node) {
+  if (!node.rotationQuaternion) {
+    node.rotationQuaternion = Quaternion.FromEulerAngles(
+      node.rotation.x,
+      node.rotation.y,
+      node.rotation.z,
+    );
+  }
+
+  return node.rotationQuaternion;
+}
+
+function degreesToRadians(value) {
+  return (value * Math.PI) / 180;
+}
+
+function createPerpendicularAxis(axis) {
+  const normalizedAxis = cloneVector3(axis).normalize();
+  const referenceAxis =
+    Math.abs(Vector3.Dot(normalizedAxis, Axis.Y)) > 0.95 ? Axis.Z : Axis.Y;
+
+  let perpendicularAxis = Vector3.Cross(normalizedAxis, referenceAxis);
+  if (perpendicularAxis.lengthSquared() <= MIN_AXIS_EPSILON) {
+    perpendicularAxis = Vector3.Cross(normalizedAxis, Axis.X);
+  }
+
+  return perpendicularAxis.normalize();
+}
+
 /**
  * Ragdoll bone properties
  * @experimental
  */
 export class RagdollBoneProperties {}
+
 /**
  * Ragdoll for Physics V2
  * @experimental
  */
 export class Ragdoll {
-  /**
-   * Construct a new Ragdoll object. Once ready, it can be made dynamic by calling `Ragdoll` method
-   * @param skeleton The skeleton containing bones to be physicalized
-   * @param rootTransformNode The mesh or its transform used by the skeleton
-   * @param config an array of `RagdollBoneProperties` corresponding to bones and their properties used to instanciate physics bodies
-   */
-  constructor(skeleton, rootTransformNode, config) {
+  constructor(
+    skeleton,
+    rootTransformNode,
+    config,
+    jointCollisions = false,
+    showBoxes = false,
+    mainPivotSphereSize = 0,
+    disableBoxBoneSync = false,
+  ) {
+    this._skeleton = skeleton;
+    this._scene = skeleton.getScene();
+    this._rootTransformNode = rootTransformNode;
+    this._initialRootPosition = rootTransformNode.position.clone();
+    this._initialRootRotation = cloneQuaternion(
+      ensureRotationQuaternion(rootTransformNode),
+    );
+    this._config = config;
     this._boxConfigs = [];
     this._constraints = [];
     this._bones = [];
     this._initialRotation = [];
-    // without mesh transform, to figure out later
-    this._initialRotation2 = [];
     this._boneNames = [];
+    this._linkedTransformNodes = [];
     this._transforms = [];
     this._aggregates = [];
-    this._ragdollMode = false;
-    this._rootBoneName = '';
-    this._rootBoneIndex = -1;
-    this._mass = 10;
-    this._restitution = 0;
     this._beforeRenderObserver = null;
-    /**
-     * Pause synchronization between physics and bone position/orientation
-     */
+    this._initialized = false;
+    this._ragdollMode = false;
+
     this.pauseSync = false;
-    this._defaultJoint = 3 /* PhysicsConstraintType.HINGE */;
-    this._defaultJointMin = -90;
-    this._defaultJointMax = 90;
-    this._skeleton = skeleton;
-    this._scene = skeleton.getScene();
-    this._rootTransformNode = rootTransformNode;
-    this._config = config; // initial, user defined box configs. May have several box configs jammed into 1 index.
-    this._boxConfigs = []; // final box configs. Every element is a separate box config (this.config may have several configs jammed into 1 index).
-    this._putBoxesInBoneCenter = false;
-    this._defaultJoint = 3 /* PhysicsConstraintType.HINGE */;
-    this._init();
+    this.showBoxes = showBoxes;
+    this.boxVisibility = 0.6;
+    this.mainPivotSphereSize = mainPivotSphereSize;
+    this.disableBoxBoneSync = disableBoxBoneSync;
+    this.jointCollisions = jointCollisions;
+    this.rootBoneName = '';
+    this.rootBoneIndex = -1;
+    this.mass = 1;
+    this.restitution = 0;
+    this.linearDamping = DEFAULT_LINEAR_DAMPING;
+    this.angularDamping = DEFAULT_ANGULAR_DAMPING;
+    this.putBoxesInBoneCenter = false;
+    this.defaultJointMin = -90;
+    this.defaultJointMax = 90;
+    this.boneOffsetAxis = Axis.Y;
   }
-  /**
-   * returns an array of created constraints
-   * @returns array of created constraints
-   */
+
+  get ragdollMode() {
+    return this._ragdollMode;
+  }
+
   getConstraints() {
     return this._constraints;
   }
@@ -68,360 +123,451 @@ export class Ragdoll {
   getTransformNode() {
     return this._rootTransformNode;
   }
-  /**
-   * Returns all ragdoll aggregates
-   * @returns array of all physics aggregates
-   */
+
   getAggregates() {
     return this._aggregates;
   }
-  /**
-   * Returns the aggregate corresponding to the ragdoll bone index
-   * @param index ragdoll bone aggregate index
-   * @returns the aggregate for the bone index for the root aggregate if index is invalid
-   */
+
   getAggregate(index) {
     if (index < 0 || index >= this._aggregates.length) {
-      return this._aggregates[this._rootBoneIndex];
+      return this._aggregates[this.rootBoneIndex] ?? null;
     }
+
     return this._aggregates[index];
   }
-  _createColliders() {
-    this._rootTransformNode.computeWorldMatrix();
-    this._skeleton.computeAbsoluteMatrices(true);
-    this._skeleton.prepare(true);
-    const config = this._config;
-    for (let i = 0; i < config.length; i++) {
-      const boneNames =
-        config[i].bone !== undefined ? [config[i].bone] : config[i].bones;
-      for (let ii = 0; ii < boneNames.length; ii++) {
-        const currentBone =
-          this._skeleton.bones[
-            this._skeleton.getBoneIndexByName(boneNames[ii])
-          ];
-        if (currentBone == undefined) {
-          return;
-        }
-        // First define the box dimensions, so we can then use them when calling CreateBox().
-        const currentRagdollBoneProperties = {
-          width: this._config[i].width,
-          depth: this._config[i].depth,
-          height: this._config[i].height,
-          size: this._config[i].size,
-        };
-        currentRagdollBoneProperties.width =
-          currentRagdollBoneProperties.width ??
-          currentRagdollBoneProperties.size;
-        currentRagdollBoneProperties.depth =
-          currentRagdollBoneProperties.depth ??
-          currentRagdollBoneProperties.size;
-        currentRagdollBoneProperties.height =
-          currentRagdollBoneProperties.height ??
-          currentRagdollBoneProperties.size;
-        const transform = new TransformNode(
-          boneNames[ii] + '_transform',
-          this._scene,
-        );
-        // Define the rest of the box properties.
-        currentRagdollBoneProperties.joint =
-          config[i].joint !== undefined ? config[i].joint : this._defaultJoint;
-        currentRagdollBoneProperties.rotationAxis =
-          config[i].rotationAxis !== undefined
-            ? config[i].rotationAxis
-            : Axis.X;
-        currentRagdollBoneProperties.min =
-          config[i].min !== undefined ? config[i].min : this._defaultJointMin;
-        currentRagdollBoneProperties.max =
-          config[i].max !== undefined ? config[i].max : this._defaultJointMax;
-        // Offset value.
-        let boxOffset = 0;
-        if (
-          (config[i].putBoxInBoneCenter !== undefined &&
-            config[i].putBoxInBoneCenter) ||
-          this._putBoxesInBoneCenter
-        ) {
-          if (currentBone.length === undefined) {
-            Logger.Log(
-              'The length property is not defined for bone ' + currentBone.name,
-            );
-          }
-          boxOffset = currentBone.length / 2;
-        } else if (config[i].boxOffset !== undefined) {
-          boxOffset = config[i].boxOffset;
-        }
-        currentRagdollBoneProperties.boxOffset = boxOffset;
-        // Offset axis.
-        const boneOffsetAxis =
-          config[i].boneOffsetAxis !== undefined
-            ? config[i].boneOffsetAxis
-            : Axis.Y;
-        const boneDir = currentBone.getDirection(
-          boneOffsetAxis,
-          this._rootTransformNode,
-        );
-        currentRagdollBoneProperties.boneOffsetAxis = boneOffsetAxis;
-        transform.position = currentBone
-          .getAbsolutePosition(this._rootTransformNode)
-          .add(boneDir.scale(boxOffset));
-        const mass = config[i].mass !== undefined ? config[i].mass : this._mass;
-        const restitution =
-          config[i].restitution !== undefined
-            ? config[i].restitution
-            : this._restitution;
-        const aggregate = new PhysicsAggregate(
-          transform,
-          3 /* PhysicsShapeType.BOX */,
-          {
-            mass: mass,
-            restitution: restitution,
-            friction: 0.6,
-            extents: new Vector3(
-              currentRagdollBoneProperties.width,
-              currentRagdollBoneProperties.height,
-              currentRagdollBoneProperties.depth,
-            ),
-          },
-          this._scene,
-        );
-        aggregate.body.setCollisionCallbackEnabled(true);
-        aggregate.body.disablePreStep = false;
-        aggregate.body.setMotionType(1 /* PhysicsMotionType.ANIMATED */);
-        this._aggregates.push(aggregate);
-        this._bones.push(currentBone);
-        this._boneNames.push(currentBone.name);
-        this._transforms.push(transform);
-        this._boxConfigs.push(currentRagdollBoneProperties);
-        this._initialRotation.push(
-          currentBone.getRotationQuaternion(
-            1 /* Space.WORLD */,
-            this._rootTransformNode,
-          ),
-        );
-        this._initialRotation2.push(
-          currentBone.getRotationQuaternion(1 /* Space.WORLD */),
-        );
-      }
-    }
-  }
-  _initJoints() {
-    this._rootTransformNode.computeWorldMatrix();
-    for (let i = 0; i < this._bones.length; i++) {
-      // The root bone has no joints.
-      if (i == this._rootBoneIndex) {
-        continue;
-      }
-      const nearestParent = this._findNearestParent(i);
-      if (nearestParent == null) {
-        Logger.Warn(
-          "Couldn't find a nearest parent bone in the configs for bone called " +
-            this._boneNames[i],
-        );
-        return;
-      }
-      const boneParentIndex = this._boneNames.indexOf(nearestParent.name);
-      let distanceFromParentBoxToBone = this._bones[i]
-        .getAbsolutePosition(this._rootTransformNode)
-        .subtract(this._transforms[boneParentIndex].position);
-      const wmat = this._transforms[boneParentIndex].computeWorldMatrix();
-      const invertedWorldMat = Matrix.Invert(wmat);
-      distanceFromParentBoxToBone = Vector3.TransformCoordinates(
-        this._bones[i].getAbsolutePosition(this._rootTransformNode),
-        invertedWorldMat,
-      );
-      const boneAbsPos = this._bones[i].getAbsolutePosition(
-        this._rootTransformNode,
-      );
-      const boxAbsPos = this._transforms[i].position.clone();
-      const myConnectedPivot = boneAbsPos.subtract(boxAbsPos);
-      const constraintType = this._boxConfigs[i].joint ?? this._defaultJoint;
-      const constraint = new PhysicsConstraint(
-        constraintType,
-        {
-          pivotA: distanceFromParentBoxToBone,
-          pivotB: myConnectedPivot,
-          axisA: this._boxConfigs[i].rotationAxis,
-          axisB: this._boxConfigs[i].rotationAxis,
-          collision: false,
-        },
-        this._scene,
-      );
-      this._aggregates[boneParentIndex].body.addConstraint(
-        this._aggregates[i].body,
-        constraint,
-      );
-      constraint.isEnabled = false;
-      this._constraints.push(constraint);
-    }
-  }
-  // set physics body orientation/position from bones
-  _syncBonesToPhysics() {
-    const rootMatrix = this._rootTransformNode.getWorldMatrix();
-    for (let i = 0; i < this._bones.length; i++) {
-      // position
-      const transform = this._aggregates[i].transformNode;
-      const rootPos = this._bones[i].getAbsolutePosition();
-      Vector3.TransformCoordinatesToRef(
-        rootPos,
-        rootMatrix,
-        transform.position,
-      );
-      // added offset
-      this._bones[i].getDirectionToRef(
-        this._boxConfigs[i].boneOffsetAxis,
-        this._rootTransformNode,
-        TmpVectors.Vector3[0],
-      );
-      TmpVectors.Vector3[0].scaleInPlace(this._boxConfigs[i].boxOffset ?? 0);
-      transform.position.addInPlace(TmpVectors.Vector3[0]);
-      this._setBoneOrientationToBody(i);
-    }
-  }
-  _setBoneOrientationToBody(boneIndex) {
-    const transform = this._aggregates[boneIndex].transformNode;
-    const bone = this._bones[boneIndex];
-    this._initialRotation[boneIndex].conjugateToRef(TmpVectors.Quaternion[0]);
-    bone.getRotationQuaternionToRef(
-      1 /* Space.WORLD */,
-      this._rootTransformNode,
-      TmpVectors.Quaternion[1],
-    );
-    TmpVectors.Quaternion[1].multiplyToRef(
-      TmpVectors.Quaternion[0],
-      transform.rotationQuaternion,
-    );
-    transform.rotationQuaternion.normalize();
-  }
-  _syncBonesAndBoxes() {
-    if (this.pauseSync) {
+
+  init() {
+    if (this._initialized) {
       return;
     }
-    if (this._ragdollMode) {
-      this._setBodyOrientationToBone(this._rootBoneIndex);
-      const rootPos =
-        this._aggregates[this._rootBoneIndex].body.transformNode.position;
-      this._rootTransformNode
-        .getWorldMatrix()
-        .invertToRef(TmpVectors.Matrix[0]);
-      Vector3.TransformCoordinatesToRef(
-        rootPos,
-        TmpVectors.Matrix[0],
-        TmpVectors.Vector3[0],
-      );
-      this._bones[this._rootBoneIndex].setAbsolutePosition(
-        TmpVectors.Vector3[0],
-      );
-      for (let i = 0; i < this._bones.length; i++) {
-        if (i == this._rootBoneIndex) {
-          continue;
-        }
-        this._setBodyOrientationToBone(i);
-      }
-    } else {
-      this._syncBonesToPhysics();
-    }
-  }
-  _setBodyOrientationToBone(boneIndex) {
-    const qmesh =
-      this._rootTransformNode.rotationQuaternion ??
-      Quaternion.FromEulerAngles(
-        this._rootTransformNode.rotation.x,
-        this._rootTransformNode.rotation.y,
-        this._rootTransformNode.rotation.z,
-      );
-    const qbind = this._initialRotation2[boneIndex];
-    const qphys =
-      this._aggregates[boneIndex].body?.transformNode?.rotationQuaternion;
-    qmesh.multiplyToRef(qbind, TmpVectors.Quaternion[1]);
-    qphys?.multiplyToRef(TmpVectors.Quaternion[1], TmpVectors.Quaternion[0]);
-    this._bones[boneIndex].setRotationQuaternion(
-      TmpVectors.Quaternion[0],
-      1 /* Space.WORLD */,
-      this._rootTransformNode,
-    );
-  }
-  // Return true if root bone is valid/exists in this.bonesNames. false otherwise.
-  _defineRootBone() {
-    const skeletonRoots = this._skeleton.getChildren();
-    if (skeletonRoots.length != 1) {
-      Logger.Log(
-        'Ragdoll creation failed: there can only be one root in the skeleton.',
-      );
-      return false;
-    }
-    this._rootBoneName = skeletonRoots[0].name;
-    this._rootBoneIndex = this._boneNames.indexOf(this._rootBoneName);
-    if (this._rootBoneIndex == -1) {
-      // eslint-disable-next-line @typescript-eslint/restrict-plus-operands, @typescript-eslint/no-base-to-string
-      Logger.Log(
-        "Ragdoll creation failed: the array boneNames doesn't have the root bone. The root bone is " +
-          this._skeleton.getChildren(),
-      );
-      return false;
-    }
-    return true;
-  }
-  _findNearestParent(boneIndex) {
-    let nearestParent = this._bones[boneIndex].getParent();
-    do {
-      if (
-        nearestParent != null &&
-        this._boneNames.includes(nearestParent.name)
-      ) {
-        break;
-      }
-      nearestParent = nearestParent?.getParent();
-    } while (nearestParent != null);
-    return nearestParent;
-  }
-  _init() {
+
     this._createColliders();
-    // If this.defineRootBone() returns ... there is not root bone.
+
     if (!this._defineRootBone()) {
       return;
     }
+
     this._initJoints();
     this._beforeRenderObserver = this._scene.onBeforeRenderObservable.add(
       () => {
         this._syncBonesAndBoxes();
       },
     );
-    this._syncBonesToPhysics();
+
+    if (!this.disableBoxBoneSync) {
+      this._syncTransformsToBones();
+    }
+
+    this._initialized = true;
   }
-  /**
-   * Enable ragdoll mode. Create physics objects and make them dynamic.
-   */
+
+  _createColliders() {
+    this._rootTransformNode.computeWorldMatrix(true);
+    this._skeleton.computeAbsoluteMatrices(true);
+    this._skeleton.prepare(true);
+
+    for (let i = 0; i < this._config.length; i++) {
+      const boneNames =
+        this._config[i].bone !== undefined
+          ? [this._config[i].bone]
+          : this._config[i].bones;
+
+      for (const boneName of boneNames) {
+        const currentBone =
+          this._skeleton.bones[this._skeleton.getBoneIndexByName(boneName)];
+
+        if (!currentBone) {
+          Logger.Warn(`Bone ${boneName} does not exist.`);
+          continue;
+        }
+
+        const currentBoxProps = {
+          width: this._config[i].width ?? this._config[i].size,
+          depth: this._config[i].depth ?? this._config[i].size,
+          height: this._config[i].height ?? this._config[i].size,
+          size: this._config[i].size,
+          rotationAxis: cloneVector3(this._config[i].rotationAxis ?? Axis.X),
+        };
+
+        currentBoxProps.min = this._config[i].min ?? this.defaultJointMin;
+        currentBoxProps.max = this._config[i].max ?? this.defaultJointMax;
+
+        let boxOffset = 0;
+        if (
+          (this._config[i].putBoxInBoneCenter ?? false) ||
+          this.putBoxesInBoneCenter
+        ) {
+          if (currentBone.length === undefined) {
+            Logger.Warn(
+              `The length property is not defined for bone ${currentBone.name}.`,
+            );
+          }
+
+          boxOffset = (currentBone.length ?? 0) / 2;
+        } else if (this._config[i].boxOffset !== undefined) {
+          boxOffset = this._config[i].boxOffset;
+        }
+
+        currentBoxProps.boxOffset = boxOffset;
+        currentBoxProps.boneOffsetAxis = cloneVector3(
+          this._config[i].boneOffsetAxis ?? this.boneOffsetAxis,
+        );
+
+        const transform = new TransformNode(
+          `${currentBone.name}_ragdoll`,
+          this._scene,
+        );
+        transform.rotationQuaternion = Quaternion.Identity();
+
+        const boneDirection = currentBone.getDirection(
+          currentBoxProps.boneOffsetAxis,
+          this._rootTransformNode,
+        );
+        transform.position.copyFrom(
+          currentBone
+            .getAbsolutePosition(this._rootTransformNode)
+            .add(boneDirection.scale(boxOffset)),
+        );
+
+        const aggregate = new PhysicsAggregate(
+          transform,
+          PhysicsShapeType.BOX,
+          {
+            mass: this._config[i].mass ?? this.mass,
+            restitution: this._config[i].restitution ?? this.restitution,
+            friction: this._config[i].friction ?? 0.8,
+            extents: new Vector3(
+              currentBoxProps.width,
+              currentBoxProps.height,
+              currentBoxProps.depth,
+            ),
+          },
+          this._scene,
+        );
+
+        aggregate.body.setCollisionCallbackEnabled(true);
+        aggregate.body.disablePreStep = false;
+        aggregate.body.setMotionType(PhysicsMotionType.ANIMATED);
+        aggregate.body.setLinearDamping(
+          this._config[i].linearDamping ?? this.linearDamping,
+        );
+        aggregate.body.setAngularDamping(
+          this._config[i].angularDamping ?? this.angularDamping,
+        );
+
+        this._bones.push(currentBone);
+        this._boneNames.push(currentBone.name);
+        this._linkedTransformNodes.push(
+          currentBone.getTransformNode?.() ?? null,
+        );
+        this._transforms.push(transform);
+        this._aggregates.push(aggregate);
+        this._boxConfigs.push(currentBoxProps);
+        this._initialRotation.push(
+          cloneQuaternion(
+            currentBone.getRotationQuaternion(
+              Space.WORLD,
+              this._rootTransformNode,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  _initJoints() {
+    this._rootTransformNode.computeWorldMatrix(true);
+
+    for (let i = 0; i < this._bones.length; i++) {
+      if (i === this.rootBoneIndex) {
+        continue;
+      }
+
+      const nearestParent = this._findNearestParent(i);
+      if (!nearestParent) {
+        Logger.Warn(
+          `Couldn't find a nearest parent bone in the configs for bone ${this._boneNames[i]}.`,
+        );
+        continue;
+      }
+
+      const parentIndex = this._boneNames.indexOf(nearestParent.name);
+      if (parentIndex < 0) {
+        continue;
+      }
+
+      const childBoneAbsPosition = this._bones[i].getAbsolutePosition(
+        this._rootTransformNode,
+      );
+      const parentWorldMatrix =
+        this._transforms[parentIndex].computeWorldMatrix(true);
+      const invertedParentWorldMatrix = Matrix.Invert(parentWorldMatrix);
+      const mainPivot = Vector3.TransformCoordinates(
+        childBoneAbsPosition,
+        invertedParentWorldMatrix,
+      );
+      const connectedPivot = childBoneAbsPosition.subtract(
+        this._transforms[i].position,
+      );
+
+      const primaryAxis = cloneVector3(this._boxConfigs[i].rotationAxis);
+      const perpendicularAxis = createPerpendicularAxis(primaryAxis);
+      const limits = [
+        { axis: PhysicsConstraintAxis.LINEAR_X, minLimit: 0, maxLimit: 0 },
+        { axis: PhysicsConstraintAxis.LINEAR_Y, minLimit: 0, maxLimit: 0 },
+        { axis: PhysicsConstraintAxis.LINEAR_Z, minLimit: 0, maxLimit: 0 },
+        { axis: PhysicsConstraintAxis.ANGULAR_Y, minLimit: 0, maxLimit: 0 },
+        { axis: PhysicsConstraintAxis.ANGULAR_Z, minLimit: 0, maxLimit: 0 },
+      ];
+
+      if (
+        Number.isFinite(this._boxConfigs[i].min) &&
+        Number.isFinite(this._boxConfigs[i].max)
+      ) {
+        limits.push({
+          axis: PhysicsConstraintAxis.ANGULAR_X,
+          minLimit: degreesToRadians(this._boxConfigs[i].min),
+          maxLimit: degreesToRadians(this._boxConfigs[i].max),
+          damping: this._boxConfigs[i].jointDamping ?? 0.06,
+          stiffness: this._boxConfigs[i].jointStiffness ?? 0,
+        });
+      }
+
+      const constraint = new Physics6DoFConstraint(
+        {
+          pivotA: mainPivot,
+          pivotB: connectedPivot,
+          axisA: primaryAxis,
+          axisB: primaryAxis,
+          perpAxisA: perpendicularAxis,
+          perpAxisB: perpendicularAxis,
+          collision: this.jointCollisions,
+        },
+        limits,
+        this._scene,
+      );
+
+      this._aggregates[parentIndex].body.addConstraint(
+        this._aggregates[i].body,
+        constraint,
+      );
+      constraint.isEnabled = false;
+      constraint.isCollisionsEnabled = this.jointCollisions;
+      constraint.setAxisFriction(
+        PhysicsConstraintAxis.ANGULAR_X,
+        this._boxConfigs[i].jointFriction ?? 0.04,
+      );
+      this._constraints.push(constraint);
+    }
+  }
+
+  _defineRootBone() {
+    const skeletonRoots = this._skeleton.getChildren();
+    if (skeletonRoots.length !== 1) {
+      Logger.Warn(
+        'Ragdoll creation failed: there can only be one root in the skeleton.',
+      );
+      return false;
+    }
+
+    this.rootBoneName = skeletonRoots[0].name;
+    this.rootBoneIndex = this._boneNames.indexOf(this.rootBoneName);
+
+    if (this.rootBoneIndex === -1) {
+      Logger.Warn(
+        `Ragdoll creation failed: the config does not include the root bone ${this.rootBoneName}.`,
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  _findNearestParent(boneIndex) {
+    let nearestParent = this._bones[boneIndex].getParent();
+
+    while (nearestParent) {
+      if (this._boneNames.includes(nearestParent.name)) {
+        return nearestParent;
+      }
+
+      nearestParent = nearestParent.getParent();
+    }
+
+    return null;
+  }
+
+  _syncTransformToBone(boneIndex, rotationAdjust = null) {
+    const bone = this._bones[boneIndex];
+    const transform = this._transforms[boneIndex];
+    const body = this._aggregates[boneIndex].body;
+    const boxConfig = this._boxConfigs[boneIndex];
+
+    const boneDirection = bone.getDirection(
+      boxConfig.boneOffsetAxis,
+      this._rootTransformNode,
+    );
+    transform.position.copyFrom(
+      bone
+        .getAbsolutePosition(this._rootTransformNode)
+        .add(boneDirection.scale(boxConfig.boxOffset ?? 0)),
+    );
+
+    const boneRotation = cloneQuaternion(
+      bone.getRotationQuaternion(Space.WORLD, this._rootTransformNode),
+    );
+    const targetRotation = rotationAdjust
+      ? boneRotation.multiply(rotationAdjust)
+      : boneRotation;
+
+    ensureRotationQuaternion(transform).copyFrom(targetRotation);
+    transform.computeWorldMatrix(true);
+    body.setLinearVelocity(Vector3.Zero());
+    body.setAngularVelocity(Vector3.Zero());
+  }
+
+  _syncTransformsToBones() {
+    this._rootTransformNode.computeWorldMatrix(true);
+    this._skeleton.computeAbsoluteMatrices(true);
+
+    for (let i = 0; i < this._bones.length; i++) {
+      this._syncTransformToBone(i);
+    }
+  }
+
+  _addImpostorRotationToBone(boneIndex) {
+    const bodyRotation = cloneQuaternion(
+      ensureRotationQuaternion(this._transforms[boneIndex]),
+    );
+    const newRotation = bodyRotation.multiply(this._initialRotation[boneIndex]);
+    this._bones[boneIndex].setRotationQuaternion(
+      newRotation,
+      Space.WORLD,
+      this._rootTransformNode,
+    );
+  }
+
+  _syncBonesAndBoxes() {
+    if (this.pauseSync) {
+      return;
+    }
+
+    this._rootTransformNode.computeWorldMatrix(true);
+    this._skeleton.computeAbsoluteMatrices(true);
+
+    if (this._ragdollMode) {
+      const rootBoxConfig = this._boxConfigs[this.rootBoneIndex];
+      const rootBone = this._bones[this.rootBoneIndex];
+      const rootBoneDirection = rootBone.getDirection(
+        rootBoxConfig.boneOffsetAxis,
+        this._rootTransformNode,
+      );
+      const rootBoneOffsetPosition = rootBone
+        .getAbsolutePosition(this._rootTransformNode)
+        .add(rootBoneDirection.scale(rootBoxConfig.boxOffset ?? 0));
+
+      this._addImpostorRotationToBone(this.rootBoneIndex);
+
+      const offsetToRootBody = rootBoneOffsetPosition.subtract(
+        this._transforms[this.rootBoneIndex].position,
+      );
+      this._rootTransformNode.setAbsolutePosition(
+        this._rootTransformNode
+          .getAbsolutePosition()
+          .subtract(offsetToRootBody),
+      );
+      this._rootTransformNode.computeWorldMatrix(true);
+
+      for (let i = 0; i < this._bones.length; i++) {
+        if (i === this.rootBoneIndex) {
+          continue;
+        }
+
+        this._addImpostorRotationToBone(i);
+      }
+
+      return;
+    }
+
+    if (this.disableBoxBoneSync) {
+      return;
+    }
+
+    this._syncTransformsToBones();
+  }
+
   ragdoll() {
-    this._ragdollMode = true;
-    // detach bones with link transform to let physics have control
-    for (const bone of this._skeleton.bones) {
-      bone.linkTransformNode(null);
+    if (!this._initialized) {
+      this.init();
     }
-    for (let i = 0; i < this._constraints.length; i++) {
-      this._constraints[i].isEnabled = true;
+
+    if (this._ragdollMode || this.rootBoneIndex < 0) {
+      return;
     }
-    for (let i = 0; i < this._aggregates.length; i++) {
-      this._aggregates[i].body.setMotionType(2 /* PhysicsMotionType.DYNAMIC */);
+
+    for (let i = 0; i < this._bones.length; i++) {
+      if (this._linkedTransformNodes[i]) {
+        this._bones[i].linkTransformNode(null);
+      }
+
+      const rotationAdjust = Quaternion.Inverse(this._initialRotation[i]);
+      this._syncTransformToBone(i, rotationAdjust);
     }
-  }
-  /**
-   * Dispose resources and remove physics objects
-   */
-  dispose() {
-    for (const aggregate of this._aggregates) {
-      aggregate.dispose();
-    }
-    this._aggregates.length = 0;
-    for (const transform of this._transforms) {
-      transform.dispose();
-    }
-    this._transforms.length = 0;
+
     for (const constraint of this._constraints) {
-      constraint.dispose();
+      constraint.isEnabled = true;
     }
-    this._constraints.length = 0;
+
+    for (const aggregate of this._aggregates) {
+      aggregate.body.setMotionType(PhysicsMotionType.DYNAMIC);
+      aggregate.body.setLinearVelocity(Vector3.Zero());
+      aggregate.body.setAngularVelocity(Vector3.Zero());
+    }
+
+    this._ragdollMode = true;
+  }
+
+  dispose() {
     if (this._beforeRenderObserver) {
       this._scene.onBeforeRenderObservable.remove(this._beforeRenderObserver);
       this._beforeRenderObserver = null;
     }
+
+    this._rootTransformNode.position.copyFrom(this._initialRootPosition);
+    ensureRotationQuaternion(this._rootTransformNode).copyFrom(
+      this._initialRootRotation,
+    );
+    this._rootTransformNode.computeWorldMatrix(true);
+
+    for (let i = 0; i < this._bones.length; i++) {
+      if (this._linkedTransformNodes[i]) {
+        this._bones[i].linkTransformNode(this._linkedTransformNodes[i]);
+      }
+    }
+
+    for (const constraint of this._constraints) {
+      constraint.dispose();
+    }
+    this._constraints.length = 0;
+
+    for (const aggregate of this._aggregates) {
+      aggregate.dispose();
+    }
+    this._aggregates.length = 0;
+
+    for (const transform of this._transforms) {
+      transform.dispose();
+    }
+    this._transforms.length = 0;
+
+    this._boxConfigs.length = 0;
+    this._bones.length = 0;
+    this._boneNames.length = 0;
+    this._linkedTransformNodes.length = 0;
+    this._initialRotation.length = 0;
+    this._initialized = false;
+    this._ragdollMode = false;
+    this.rootBoneName = '';
+    this.rootBoneIndex = -1;
   }
 }

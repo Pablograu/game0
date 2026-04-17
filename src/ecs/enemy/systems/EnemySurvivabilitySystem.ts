@@ -26,11 +26,13 @@ import {
 
 interface EcsEnemyRagdollApi {
   ragdoll(): void;
-  getAggregates(): Array<{
+  getAggregate(index: number): {
     body?: {
       applyImpulse(impulse: Vector3, contactPoint: Vector3): void;
+      setLinearVelocity?(velocity: Vector3): void;
+      setAngularVelocity?(velocity: Vector3): void;
     };
-  }>;
+  } | null;
 }
 
 export class EnemySurvivabilitySystem implements EcsSystem {
@@ -103,29 +105,21 @@ export class EnemySurvivabilitySystem implements EcsSystem {
           const ragdollApi = ragdoll.ragdoll as EcsEnemyRagdollApi;
           ragdollApi.ragdoll();
           ragdoll.mode = EnemyRagdollMode.ACTIVE;
-          ragdoll.pendingImpulse = ragdoll.lastKnockbackDir.scale(
-            stats.knockbackForce * 15,
-          );
+          refs.body?.setLinearVelocity(Vector3.Zero());
+          refs.body?.setAngularVelocity(Vector3.Zero());
+
+          const rootAggregate = ragdollApi.getAggregate(-1);
+          rootAggregate?.body?.setLinearVelocity?.(Vector3.Zero());
+          rootAggregate?.body?.setAngularVelocity?.(Vector3.Zero());
+
+          ragdoll.pendingImpulse =
+            ragdoll.lastKnockbackDir.lengthSquared() > 0.0001
+              ? ragdoll.lastKnockbackDir.scale(stats.knockbackForce * 0.35)
+              : null;
           ragdoll.pendingImpulseDelay = Math.max(deltaTime, 1 / 60);
         } else if (refs.body) {
-          const currentVel = refs.body.getLinearVelocity();
-          refs.body.setMassProperties({
-            mass: stats.mass,
-            inertia: new Vector3(0.4, 0.1, 0.4),
-          });
-          const toppleAxis = new Vector3(-currentVel.z, 0, currentVel.x);
-          if (toppleAxis.length() > 0.01) {
-            toppleAxis.normalize();
-          } else {
-            toppleAxis
-              .set(Math.random() - 0.5, 0, Math.random() - 0.5)
-              .normalize();
-          }
-          refs.body.setAngularVelocity(toppleAxis.scale(6));
-          refs.body.applyImpulse(
-            new Vector3(0, 20, 0),
-            refs.mesh.getAbsolutePosition(),
-          );
+          refs.body.setLinearVelocity(Vector3.Zero());
+          refs.body.setAngularVelocity(Vector3.Zero());
         }
       }
 
@@ -139,9 +133,9 @@ export class EnemySurvivabilitySystem implements EcsSystem {
           const ragdollApi = ragdoll.ragdoll as EcsEnemyRagdollApi | null;
           const appPoint = refs.mesh.getAbsolutePosition();
 
-          for (const aggregate of ragdollApi?.getAggregates() ?? []) {
-            aggregate.body?.applyImpulse(ragdoll.pendingImpulse, appPoint);
-          }
+          ragdollApi
+            ?.getAggregate(-1)
+            ?.body?.applyImpulse(ragdoll.pendingImpulse, appPoint);
 
           ragdoll.pendingImpulse = null;
         }

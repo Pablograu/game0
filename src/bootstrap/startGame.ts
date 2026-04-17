@@ -40,7 +40,7 @@ function generateEnemyPositions(count: number): Vector3[] {
   return positions;
 }
 const INITIAL_ENEMY_CONFIG = {
-  hp: 15,
+  hp: 1,
   mass: 2,
   knockbackForce: 5,
   contactDamage: 1,

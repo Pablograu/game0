@@ -53,7 +53,7 @@ export async function loadPlayerCharacter(
   scene: Scene,
 ): Promise<LoadedPlayerCharacter> {
   const result = await ImportMeshAsync('/models/player.glb', scene);
-  const rootMesh = result.meshes[0];
+  const rootMesh = result.meshes[0] as Mesh;
   const skeleton = result.skeletons[0];
   const armatureNode = result.transformNodes.find(
     (node) => node.name === 'Armature',
