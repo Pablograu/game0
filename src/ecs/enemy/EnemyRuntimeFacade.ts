@@ -79,7 +79,11 @@ export class EnemyRuntimeFacade {
     this.setDebugMode(value);
   }
 
-  takeDamage(amount: number, damageSourcePosition?: Vector3 | null): boolean {
+  takeDamage(
+    amount: number,
+    damageSourcePosition?: Vector3 | null,
+    impactPoint?: Vector3 | null,
+  ): boolean {
     const requests = this.world.getComponent(
       this.entityId,
       EnemyLifecycleRequestComponent,
@@ -93,6 +97,7 @@ export class EnemyRuntimeFacade {
     requests.damageRequests.push({
       amount,
       damageSourcePosition: damageSourcePosition ?? null,
+      impactPoint: impactPoint ?? null,
     });
 
     return true;

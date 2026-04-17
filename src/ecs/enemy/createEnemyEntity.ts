@@ -129,6 +129,7 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
   options.world.addComponent(entityId, EnemyLocomotionStateComponent, {
     overrideDirection: null,
     overrideTimer: 0,
+    knockbackTimer: 0,
   });
 
   options.world.addComponent(entityId, EnemyStatsComponent, {
@@ -179,6 +180,7 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
     ragdollArmatureNode: options.armatureNode,
     lastKnockbackDir: Vector3.Zero(),
     pendingImpulse: null,
+    pendingImpulsePoint: null,
     pendingImpulseDelay: 0,
   });
 

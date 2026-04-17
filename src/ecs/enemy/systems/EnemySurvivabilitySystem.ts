@@ -33,6 +33,11 @@ interface EcsEnemyRagdollApi {
       setAngularVelocity?(velocity: Vector3): void;
     };
   } | null;
+  getClosestAggregate(point: Vector3): {
+    body?: {
+      applyImpulse(impulse: Vector3, contactPoint: Vector3): void;
+    };
+  } | null;
 }
 
 export class EnemySurvivabilitySystem implements EcsSystem {
@@ -98,11 +103,13 @@ export class EnemySurvivabilitySystem implements EcsSystem {
 
         for (const mesh of refs.meshes) {
           mesh.checkCollisions = false;
-          mesh.isPickable = false;
+          mesh.isPickable = true;
         }
 
         if (ragdoll.mode === EnemyRagdollMode.READY && ragdoll.ragdoll) {
           const ragdollApi = ragdoll.ragdoll as EcsEnemyRagdollApi;
+          const deathImpactPoint =
+            requests.deathPosition?.clone() ?? refs.mesh.getAbsolutePosition();
           ragdollApi.ragdoll();
           ragdoll.mode = EnemyRagdollMode.ACTIVE;
           refs.body?.setLinearVelocity(Vector3.Zero());
@@ -114,8 +121,14 @@ export class EnemySurvivabilitySystem implements EcsSystem {
 
           ragdoll.pendingImpulse =
             ragdoll.lastKnockbackDir.lengthSquared() > 0.0001
-              ? ragdoll.lastKnockbackDir.scale(stats.knockbackForce * 0.35)
+              ? new Vector3(
+                  // 25 will be replaced by the knocback force of the weapon that killed the enemy once that is implemented
+                  ragdoll.lastKnockbackDir.x * stats.knockbackForce * 25,
+                  0.6,
+                  ragdoll.lastKnockbackDir.z * stats.knockbackForce * 25,
+                )
               : null;
+          ragdoll.pendingImpulsePoint = deathImpactPoint;
           ragdoll.pendingImpulseDelay = Math.max(deltaTime, 1 / 60);
         } else if (refs.body) {
           refs.body.setLinearVelocity(Vector3.Zero());
@@ -131,13 +144,20 @@ export class EnemySurvivabilitySystem implements EcsSystem {
 
         if (ragdoll.pendingImpulseDelay <= 0) {
           const ragdollApi = ragdoll.ragdoll as EcsEnemyRagdollApi | null;
-          const appPoint = refs.mesh.getAbsolutePosition();
+          const appPoint =
+            ragdoll.pendingImpulsePoint?.clone() ??
+            refs.mesh.getAbsolutePosition();
+
+          ragdollApi
+            ?.getClosestAggregate(appPoint)
+            ?.body?.applyImpulse(ragdoll.pendingImpulse, appPoint);
 
           ragdollApi
             ?.getAggregate(-1)
-            ?.body?.applyImpulse(ragdoll.pendingImpulse, appPoint);
+            ?.body?.applyImpulse(ragdoll.pendingImpulse.scale(0.35), appPoint);
 
           ragdoll.pendingImpulse = null;
+          ragdoll.pendingImpulsePoint = null;
         }
       }
     }

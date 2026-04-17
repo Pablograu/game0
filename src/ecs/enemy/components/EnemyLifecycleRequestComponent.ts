@@ -4,6 +4,8 @@ import { createComponentType } from '../../core/Component.ts';
 export interface EnemyDamageRequest {
   amount: number;
   damageSourcePosition: Vector3 | null;
+  impactPoint?: Vector3 | null;
+  hitMeshName?: string | null;
 }
 
 export interface EnemyLifecycleRequestComponent {

@@ -136,6 +136,29 @@ export class Ragdoll {
     return this._aggregates[index];
   }
 
+  getClosestAggregate(point) {
+    if (!point || this._aggregates.length === 0) {
+      return this.getAggregate(-1);
+    }
+
+    let closestIndex = -1;
+    let closestDistanceSquared = Number.POSITIVE_INFINITY;
+
+    for (let i = 0; i < this._transforms.length; i++) {
+      const distanceSquared = Vector3.DistanceSquared(
+        this._transforms[i].position,
+        point,
+      );
+
+      if (distanceSquared < closestDistanceSquared) {
+        closestDistanceSquared = distanceSquared;
+        closestIndex = i;
+      }
+    }
+
+    return this.getAggregate(closestIndex);
+  }
+
   init() {
     if (this._initialized) {
       return;

@@ -81,6 +81,11 @@ export class EnemyMovementSystem implements EcsSystem {
 
       body.setAngularVelocity(Vector3.Zero());
 
+      locomotion.knockbackTimer = Math.max(
+        0,
+        locomotion.knockbackTimer - deltaTime,
+      );
+
       if (!refs.root.rotationQuaternion) {
         refs.root.rotationQuaternion = Quaternion.Identity();
       }
@@ -91,6 +96,11 @@ export class EnemyMovementSystem implements EcsSystem {
         ai.current === EnemyBehaviorState.HIT ||
         ai.current === EnemyBehaviorState.ATTACK
       ) {
+        if (locomotion.knockbackTimer > 0) {
+          rotateEnemyTowardTarget(refs, ai, deltaTime);
+          continue;
+        }
+
         this.stopHorizontalMovement(body);
         rotateEnemyTowardTarget(refs, ai, deltaTime);
         continue;

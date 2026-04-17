@@ -7,6 +7,7 @@ import {
   EnemyAiStateComponent,
   EnemyCombatStateComponent,
   EnemyLifecycleRequestComponent,
+  EnemyLocomotionStateComponent,
   EnemyPhysicsViewRefsComponent,
   EnemyRagdollStateComponent,
   EnemyStatsComponent,
@@ -16,6 +17,19 @@ import {
   isEnemyGameplayPaused,
   transitionEnemyBehavior,
 } from './enemyRuntimeUtils.ts';
+
+interface EcsEnemyRagdollApi {
+  getAggregate(index: number): {
+    body?: {
+      applyImpulse(impulse: Vector3, contactPoint: Vector3): void;
+    };
+  } | null;
+  getClosestAggregate(point: Vector3): {
+    body?: {
+      applyImpulse(impulse: Vector3, contactPoint: Vector3): void;
+    };
+  } | null;
+}
 
 export class EnemyDamageSystem implements EcsSystem {
   readonly name = 'EnemyDamageSystem';
@@ -30,6 +44,7 @@ export class EnemyDamageSystem implements EcsSystem {
       EnemyAiStateComponent,
       EnemyCombatStateComponent,
       EnemyLifecycleRequestComponent,
+      EnemyLocomotionStateComponent,
       EnemyPhysicsViewRefsComponent,
       EnemyRagdollStateComponent,
       EnemyStatsComponent,
@@ -42,11 +57,23 @@ export class EnemyDamageSystem implements EcsSystem {
         entityId,
         EnemyLifecycleRequestComponent,
       );
+      const locomotion = world.getComponent(
+        entityId,
+        EnemyLocomotionStateComponent,
+      );
       const refs = world.getComponent(entityId, EnemyPhysicsViewRefsComponent);
       const ragdoll = world.getComponent(entityId, EnemyRagdollStateComponent);
       const stats = world.getComponent(entityId, EnemyStatsComponent);
 
-      if (!ai || !combat || !requests || !refs || !ragdoll || !stats) {
+      if (
+        !ai ||
+        !combat ||
+        !requests ||
+        !locomotion ||
+        !refs ||
+        !ragdoll ||
+        !stats
+      ) {
         continue;
       }
 
@@ -56,15 +83,12 @@ export class EnemyDamageSystem implements EcsSystem {
       );
 
       for (const request of pendingRequests) {
-        if (stats.lifeState !== EnemyLifeState.ALIVE) {
-          continue;
-        }
-
         const enemyPos = refs.mesh.getAbsolutePosition();
+        const impactPoint = request.impactPoint?.clone() ?? enemyPos.clone();
         let knockbackDir = Vector3.Zero();
 
         if (request.damageSourcePosition) {
-          knockbackDir = enemyPos.subtract(request.damageSourcePosition);
+          knockbackDir = impactPoint.subtract(request.damageSourcePosition);
           knockbackDir.y = 0;
 
           if (knockbackDir.length() < 0.01) {
@@ -77,16 +101,59 @@ export class EnemyDamageSystem implements EcsSystem {
 
           knockbackDir.normalize();
           ragdoll.lastKnockbackDir = knockbackDir.clone();
+        }
 
+        if (stats.lifeState !== EnemyLifeState.ALIVE) {
+          if (
+            ragdoll.mode === 'ACTIVE' &&
+            ragdoll.ragdoll &&
+            knockbackDir.lengthSquared() > 0.0001
+          ) {
+            const ragdollApi = ragdoll.ragdoll as EcsEnemyRagdollApi;
+            const corpseImpulse = new Vector3(
+              knockbackDir.x * stats.knockbackForce * 6,
+              0.45,
+              knockbackDir.z * stats.knockbackForce * 6,
+            );
+
+            ragdollApi
+              .getClosestAggregate(impactPoint)
+              ?.body?.applyImpulse(corpseImpulse, impactPoint);
+
+            ragdollApi
+              .getAggregate(-1)
+              ?.body?.applyImpulse(corpseImpulse.scale(0.2), impactPoint);
+          }
+
+          continue;
+        }
+
+        if (request.damageSourcePosition) {
           if (refs.body) {
-            const impulse = knockbackDir.scale(stats.knockbackForce);
-            impulse.y = stats.knockbackForce;
-            refs.body.applyImpulse(impulse, enemyPos);
+            const currentVelocity = refs.body.getLinearVelocity();
+            const knockbackSpeed = Math.max(2.5, stats.knockbackForce * 4.5);
+            refs.body.setLinearVelocity(
+              new Vector3(
+                knockbackDir.x * knockbackSpeed,
+                Math.max(currentVelocity.y, 1.1),
+                knockbackDir.z * knockbackSpeed,
+              ),
+            );
+
+            const impulse = new Vector3(
+              knockbackDir.x * stats.knockbackForce * 2.5,
+              0.35,
+              knockbackDir.z * stats.knockbackForce * 2.5,
+            );
+            refs.body.applyImpulse(impulse, impactPoint);
+            locomotion.knockbackTimer = Math.max(
+              locomotion.knockbackTimer,
+              0.2,
+            );
           }
         }
 
-        const bloodPos = enemyPos.clone();
-        bloodPos.y += 0.8;
+        const bloodPos = impactPoint.clone();
 
         EffectManager.showBloodSplash(bloodPos, {
           intensity: stats.currentHp - request.amount <= 0 ? 'death' : 'hit',
@@ -98,7 +165,7 @@ export class EnemyDamageSystem implements EcsSystem {
         if (stats.currentHp <= 0) {
           stats.lifeState = EnemyLifeState.DEAD;
           requests.deathRequested = true;
-          requests.deathPosition = enemyPos.clone();
+          requests.deathPosition = impactPoint.clone();
           transitionEnemyBehavior(ai, combat, EnemyBehaviorState.DEAD);
           continue;
         }

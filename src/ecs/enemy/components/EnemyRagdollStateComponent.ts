@@ -9,6 +9,7 @@ export interface EnemyRagdollStateComponent {
   ragdollArmatureNode: TransformNode | null;
   lastKnockbackDir: Vector3;
   pendingImpulse: Vector3 | null;
+  pendingImpulsePoint: Vector3 | null;
   pendingImpulseDelay: number;
 }
 

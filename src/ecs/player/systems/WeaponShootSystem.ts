@@ -217,7 +217,9 @@ export class WeaponShootSystem implements EcsSystem {
         )!;
         lifecycle.damageRequests.push({
           amount: weaponDef.damage,
-          damageSourcePosition: playerMesh.getAbsolutePosition().clone(),
+          damageSourcePosition: muzzleOrigin.clone(),
+          impactPoint: aimHit.pickedPoint?.clone() ?? null,
+          hitMeshName: aimHit.pickedMesh.name,
         });
         break;
       }

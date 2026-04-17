@@ -100,6 +100,7 @@ export class PlayerWeaponHitSystem implements EcsSystem {
         enemyLifecycle.damageRequests.push({
           amount: weapon.damage,
           damageSourcePosition: physicsRefs.mesh.getAbsolutePosition().clone(),
+          impactPoint: enemyRefs.mesh.getAbsolutePosition().clone(),
         });
 
         physicsRefs.cameraShaker?.shakeMedium();
