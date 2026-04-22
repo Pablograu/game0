@@ -1,14 +1,9 @@
 import '@babylonjs/core/Cameras/Inputs';
 import '@babylonjs/loaders/glTF';
-import { Vector3 } from '@babylonjs/core';
-import {
-  EnemySpawner,
-  EnemyUiManager,
-  type PlayerDebugApi,
-} from '../ecs/index.ts';
+import '@babylonjs/inspector';
+import { KeyboardEventTypes, Vector3, type Scene } from '@babylonjs/core';
+import { EnemySpawner, EnemyUiManager } from '../ecs/index.ts';
 import { preloadDroppedWeaponAssets } from '../ecs/weapons/createDroppedWeaponEntity.ts';
-import type { EnemyRuntimeFacade } from '../ecs/enemy/EnemyRuntimeFacade.ts';
-import type { RuntimePlayerMesh } from './playerBootstrap.ts';
 import { createGameFlowUi } from './createGameFlowUi.ts';
 import {
   bootstrapPlayerEcsRuntime,
@@ -18,7 +13,6 @@ import {
   createFollowCamera,
   createSceneRuntime,
   createWorldEnvironment,
-  showPhysicsBodies,
 } from './sceneRuntime.ts';
 
 const ENEMY_MODEL_PATH = '/models/ladron.glb';
@@ -51,7 +45,7 @@ const INITIAL_ENEMY_CONFIG = {
   attackRange: 2,
   attackCooldown: 1.5,
   displayName: 'Bandit',
-  debug: true,
+  debug: false,
 };
 
 export async function startGame() {
@@ -70,7 +64,7 @@ export async function startGame() {
   const { playerAnimations, playerMesh, shoulderAnchor } =
     await loadPlayerCharacter(scene);
   const camera = createFollowCamera(scene, shoulderAnchor);
-  const { ecsRuntime, playerDebugApi } = bootstrapPlayerEcsRuntime({
+  const { ecsRuntime } = bootstrapPlayerEcsRuntime({
     camera,
     enemyUi,
     engine,
@@ -95,7 +89,7 @@ export async function startGame() {
   );
 
   createGameFlowUi(scene, ecsRuntime.gameFlow);
-  await setupOptionalDebugTools(playerDebugApi, playerMesh, enemies, camera);
+  setupInspectorToggle(scene);
 
   engine.runRenderLoop(() => {
     scene.render();
@@ -106,29 +100,72 @@ export async function startGame() {
   });
 }
 
-async function setupOptionalDebugTools(
-  playerDebugApi: PlayerDebugApi,
-  playerMesh: RuntimePlayerMesh,
-  enemies: EnemyRuntimeFacade[],
-  camera: ReturnType<typeof createFollowCamera>,
-) {
-  const searchParams = new URLSearchParams(window.location.search);
+function setupInspectorToggle(scene: Scene) {
+  let toggleInFlight = false;
 
-  if (!searchParams.has('debug')) {
-    return;
+  const keyboardObserver = scene.onKeyboardObservable.add(
+    async (keyboardInfo) => {
+      if (keyboardInfo.type !== KeyboardEventTypes.KEYDOWN) {
+        return;
+      }
+
+      const event = keyboardInfo.event as KeyboardEvent;
+      const key = event.key.toLowerCase();
+
+      if (
+        key !== 'i' ||
+        !event.shiftKey ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.repeat ||
+        shouldIgnoreInspectorHotkeyTarget(event.target)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (toggleInFlight) {
+        return;
+      }
+
+      toggleInFlight = true;
+
+      try {
+        if (scene.debugLayer.isVisible()) {
+          scene.debugLayer.hide();
+          return;
+        }
+
+        await scene.debugLayer.show();
+      } catch (error) {
+        console.error(
+          'Failed to open Babylon Inspector. Restart the Vite dev server so it can rebuild optimized dependencies for the inspector bundle.',
+          error,
+        );
+      } finally {
+        toggleInFlight = false;
+      }
+    },
+  );
+
+  scene.onDisposeObservable.add(() => {
+    if (keyboardObserver) {
+      scene.onKeyboardObservable.remove(keyboardObserver);
+    }
+  });
+}
+
+function shouldIgnoreInspectorHotkeyTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
   }
 
-  const [{ DebugGUI }] = await Promise.all([import('../DebugGUI.ts')]);
-
-  const debugGui = new DebugGUI();
-  debugGui.setupPlayerControls(playerDebugApi);
-  debugGui.addLogButton(playerDebugApi);
-  debugGui.setupModelControls(playerMesh);
-  debugGui.setupEnemyControls(enemies);
-  debugGui.setupCameraControls(camera);
-  debugGui.setupSceneControls(camera.getScene());
-
-  if (searchParams.has('physics')) {
-    showPhysicsBodies(camera.getScene());
-  }
+  return (
+    target.isContentEditable ||
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT'
+  );
 }

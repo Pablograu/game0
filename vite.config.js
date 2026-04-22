@@ -1,14 +1,14 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vite';
 
 export default defineConfig({
   optimizeDeps: {
-    exclude: ['@babylonjs/havok']
+    exclude: ['@babylonjs/havok'],
   },
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp'
-    }
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
   },
-  assetsInclude: ['**/*.wasm']
-})
+  assetsInclude: ['**/*.wasm'],
+});

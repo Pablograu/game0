@@ -78,7 +78,7 @@ export function createGameFlowUi(
   const onKeyDown = (event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
 
-    if (key !== 'escape' && key !== 'p') {
+    if (key !== 'escape') {
       return;
     }
 

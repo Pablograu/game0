@@ -143,20 +143,3 @@ export function createWorldEnvironment(
   // for color white
   scene.fogColor = new Color3(0, 0, 0);
 }
-
-export function showPhysicsBodies(scene: Scene) {
-  const nodes: Array<Mesh | TransformNode> = [
-    ...scene.meshes,
-    ...scene.transformNodes,
-  ];
-
-  void import('@babylonjs/core').then(({ PhysicsViewer }) => {
-    const viewer = new PhysicsViewer(scene);
-
-    nodes.forEach((node) => {
-      if (node.physicsBody) {
-        viewer.showBody(node.physicsBody);
-      }
-    });
-  });
-}

@@ -18,10 +18,8 @@ import { InventoryUiManager } from '../InventoryUiManager.ts';
 import { WeaponSystem } from '../WeaponSystem.ts';
 import {
   bootstrapGameEcs,
-  createPlayerDebugApi,
   type EnemyUiApi,
   type GameEcsRuntime,
-  type PlayerDebugApi,
 } from '../ecs/index.ts';
 import { PlayerInventoryComponent } from '../ecs/player/components/index.ts';
 import {
@@ -46,7 +44,6 @@ export interface LoadedPlayerCharacter {
 export interface PlayerEcsBootstrap {
   cameraShaker: CameraShaker;
   ecsRuntime: GameEcsRuntime;
-  playerDebugApi: PlayerDebugApi;
 }
 
 export async function loadPlayerCharacter(
@@ -183,7 +180,7 @@ export function bootstrapPlayerEcsRuntime(options: {
       damage: 1,
       attackDuration: 0.15,
       attackCooldown: 0,
-      debug: true,
+      debug: false,
       cameraShaker,
       hitboxOffset: 1.8,
     },
@@ -254,14 +251,8 @@ export function bootstrapPlayerEcsRuntime(options: {
     },
   });
 
-  const playerDebugApi = createPlayerDebugApi(
-    ecsRuntime.world,
-    ecsRuntime.playerEntityId,
-  );
-
   return {
     cameraShaker,
     ecsRuntime,
-    playerDebugApi,
   };
 }
