@@ -173,9 +173,9 @@ export function createEnemyEntity(options: CreateEnemyEntityOptions): EntityId {
   options.world.addComponent(entityId, EnemyRagdollStateComponent, {
     mode:
       options.skeleton && options.armatureNode
-        ? EnemyRagdollMode.READY
+        ? EnemyRagdollMode.DEFERRED
         : EnemyRagdollMode.UNINITIALIZED,
-    ragdoll: createEnemyRagdoll(options.skeleton, options.armatureNode),
+    ragdoll: null,
     ragdollSkeleton: options.skeleton,
     ragdollArmatureNode: options.armatureNode,
     lastKnockbackDir: Vector3.Zero(),
@@ -215,7 +215,7 @@ function initializeEnemyAnimationGroups(animationGroups: AnimationGroup[]) {
   return groups;
 }
 
-function createEnemyRagdoll(
+export function createEnemyRagdoll(
   skeleton: Skeleton | null,
   armatureNode: TransformNode | null,
 ): Ragdoll | null {

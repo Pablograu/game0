@@ -3,7 +3,6 @@ import { PlayerTagComponent } from '../components/PlayerTagComponent.ts';
 import type { EntityId } from '../core/Entity.ts';
 import type { World } from '../core/World.ts';
 import {
-  createPlayerRagdoll,
   initializePlayerAnimationGroups,
   resolvePlayerGameplayConfig,
   type PlayerBootstrapRuntime,
@@ -53,10 +52,6 @@ export function createPlayerEntity(
     options.playerAnimations,
     gameplayConfig.blendingSpeed,
     scene,
-  );
-  const ragdoll = createPlayerRagdoll(
-    options.ragdollSkeleton ?? null,
-    options.ragdollArmatureNode ?? null,
   );
   const entityId = world.createEntity();
 
@@ -213,8 +208,11 @@ export function createPlayerEntity(
   });
 
   world.addComponent(entityId, PlayerRagdollStateComponent, {
-    mode: ragdoll ? PlayerRagdollMode.READY : PlayerRagdollMode.UNINITIALIZED,
-    ragdoll,
+    mode:
+      options.ragdollSkeleton && options.ragdollArmatureNode
+        ? PlayerRagdollMode.DEFERRED
+        : PlayerRagdollMode.UNINITIALIZED,
+    ragdoll: null,
     ragdollSkeleton: options.ragdollSkeleton ?? null,
     ragdollArmatureNode: options.ragdollArmatureNode ?? null,
     lastKnockbackDir: Vector3.Zero(),

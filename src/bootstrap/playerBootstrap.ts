@@ -69,10 +69,10 @@ export async function loadPlayerCharacter(
   physicsCapsule.isVisible = false;
   physicsCapsule.checkCollisions = true;
   physicsCapsule.scaling = new Vector3(1, 1, 1);
-  physicsCapsule.rotationQuaternion = Quaternion.FromEulerAngles(0, Math.PI, 0);
 
   rootMesh.parent = physicsCapsule;
   rootMesh.position = new Vector3(0, -1.1, 0);
+  rootMesh.scaling.setAll(1.8);
 
   physicsCapsule.skeleton = skeleton;
   physicsCapsule.armatureNode = armatureNode ?? null;

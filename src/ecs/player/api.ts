@@ -11,7 +11,7 @@ import {
   PlayerRagdollStateComponent,
   PlayerSurvivabilityRequestComponent,
 } from './components/index.ts';
-import { createPlayerRagdoll } from './runtime/playerRuntime.ts';
+import { PlayerRagdollMode } from './PlayerStateEnums.ts';
 
 export interface PlayerCombatTargetApi {
   takeDamage(amount: number, damageSourcePosition?: Vector3 | null): void;
@@ -86,7 +86,8 @@ export function initializePlayerRagdoll(
   disposeRagdoll(ragdoll.ragdoll);
   ragdoll.ragdollSkeleton = skeleton;
   ragdoll.ragdollArmatureNode = armatureNode;
-  ragdoll.ragdoll = createPlayerRagdoll(skeleton, armatureNode);
+  ragdoll.ragdoll = null;
+  ragdoll.mode = PlayerRagdollMode.DEFERRED;
 }
 
 export function configurePlayerTuning(
