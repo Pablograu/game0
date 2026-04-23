@@ -64,7 +64,7 @@ export function createFollowCamera(scene: Scene, target: TransformNode) {
     'camera',
     -Math.PI / 2,
     Math.PI / 2.5,
-    20,
+    100,
     Vector3.Zero(),
     scene,
   );
@@ -72,7 +72,7 @@ export function createFollowCamera(scene: Scene, target: TransformNode) {
   camera.lockedTarget = target as unknown as AbstractMesh;
   camera.attachControl();
   camera.lowerRadiusLimit = 3;
-  camera.upperRadiusLimit = 20;
+  camera.upperRadiusLimit = 140;
   camera.lowerBetaLimit = 0.3;
   camera.upperBetaLimit = Math.PI / 2 + 0.2;
   camera.checkCollisions = true;

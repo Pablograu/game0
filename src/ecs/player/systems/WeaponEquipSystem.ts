@@ -1,4 +1,4 @@
-import { Quaternion, Vector3 } from '@babylonjs/core';
+import { Quaternion, TransformNode, Vector3 } from '@babylonjs/core';
 import type { EntityId } from '../../core/Entity.ts';
 import type { EcsSystem } from '../../core/System.ts';
 import type { World } from '../../core/World.ts';
@@ -11,13 +11,13 @@ import { getActiveWeaponType } from '../inventory/inventoryHelpers.ts';
 const HAND_BONE_NAME = 'mixamorig:RightHand';
 
 export const gripConfig = {
-  positionX: 0,
-  positionY: 0.05,
-  positionZ: 0,
-  rotationX: 0,
-  rotationY: 0,
-  rotationZ: 1.74,
+  position: new Vector3(0.1, 0.4237878620624542, -0.2691417634487152),
+
+  rotation: Quaternion.FromEulerAngles(0.4, 0, 1.3),
 };
+
+// pos globalThis.debugNode.position = new Vector3(0.08343032002449036, 0.4237878620624542, -0.2691417634487152); // (debugNode as Unknown)
+// globalThis.debugNode.rotationQuaternion = new Quaternion(0.11336542475311717, -0.07019555184652146, 0.6733676145130238, 0.7271842412322668);
 
 export class WeaponEquipSystem implements EcsSystem {
   readonly name = 'WeaponEquipSystem';
@@ -38,19 +38,7 @@ export class WeaponEquipSystem implements EcsSystem {
         PlayerPhysicsViewRefsComponent,
       )!;
 
-      // Apply grip offset every frame so debug slider changes take effect immediately
-      if (inv.equippedWeaponNode) {
-        inv.equippedWeaponNode.position.set(
-          gripConfig.positionX,
-          gripConfig.positionY,
-          gripConfig.positionZ,
-        );
-        inv.equippedWeaponNode.rotationQuaternion = Quaternion.FromEulerAngles(
-          gripConfig.rotationX,
-          gripConfig.rotationY,
-          gripConfig.rotationZ,
-        );
-      }
+      // Grip offset is baked at equip time onto the visual child node — nothing to reapply per frame.
 
       const curr = getActiveWeaponType(inv);
       const prev = this.prevWeaponType.get(playerId) ?? CarriedWeaponType.NONE;
@@ -112,6 +100,18 @@ export class WeaponEquipSystem implements EcsSystem {
         0.5 / handWorldScale.y,
         0.5 / handWorldScale.z,
       );
+
+      // The GLB root is just a scale-compensation container. The actual model
+      // lives one level below. Apply grip offset/rotation to that visual node
+      // so the inspector values (which are relative to the root) match exactly.
+      const visualNode =
+        (weaponNode.getChildTransformNodes(true)[0] as
+          | TransformNode
+          | undefined) ?? weaponNode;
+      visualNode.position.copyFrom(gripConfig.position);
+      visualNode.rotationQuaternion = gripConfig.rotation.clone();
+
+      console.log('arma?? ', visualNode);
 
       inv.equippedWeaponNode = weaponNode;
     }

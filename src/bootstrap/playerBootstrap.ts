@@ -144,8 +144,16 @@ export async function loadPlayerCharacter(
 
   const shoulderAnchor = new TransformNode('shoulderAnchor', scene);
   // Keep the OTS pivot on the same visual root that receives yaw updates.
+  // Since shoulderAnchor is a child of rootMesh (scale 1.8), divide the
+  // desired world offsets by rootMesh.scaling so world position stays correct.
+  //   target world Y from capsule center = 1.0 (neck/shoulder height)
+  //   local Y = (1.0 - rootMesh.position.y) / rootMesh.scaling.y
   shoulderAnchor.parent = rootMesh;
-  shoulderAnchor.position = new Vector3(0.5, 1.5 - rootMesh.position.y, 0);
+  shoulderAnchor.position = new Vector3(
+    0.4 / rootMesh.scaling.x,
+    (1.0 - rootMesh.position.y) / rootMesh.scaling.y,
+    0,
+  );
 
   return {
     playerAnimations: animationRegistry,
