@@ -13,11 +13,8 @@ const HAND_BONE_NAME = 'mixamorig:RightHand';
 export const gripConfig = {
   position: new Vector3(0.1, 0.4237878620624542, -0.2691417634487152),
 
-  rotation: Quaternion.FromEulerAngles(0.4, 0, 1.3),
+  rotation: Quaternion.FromEulerAngles(0, 0, 1.3),
 };
-
-// pos globalThis.debugNode.position = new Vector3(0.08343032002449036, 0.4237878620624542, -0.2691417634487152); // (debugNode as Unknown)
-// globalThis.debugNode.rotationQuaternion = new Quaternion(0.11336542475311717, -0.07019555184652146, 0.6733676145130238, 0.7271842412322668);
 
 export class WeaponEquipSystem implements EcsSystem {
   readonly name = 'WeaponEquipSystem';

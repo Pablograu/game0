@@ -11,7 +11,7 @@ const IDLE_PIVOT_X = 0.5;
 
 const AIM_RADIUS = 3.5;
 const AIM_FOV = 0.8;
-const AIM_PIVOT_X = 1.5;
+const AIM_PIVOT_X = 0.8;
 
 const LERP_SPEED = 10;
 
