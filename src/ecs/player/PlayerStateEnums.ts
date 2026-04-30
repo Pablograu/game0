@@ -31,6 +31,7 @@ export enum PlayerLifeState {
 
 export enum PlayerRagdollMode {
   UNINITIALIZED = 'UNINITIALIZED',
+  DEFERRED = 'DEFERRED',
   READY = 'READY',
   ACTIVE = 'ACTIVE',
 }

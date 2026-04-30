@@ -41,6 +41,7 @@ import {
   PlayerJumpSystem,
   PlayerMovementSystem,
   PlayerPresentationSystem,
+  PlayerSpineBendSystem,
   PlayerSurvivabilitySystem,
   PlayerUiSyncSystem,
   PlayerWeaponHitSystem,
@@ -121,6 +122,7 @@ export function bootstrapGameEcs(
     world.registerSystem(new PlayerAnimationSystem());
     world.registerSystem(new PlayerCameraAimSystem());
     world.registerSystem(new PlayerPresentationSystem());
+    world.registerSystem(new PlayerSpineBendSystem());
     world.registerSystem(new PlayerUiSyncSystem());
 
     if (options.inventoryUi) {

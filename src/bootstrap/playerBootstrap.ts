@@ -18,10 +18,8 @@ import { InventoryUiManager } from '../InventoryUiManager.ts';
 import { WeaponSystem } from '../WeaponSystem.ts';
 import {
   bootstrapGameEcs,
-  createPlayerDebugApi,
   type EnemyUiApi,
   type GameEcsRuntime,
-  type PlayerDebugApi,
 } from '../ecs/index.ts';
 import { PlayerInventoryComponent } from '../ecs/player/components/index.ts';
 import {
@@ -46,7 +44,6 @@ export interface LoadedPlayerCharacter {
 export interface PlayerEcsBootstrap {
   cameraShaker: CameraShaker;
   ecsRuntime: GameEcsRuntime;
-  playerDebugApi: PlayerDebugApi;
 }
 
 export async function loadPlayerCharacter(
@@ -72,10 +69,10 @@ export async function loadPlayerCharacter(
   physicsCapsule.isVisible = false;
   physicsCapsule.checkCollisions = true;
   physicsCapsule.scaling = new Vector3(1, 1, 1);
-  physicsCapsule.rotationQuaternion = Quaternion.FromEulerAngles(0, Math.PI, 0);
 
   rootMesh.parent = physicsCapsule;
   rootMesh.position = new Vector3(0, -1.1, 0);
+  rootMesh.scaling.setAll(1.8);
 
   physicsCapsule.skeleton = skeleton;
   physicsCapsule.armatureNode = armatureNode ?? null;
@@ -147,8 +144,16 @@ export async function loadPlayerCharacter(
 
   const shoulderAnchor = new TransformNode('shoulderAnchor', scene);
   // Keep the OTS pivot on the same visual root that receives yaw updates.
+  // Since shoulderAnchor is a child of rootMesh (scale 1.8), divide the
+  // desired world offsets by rootMesh.scaling so world position stays correct.
+  //   target world Y from capsule center = 1.0 (neck/shoulder height)
+  //   local Y = (1.0 - rootMesh.position.y) / rootMesh.scaling.y
   shoulderAnchor.parent = rootMesh;
-  shoulderAnchor.position = new Vector3(0.5, 1.5 - rootMesh.position.y, 0);
+  shoulderAnchor.position = new Vector3(
+    0.4 / rootMesh.scaling.x,
+    (1.0 - rootMesh.position.y) / rootMesh.scaling.y,
+    0,
+  );
 
   return {
     playerAnimations: animationRegistry,
@@ -183,7 +188,7 @@ export function bootstrapPlayerEcsRuntime(options: {
       damage: 1,
       attackDuration: 0.15,
       attackCooldown: 0,
-      debug: true,
+      debug: false,
       cameraShaker,
       hitboxOffset: 1.8,
     },
@@ -254,14 +259,8 @@ export function bootstrapPlayerEcsRuntime(options: {
     },
   });
 
-  const playerDebugApi = createPlayerDebugApi(
-    ecsRuntime.world,
-    ecsRuntime.playerEntityId,
-  );
-
   return {
     cameraShaker,
     ecsRuntime,
-    playerDebugApi,
   };
 }

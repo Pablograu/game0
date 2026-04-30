@@ -117,6 +117,16 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
         physicsRefs.mesh.visibility = 1;
       }
 
+      if (ragdoll.mode === PlayerRagdollMode.DEFERRED) {
+        ragdoll.ragdoll = createPlayerRagdoll(
+          ragdoll.ragdollSkeleton,
+          ragdoll.ragdollArmatureNode,
+        );
+        ragdoll.mode = ragdoll.ragdoll
+          ? PlayerRagdollMode.READY
+          : PlayerRagdollMode.UNINITIALIZED;
+      }
+
       if (ragdoll.mode === PlayerRagdollMode.READY && ragdoll.ragdoll) {
         const ragdollApi = ragdoll.ragdoll as EcsRagdollApi;
         ragdollApi.ragdoll();
@@ -231,13 +241,11 @@ export class PlayerSurvivabilitySystem implements EcsSystem {
     physicsRefs.body?.setAngularVelocity(Vector3.Zero());
 
     this.disposeRagdoll(ragdoll.ragdoll);
-    ragdoll.ragdoll = createPlayerRagdoll(
-      ragdoll.ragdollSkeleton,
-      ragdoll.ragdollArmatureNode,
-    );
-    ragdoll.mode = ragdoll.ragdoll
-      ? PlayerRagdollMode.READY
-      : PlayerRagdollMode.UNINITIALIZED;
+    ragdoll.ragdoll = null;
+    ragdoll.mode =
+      ragdoll.ragdollSkeleton && ragdoll.ragdollArmatureNode
+        ? PlayerRagdollMode.DEFERRED
+        : PlayerRagdollMode.UNINITIALIZED;
     ragdoll.pendingImpulse = null;
     ragdoll.pendingImpulseDelay = 0;
 

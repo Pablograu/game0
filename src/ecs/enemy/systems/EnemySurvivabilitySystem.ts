@@ -23,6 +23,7 @@ import {
   isEnemyGameplayPaused,
   transitionEnemyBehavior,
 } from './enemyRuntimeUtils.ts';
+import { createEnemyRagdoll } from '../createEnemyEntity.ts';
 
 interface EcsEnemyRagdollApi {
   ragdoll(): void;
@@ -104,6 +105,16 @@ export class EnemySurvivabilitySystem implements EcsSystem {
         for (const mesh of refs.meshes) {
           mesh.checkCollisions = false;
           mesh.isPickable = true;
+        }
+
+        if (ragdoll.mode === EnemyRagdollMode.DEFERRED) {
+          ragdoll.ragdoll = createEnemyRagdoll(
+            ragdoll.ragdollSkeleton,
+            ragdoll.ragdollArmatureNode,
+          );
+          ragdoll.mode = ragdoll.ragdoll
+            ? EnemyRagdollMode.READY
+            : EnemyRagdollMode.UNINITIALIZED;
         }
 
         if (ragdoll.mode === EnemyRagdollMode.READY && ragdoll.ragdoll) {

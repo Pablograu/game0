@@ -63,7 +63,7 @@ export function createFollowCamera(scene: Scene, target: TransformNode) {
     "camera",
     -Math.PI / 2,
     Math.PI / 2.5,
-    20,
+    100,
     Vector3.Zero(),
     scene,
   );
@@ -73,7 +73,7 @@ export function createFollowCamera(scene: Scene, target: TransformNode) {
   camera.minZ = 0.05;
   camera.maxZ = 500;
   camera.lowerRadiusLimit = 3;
-  camera.upperRadiusLimit = 20;
+  camera.upperRadiusLimit = 140;
   camera.lowerBetaLimit = 0.3;
   camera.upperBetaLimit = Math.PI / 2 + 0.2;
   camera.checkCollisions = true;
@@ -221,21 +221,4 @@ export async function createWorldEnvironment(
   // scene.fogMode = Scene.FOGMODE_EXP;
   // scene.fogDensity = 0.02;
   // scene.fogColor = new Color3(0, 0, 0);
-}
-
-export function showPhysicsBodies(scene: Scene) {
-  const nodes: Array<Mesh | TransformNode> = [
-    ...scene.meshes,
-    ...scene.transformNodes,
-  ];
-
-  void import("@babylonjs/core").then(({ PhysicsViewer }) => {
-    const viewer = new PhysicsViewer(scene);
-
-    nodes.forEach((node) => {
-      if (node.physicsBody) {
-        viewer.showBody(node.physicsBody);
-      }
-    });
-  });
 }

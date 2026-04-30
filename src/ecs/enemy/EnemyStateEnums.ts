@@ -20,6 +20,7 @@ export enum EnemyCombatMode {
 
 export enum EnemyRagdollMode {
   UNINITIALIZED = 'UNINITIALIZED',
+  DEFERRED = 'DEFERRED',
   READY = 'READY',
   ACTIVE = 'ACTIVE',
   DISPOSED = 'DISPOSED',
