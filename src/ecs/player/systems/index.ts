@@ -11,6 +11,7 @@ export * from './PlayerInputSystem.ts';
 export * from './PlayerJumpSystem.ts';
 export * from './PlayerMovementSystem.ts';
 export * from './PlayerPresentationSystem.ts';
+export * from './PlayerSpineBendSystem.ts';
 export * from './PlayerSurvivabilitySystem.ts';
 export * from './PlayerUiSyncSystem.ts';
 export * from './PlayerWeaponHitSystem.ts';
