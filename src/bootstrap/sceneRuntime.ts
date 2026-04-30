@@ -1,25 +1,24 @@
 import {
   ArcRotateCamera,
-  Color3,
   DirectionalLight,
   Engine,
   HavokPlugin,
   HDRCubeTexture,
   HemisphericLight,
+  Material,
   Mesh,
-  MeshBuilder,
   PhysicsAggregate,
   PhysicsShapeType,
   Scene,
+  ImportMeshAsync,
   ShadowGenerator,
-  StandardMaterial,
   type AbstractMesh,
   type TransformNode,
   Vector3,
-} from '@babylonjs/core';
-import HavokPhysics from '@babylonjs/havok';
-import { AudioManager } from '../AudioManager.ts';
-import { EffectManager } from '../EffectManager.ts';
+} from "@babylonjs/core";
+import HavokPhysics from "@babylonjs/havok";
+import { AudioManager } from "../AudioManager.ts";
+import { EffectManager } from "../EffectManager.ts";
 
 export const COL_ENVIRONMENT = 0x0001;
 export const COL_PLAYER = 0x0002;
@@ -33,7 +32,7 @@ export interface SceneRuntime {
 }
 
 export async function createSceneRuntime(
-  canvasId: string = 'renderCanvas',
+  canvasId: string = "renderCanvas",
 ): Promise<SceneRuntime> {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
 
@@ -61,7 +60,7 @@ export async function createSceneRuntime(
 
 export function createFollowCamera(scene: Scene, target: TransformNode) {
   const camera = new ArcRotateCamera(
-    'camera',
+    "camera",
     -Math.PI / 2,
     Math.PI / 2.5,
     20,
@@ -71,6 +70,8 @@ export function createFollowCamera(scene: Scene, target: TransformNode) {
 
   camera.lockedTarget = target as unknown as AbstractMesh;
   camera.attachControl();
+  camera.minZ = 0.05;
+  camera.maxZ = 500;
   camera.lowerRadiusLimit = 3;
   camera.upperRadiusLimit = 20;
   camera.lowerBetaLimit = 0.3;
@@ -81,55 +82,134 @@ export function createFollowCamera(scene: Scene, target: TransformNode) {
   return camera;
 }
 
-export function createWorldEnvironment(
+export async function createWorldEnvironment(
   scene: Scene,
   playerMesh: Mesh,
   enemyMeshes: AbstractMesh[],
 ) {
-  const hdrTexture = new HDRCubeTexture('/hdr/skybox.hdr', scene, 1024);
+  const hdrTexture = new HDRCubeTexture("/hdr/skybox.hdr", scene, 1024);
   scene.environmentTexture = hdrTexture;
   scene.environmentIntensity = 1;
   scene.createDefaultSkybox(hdrTexture, true, 1000, 0);
 
-  // get player bone names
-  console.log(
-    scene.getMeshByName('player').skeleton.bones.map((bone) => {
-      return bone.name;
-    }),
-  );
-
   const ambientLight = new HemisphericLight(
-    'light',
+    "light",
     new Vector3(0, 1, 0),
     scene,
   );
   ambientLight.intensity = 0.3;
 
-  const ground = MeshBuilder.CreateGround(
-    'ground',
-    { width: 500, height: 500 },
-    scene,
-  );
-  ground.position.y = 0;
-  ground.checkCollisions = true;
-  ground.receiveShadows = true;
+  // Load town environment model
+  const result = await ImportMeshAsync("/models/misty-town.glb", scene);
+  const importedMeshes = result.meshes;
+  const townRoot = result.meshes[0];
+  townRoot.name = "misty-town-root";
+  townRoot.position = Vector3.Zero();
+  // Adjust scale if the town appears too large or too small at runtime
+  townRoot.scaling = new Vector3(1.5, 1.5, 1.5);
 
-  const groundMaterial = new StandardMaterial('groundMat', scene);
-  groundMaterial.diffuseColor = new Color3(0.2, 0.8, 0.2);
-  ground.material = groundMaterial;
+  // Force world matrices to propagate the scale before we freeze/merge
+  townRoot.computeWorldMatrix(true);
 
-  new PhysicsAggregate(
-    ground,
-    PhysicsShapeType.BOX,
-    {
-      mass: 0,
-      restitution: 0.1,
-      friction: 0.5,
-    },
-    scene,
-  );
+  for (const mesh of importedMeshes) {
+    mesh.alwaysSelectAsActiveMesh = mesh.getTotalVertices() === 0;
+    mesh.computeWorldMatrix(true);
+  }
 
-  const sun = new DirectionalLight('sun', new Vector3(-1, -2, -1), scene);
+  const importedMaterials = new Set<NonNullable<AbstractMesh["material"]>>();
+
+  for (const mesh of importedMeshes) {
+    if (!mesh.material) {
+      continue;
+    }
+
+    importedMaterials.add(mesh.material);
+
+    if (
+      "subMaterials" in mesh.material &&
+      Array.isArray(mesh.material.subMaterials)
+    ) {
+      for (const subMaterial of mesh.material.subMaterials) {
+        if (subMaterial) {
+          importedMaterials.add(subMaterial);
+        }
+      }
+    }
+  }
+
+  for (const material of importedMaterials) {
+    if (!material) {
+      continue;
+    }
+
+    const materialName = material.name.toLowerCase();
+    const isGlassMaterial = materialName.includes("glass");
+    const isCutoutMaterial = false;
+    // materialName.includes("grass") ||
+    // materialName.includes("tree") ||
+    // materialName.includes("flower") ||
+    // materialName.includes("leaf") ||
+    // materialName.includes("bush") ||
+    // materialName.includes("decal") ||
+    // materialName.includes("sign");
+
+    material.needDepthPrePass = isGlassMaterial || isCutoutMaterial;
+    material.separateCullingPass = false;
+    material.backFaceCulling = false;
+
+    if ("transparencyMode" in material) {
+      if (isGlassMaterial) {
+        material.transparencyMode = Material.MATERIAL_ALPHABLEND;
+      } else if (isCutoutMaterial) {
+        material.transparencyMode = Material.MATERIAL_ALPHATESTANDBLEND;
+      } else {
+        material.transparencyMode = Material.MATERIAL_OPAQUE;
+      }
+    }
+
+    if (isCutoutMaterial) {
+      material.forceDepthWrite = true;
+    }
+
+    if (isGlassMaterial) {
+      if ("useAlphaFromAlbedoTexture" in material) {
+        material.useAlphaFromAlbedoTexture = true;
+      }
+
+      if ("useAlphaFromDiffuseTexture" in material) {
+        material.useAlphaFromDiffuseTexture = true;
+      }
+    }
+
+    if ("twoSidedLighting" in material) {
+      material.twoSidedLighting = isGlassMaterial || isCutoutMaterial;
+    }
+  }
+
+  const geometryMeshes = importedMeshes.filter(
+    (m) => m.getTotalVertices() > 0,
+  ) as Mesh[];
+
+  // Freeze all static town meshes to prevent per-frame transform + bounding recomputes,
+  // then give each its own static Havok shape (reliable, no merge failures).
+  for (const mesh of geometryMeshes) {
+    mesh.isPickable = false;
+    mesh.checkCollisions = false;
+    mesh.receiveShadows = false;
+    mesh.computeWorldMatrix(true);
+    mesh.refreshBoundingInfo(true, true);
+    mesh.freezeWorldMatrix();
+    mesh.material?.freeze();
+
+    new PhysicsAggregate(
+      mesh,
+      PhysicsShapeType.MESH,
+      { mass: 0, restitution: 0.1, friction: 0.7 },
+      scene,
+    );
+  }
+
+  const sun = new DirectionalLight("sun", new Vector3(-1, -2, -1), scene);
   sun.position = new Vector3(20, 40, 20);
   sun.intensity = 0.5;
 
@@ -138,10 +218,9 @@ export function createWorldEnvironment(
   enemyMeshes.forEach((mesh) => shadowGenerator.addShadowCaster(mesh));
   shadowGenerator.useExponentialShadowMap = true;
 
-  scene.fogMode = Scene.FOGMODE_EXP;
-  scene.fogDensity = 0.02;
-  // for color white
-  scene.fogColor = new Color3(0, 0, 0);
+  // scene.fogMode = Scene.FOGMODE_EXP;
+  // scene.fogDensity = 0.02;
+  // scene.fogColor = new Color3(0, 0, 0);
 }
 
 export function showPhysicsBodies(scene: Scene) {
@@ -150,7 +229,7 @@ export function showPhysicsBodies(scene: Scene) {
     ...scene.transformNodes,
   ];
 
-  void import('@babylonjs/core').then(({ PhysicsViewer }) => {
+  void import("@babylonjs/core").then(({ PhysicsViewer }) => {
     const viewer = new PhysicsViewer(scene);
 
     nodes.forEach((node) => {
